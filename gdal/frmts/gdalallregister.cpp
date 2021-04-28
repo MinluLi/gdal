@@ -589,6 +589,10 @@ void CPL_STDCALL GDALAllRegister()
     GDALRegister_STACTA();
 #endif
 
+#ifdef FRMT_cnsdtf
+    GDALRegister_CNSDTF();
+#endif
+
     // NOTE: you need to generally your own driver before that line.
 
 /* -------------------------------------------------------------------- */

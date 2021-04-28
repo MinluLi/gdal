@@ -668,10 +668,7 @@ void CPLDebug( const char * pszCategory,
         }
         CPLsnprintf(pszMessage+strlen(pszMessage),
                     ERROR_MAX - strlen(pszMessage),
-                    "].%04d, %03.04f: ",
-                    static_cast<int>(tv.tv_usec / 100),
-                    tv.tv_sec + tv.tv_usec * 1e-6 -
-                        (tvStart.tv_sec + tvStart.tv_usec * 1e-6));
+                    "]: ");
     }
 #endif
 

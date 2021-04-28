@@ -207,7 +207,7 @@ void CPL_DLL GDALRegister_STACTA(void);
 
 void CPL_DLL GDALRegister_TFATMBTiles(void);
 void CPL_DLL GDALRegister_CNSDTF(void);
-void CPL_DLL GDALRegister_LANDSAT(void);
+
 CPL_C_END
 
 #endif /* ndef GDAL_FRMTS_H_INCLUDED */
