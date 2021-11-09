@@ -41,3 +41,4 @@ gdal/packages*
 gdal/share
 
 
+gdal/autotest/cpp/x64/
