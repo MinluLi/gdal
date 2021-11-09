@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
 *
 * Project:  GDAL
 * Purpose:  Implements China Geospatial Data Transfer Grid Format.
@@ -53,7 +53,6 @@ class CPL_DLL NSDTFDataset : public GDALPamDataset
     CPLString	osDataVersion;
     GBool       bIsCompress;
     double      adfAlphaValue;
-    CPLString   osValueType;
     int			nHZoom;
     CPLString   osUnitType;
 
@@ -70,8 +69,6 @@ protected:
     double      adfGeoTransform[6];
     int         bNoDataSet;
     double      dfNoDataValue;
-    double      dfMin;
-    double      dfMax;
 
     int ParseHeader(const char* pszHeader);
 
@@ -110,8 +107,6 @@ public:
     NSDTFRasterBand(NSDTFDataset* poDS, int nDataStart);
     virtual       ~NSDTFRasterBand();
 
-    virtual double GetMinimum(int* pbSuccess);
-    virtual double GetMaximum(int* pbSuccess);
     virtual double GetNoDataValue(int* pbSuccess);
     virtual CPLErr SetNoDataValue(double dfNoData);
     virtual const char* GetUnitType();
@@ -256,36 +251,6 @@ CPLErr NSDTFRasterBand::IReadBlock(int nBlockXOff, int nBlockYOff,
 }
 
 /************************************************************************/
-/*                             GetMinimum()                             */
-/************************************************************************/
-
-double NSDTFRasterBand::GetMinimum(int* pbSuccess)
-
-{
-    NSDTFDataset* poODS = (NSDTFDataset*)poDS;
-
-    if (pbSuccess != nullptr)
-        *pbSuccess = TRUE;
-
-    return poODS->dfMin;
-}
-
-/************************************************************************/
-/*                             GetMaximum()                             */
-/************************************************************************/
-
-double NSDTFRasterBand::GetMaximum(int* pbSuccess)
-
-{
-    NSDTFDataset* poODS = (NSDTFDataset*)poDS;
-
-    if (pbSuccess != nullptr)
-        *pbSuccess = TRUE;
-
-    return poODS->dfMax;
-}
-
-/************************************************************************/
 /*                           GetNoDataValue()                           */
 /************************************************************************/
 
@@ -380,7 +345,7 @@ NSDTFDataset::NSDTFDataset()
     pszProjection = CPLStrdup("");
     fp = nullptr;
     eDataType = GDT_Int32;
-    bNoDataSet = FALSE;
+    bNoDataSet = TRUE;
     dfNoDataValue = -99999.0;
 
     adfGeoTransform[0] = 0.0;
@@ -397,10 +362,7 @@ NSDTFDataset::NSDTFDataset()
     osDataVersion = "1.0";
     bIsCompress = FALSE;
     adfAlphaValue = 0.0;
-    osValueType = "Integer";
     nHZoom = 1;
-    dfMin = 0.0;
-    dfMax = 0.0;
 }
 
 /************************************************************************/
@@ -455,8 +417,8 @@ char NSDTFDataset::Getc()
 
     nBufferOffset = VSIFTellL(fp);
     int nRead = VSIFReadL(achReadBuf, 1, sizeof(achReadBuf), fp);
-    unsigned int i;
-    for (i = nRead; i < sizeof(achReadBuf); i++)
+
+    for (size_t i = nRead; i < sizeof(achReadBuf); i++)
         achReadBuf[i] = '\0';
 
     nOffsetInBuffer = 0;
@@ -685,58 +647,41 @@ GDALDataset* NSDTFDataset::Open(GDALOpenInfo* poOpenInfo)
 
 int NSDTFDataset::ParseHeader(const char* pszHeader)
 {
-    int i, j;
-    char** papszTokens = CSLTokenizeString2(pszHeader, " \n\r\t:：", 0);
+    char** papszTokens = CSLTokenizeString2(pszHeader, " \n\r", 0);
     int nTokens = CSLCount(papszTokens);
-
-    if ((i = CSLFindString(papszTokens, "DataMark")) < 0 || i + 1 >= nTokens)
+    if ( nTokens < 14)
     {
         CSLDestroy(papszTokens);
         return FALSE;
     }
-    osDataMark = papszTokens[i + 1];
 
-    if ((i = CSLFindString(papszTokens, "Version")) < 0 || i + 1 >= nTokens)
+    if(!EQUAL(papszTokens[0], "NSDTF-DEM"))
     {
         CSLDestroy(papszTokens);
         return FALSE;
     }
-    osDataVersion = papszTokens[i + 1];
 
-    if ((i = CSLFindString(papszTokens, "Alpha")) < 0 || i + 1 >= nTokens)
+    if(!EQUAL(papszTokens[2], "M") &&!EQUAL(papszTokens[2], "D") && !EQUAL(papszTokens[2], "K") )
     {
         CSLDestroy(papszTokens);
         return FALSE;
     }
-    adfAlphaValue = CPLAtofM(papszTokens[i + 1]);
 
-    if ((i = CSLFindString(papszTokens, "Compress")) < 0 || i + 1 >= nTokens)
-    {
-        CSLDestroy(papszTokens);
-        return FALSE;
-    }
-    bIsCompress = atoi(papszTokens[i + 1]);
+    osDataMark = "NSDTF-DEM";
+    osDataVersion = papszTokens[1];
+    osUnitType = papszTokens[2];
+    adfAlphaValue = CPLAtofM(papszTokens[3]);
+    bIsCompress = atoi(papszTokens[4]);
 
-    if ((i = CSLFindString(papszTokens, "HZoom")) < 0 || i + 1 >= nTokens)
-    {
-        CSLDestroy(papszTokens);
-        return FALSE;
-    }
-    nHZoom = atoi(papszTokens[i + 1]);
+    adfGeoTransform[0] = CPLAtofM(papszTokens[5]);
+    adfGeoTransform[1] = CPLAtofM(papszTokens[7]);
+    adfGeoTransform[2] = 0.0;
+    adfGeoTransform[3] = CPLAtofM(papszTokens[6]);
+    adfGeoTransform[4] = 0.0;
+    adfGeoTransform[5] = -CPLAtofM(papszTokens[8]);
 
-    if ((i = CSLFindString(papszTokens, "Col")) < 0 || i + 1 >= nTokens)
-    {
-        CSLDestroy(papszTokens);
-        return FALSE;
-    }
-    nRasterXSize = atoi(papszTokens[i + 1]);
-
-    if ((i = CSLFindString(papszTokens, "Row")) < 0 || i + 1 >= nTokens)
-    {
-        CSLDestroy(papszTokens);
-        return FALSE;
-    }
-    nRasterYSize = atoi(papszTokens[i + 1]);
+    nRasterXSize = atoi(papszTokens[9]);
+    nRasterYSize = atoi(papszTokens[10]);
 
     if (!GDALCheckDatasetDimensions(nRasterXSize, nRasterYSize))
     {
@@ -744,107 +689,10 @@ int NSDTFDataset::ParseHeader(const char* pszHeader)
         return FALSE;
     }
 
-    double dfCellDX = 0;
-    double dfCellDY = 0;
-    if ((i = CSLFindString(papszTokens, "CELLSIZE")) < 0)
-    {
-        int iDX, iDY;
-        if ((iDX = CSLFindString(papszTokens, "DX")) < 0
-            || (iDY = CSLFindString(papszTokens, "DY")) < 0
-            || iDX + 1 >= nTokens
-            || iDY + 1 >= nTokens)
-        {
-            CSLDestroy(papszTokens);
-            return FALSE;
-        }
-
-        dfCellDX = CPLAtofM(papszTokens[iDX + 1]);
-        dfCellDY = CPLAtofM(papszTokens[iDY + 1]);
-    }
-    else
-    {
-        if (i + 1 >= nTokens)
-        {
-            CSLDestroy(papszTokens);
-            return FALSE;
-        }
-        dfCellDX = dfCellDY = CPLAtofM(papszTokens[i + 1]);
-    }
-
-    if ((i = CSLFindString(papszTokens, "X0")) >= 0 &&
-        (j = CSLFindString(papszTokens, "Y0")) >= 0 &&
-        i + 1 < nTokens && j + 1 < nTokens)
-    {
-        adfGeoTransform[0] = CPLAtofM(papszTokens[i + 1]);
-        adfGeoTransform[1] = dfCellDX;
-        adfGeoTransform[2] = 0.0;
-        adfGeoTransform[3] = CPLAtofM(papszTokens[j + 1]);
-        adfGeoTransform[4] = 0.0;
-        adfGeoTransform[5] = -dfCellDY;
-    }
-    else
-    {
-        adfGeoTransform[0] = 0.0;
-        adfGeoTransform[1] = dfCellDX;
-        adfGeoTransform[2] = 0.0;
-        adfGeoTransform[3] = 0.0;
-        adfGeoTransform[4] = 0.0;
-        adfGeoTransform[5] = -dfCellDY;
-    }
-
-    if ((i = CSLFindString(papszTokens, "ValueType")) < 0 || i + 1 >= nTokens)
-    {
-        CSLDestroy(papszTokens);
-        return FALSE;
-    }
-
-    osValueType = papszTokens[i + 1];
-    if (EQUAL(osValueType, "Integer"))
-    {
-        eDataType = GDT_Int32;
-        bNoDataSet = TRUE;
-        dfNoDataValue = -99999;
-    }
-    else if (EQUAL(osValueType, "Char"))
-    {
-        eDataType = GDT_Byte;
-    }
-    else
-    {
-        CSLDestroy(papszTokens);
-        return FALSE;
-    }
-
-    if ((i = CSLFindString(papszTokens, "NODATA_value")) >= 0 && i + 1 < nTokens)
-    {
-        const char* pszNoData = papszTokens[i + 1];
-
-        bNoDataSet = TRUE;
-        dfNoDataValue = CPLAtofM(pszNoData);
-        if ((strchr(pszNoData, '.') != nullptr ||
-            strchr(pszNoData, ',') != nullptr ||
-            INT_MIN > dfNoDataValue || dfNoDataValue > INT_MAX))
-        {
-            eDataType = GDT_Float32;
-        }
-
-        if (eDataType == GDT_Float32)
-        {
-            dfNoDataValue = (double)(float)dfNoDataValue;
-        }
-    }
-
-    if ((i = CSLFindString(papszTokens, "MinV")) >= 0 && i + 1 < nTokens)
-        dfMin = CPLAtofM(papszTokens[i + 1]);
-
-    if ((i = CSLFindString(papszTokens, "MaxV")) >= 0 && i + 1 < nTokens)
-        dfMax = CPLAtofM(papszTokens[i + 1]);
-
-    if ((i = CSLFindString(papszTokens, "Unit")) >= 0 && i + 1 < nTokens)
-        osUnitType = papszTokens[i + 1];
-
-    if ((i = CSLFindString(papszTokens, "ZUnit")) >= 0 && i + 1 < nTokens)
-        osUnitType = papszTokens[i + 1];
+    nHZoom = atoi(papszTokens[11]);
+    eDataType = GDT_Int32;
+    bNoDataSet = TRUE;
+    dfNoDataValue = CPLAtofM(papszTokens[12]);
 
     CSLDestroy(papszTokens);
     return TRUE;
