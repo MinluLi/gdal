@@ -500,7 +500,13 @@ CreateTupleFromDoubleArray( int *first, unsigned int size ) {
 {
   /* %typemap(argout) (size_t *nLen, char **pBuf ) */
   Py_XDECREF($result);
-  $result = PyByteArray_FromStringAndSize( *$2, *$1 );
+  if( *$2 ) {
+      $result = PyByteArray_FromStringAndSize( *$2, *$1 );
+  }
+  else {
+      $result = Py_None;
+      Py_INCREF(Py_None);
+  }
 }
 %typemap(freearg) (size_t *nLen, char **pBuf )
 {
@@ -535,7 +541,14 @@ CreateTupleFromDoubleArray( int *first, unsigned int size ) {
   if (PyUnicode_Check($input))
   {
     size_t safeLen = 0;
-    int ret = SWIG_AsCharPtrAndSize($input, (char**) &$2, &safeLen, &alloc);
+    int ret;
+    try {
+      ret = SWIG_AsCharPtrAndSize($input, (char**) &$2, &safeLen, &alloc);
+    }
+    catch( const std::exception& )
+    {
+      SWIG_exception_fail( SWIG_MemoryError, "out of memory");
+    }
     if (!SWIG_IsOK(ret)) {
       SWIG_exception( SWIG_RuntimeError, "invalid Unicode string" );
     }
@@ -585,7 +598,14 @@ CreateTupleFromDoubleArray( int *first, unsigned int size ) {
   if (PyUnicode_Check($input))
   {
     size_t safeLen = 0;
-    int ret = SWIG_AsCharPtrAndSize($input, (char**) &$2, &safeLen, &alloc);
+    int ret;
+    try {
+      ret = SWIG_AsCharPtrAndSize($input, (char**) &$2, &safeLen, &alloc);
+    }
+    catch( const std::exception& )
+    {
+      SWIG_exception_fail( SWIG_MemoryError, "out of memory");
+    }
     if (!SWIG_IsOK(ret)) {
       SWIG_exception( SWIG_RuntimeError, "invalid Unicode string" );
     }
@@ -632,7 +652,14 @@ CreateTupleFromDoubleArray( int *first, unsigned int size ) {
   if (PyUnicode_Check($input))
   {
     size_t safeLen = 0;
-    int ret = SWIG_AsCharPtrAndSize($input, (char**) &$2, &safeLen, &alloc);
+    int ret;
+    try {
+      ret = SWIG_AsCharPtrAndSize($input, (char**) &$2, &safeLen, &alloc);
+    }
+    catch( const std::exception& )
+    {
+      SWIG_exception_fail( SWIG_MemoryError, "out of memory");
+    }
     if (!SWIG_IsOK(ret)) {
       SWIG_exception( SWIG_RuntimeError, "invalid Unicode string" );
     }
@@ -939,13 +966,22 @@ CreateTupleFromDoubleArray( int *first, unsigned int size ) {
             SWIG_fail;
         }
 
-        PyObject* vStr = PyObject_Str(v);
-        if( PyErr_Occurred() )
+        PyObject* vStr;
+        if( PyBytes_Check(v) )
         {
-            Py_DECREF(it);
-            Py_DECREF(kStr);
-            Py_DECREF(item_list);
-            SWIG_fail;
+            vStr = v;
+            Py_INCREF(vStr);
+        }
+        else
+        {
+            vStr = PyObject_Str(v);
+            if( PyErr_Occurred() )
+            {
+                Py_DECREF(it);
+                Py_DECREF(kStr);
+                Py_DECREF(item_list);
+                SWIG_fail;
+            }
         }
 
         int bFreeK, bFreeV;
@@ -2340,6 +2376,51 @@ DecomposeSequenceOf4DCoordinates( PyObject *seq, int nCount, double *x, double *
 OBJECT_LIST_INPUT(GDALDimensionHS);
 
 
+%define OBJECT_LIST_INPUT_ITEM_MAY_BE_NULL(type)
+%typemap(in, numinputs=1) (int object_list_count, type **poObjectsItemMaybeNull)
+{
+  /*  OBJECT_LIST_INPUT %typemap(in) (int itemcount, type *optional_##type)*/
+  if ( !PySequence_Check($input) ) {
+    PyErr_SetString(PyExc_TypeError, "not a sequence");
+    SWIG_fail;
+  }
+  Py_ssize_t size = PySequence_Size($input);
+  if( size != (int)size ) {
+    PyErr_SetString(PyExc_TypeError, "too big sequence");
+    SWIG_fail;
+  }
+  $1 = (int)size;
+  $2 = (type**) CPLMalloc($1*sizeof(type*));
+
+  for( int i = 0; i<$1; i++ ) {
+
+      PyObject *o = PySequence_GetItem($input,i);
+      type* rawobjectpointer = NULL;
+      if( o != Py_None )
+      {
+          CPL_IGNORE_RET_VAL(SWIG_ConvertPtr( o, (void**)&rawobjectpointer, SWIGTYPE_p_##type, SWIG_POINTER_EXCEPTION | 0 ));
+          if (!rawobjectpointer) {
+              Py_DECREF(o);
+              PyErr_SetString(PyExc_TypeError, "object of wrong type");
+              SWIG_fail;
+          }
+      }
+      $2[i] = rawobjectpointer;
+      Py_DECREF(o);
+
+  }
+}
+
+%typemap(freearg)  (int object_list_count, type **poObjectsItemMaybeNull)
+{
+  /* OBJECT_LIST_INPUT %typemap(freearg) (int object_list_count, type **poObjectsItemMaybeNull)*/
+  CPLFree( $2 );
+}
+%enddef
+
+OBJECT_LIST_INPUT_ITEM_MAY_BE_NULL(GDALDimensionHS);
+
+
 /*
  * Typemap argout for GDALMDArrayGetDimensions()
  */
@@ -2364,6 +2445,34 @@ OBJECT_LIST_INPUT(GDALDimensionHS);
 %typemap(freearg) (GDALDimensionHS*** pdims, size_t* pnCount)
 {
   /* %typemap(freearg) (GDALDimensionHS*** pdims, size_t* pnCount) */
+  CPLFree(*$1);
+}
+
+
+/*
+ * Typemap argout for GDALMDArrayGetIndexingVariables()
+ */
+%typemap(in,numinputs=0) (GDALMDArrayHS*** parrays, size_t* pnCount) ( GDALMDArrayHS** arrays=0, size_t nCount = 0 )
+{
+  /* %typemap(in,numinputs=0) (GDALMDArrayHS*** parrays, size_t* pnCount) */
+  $1 = &arrays;
+  $2 = &nCount;
+}
+%typemap(argout) (GDALMDArrayHS*** parrays, size_t* pnCount)
+{
+  /* %typemap(argout) (GDALMDArrayHS*** parrays, size_t* pnCount) */
+  PyObject *list = PyList_New( *$2 );
+  for( size_t i = 0; i < *$2; i++ ) {
+    PyList_SetItem(list, i,
+       SWIG_NewPointerObj((void*)(*$1)[i],SWIGTYPE_p_GDALMDArrayHS,SWIG_POINTER_OWN) );
+  }
+  Py_DECREF($result);
+  $result = list;
+}
+
+%typemap(freearg) (GDALMDArrayHS*** parrays, size_t* pnCount)
+{
+  /* %typemap(freearg) (GDALMDArrayHS*** parrays, size_t* pnCount) */
   CPLFree(*$1);
 }
 
@@ -2684,4 +2793,21 @@ OBJECT_LIST_INPUT(GDALEDTComponentHS)
     }
   }
   $result = dict;
+}
+
+%typemap(in) (OSRSpatialReferenceShadow** optional_OSRSpatialReferenceShadow) ( OSRSpatialReferenceShadow* val )
+{
+  /* %typemap(in) (OSRSpatialReferenceShadow** optional_OSRSpatialReferenceShadow) */
+  if ( $input == Py_None ) {
+    $1 = NULL;
+  }
+  else {
+    void* argp = NULL;
+    int res = SWIG_ConvertPtr($input, &argp, SWIGTYPE_p_OSRSpatialReferenceShadow,  0  | 0);
+    if (!SWIG_IsOK(res)) {
+      SWIG_exception_fail(SWIG_ArgError(res), "argument of type != OSRSpatialReferenceShadow");
+    }
+    val = reinterpret_cast< OSRSpatialReferenceShadow * >(argp);
+    $1 = &val;
+  }
 }

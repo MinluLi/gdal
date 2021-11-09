@@ -172,6 +172,7 @@ Raster drivers
    snodas
    srp
    srtmhgt
+   stacit
    stacta
    terragen
    tga
@@ -187,4 +188,5 @@ Raster drivers
    wmts
    xpm
    xyz
+   zarr
    zmap

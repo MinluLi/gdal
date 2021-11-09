@@ -1417,11 +1417,7 @@ OGRErr OGRGPXLayer::CheckAndFixCoordinatesValidity( double* pdfLatitude, double*
                       *pdfLongitude);
         }
 
-        if (*pdfLongitude > 180)
-            *pdfLongitude -= (static_cast<int> ((*pdfLongitude+180)/360)*360);
-        else if (*pdfLongitude < -180)
-            *pdfLongitude += (static_cast<int> (180 - *pdfLongitude)/360)*360;
-
+        *pdfLongitude = fmod(*pdfLongitude + 180.0, 360.0) - 180.0;
         return OGRERR_NONE;
     }
 
@@ -1556,25 +1552,28 @@ OGRErr OGRGPXLayer::ICreateFeature( OGRFeature *poFeatureIn )
             }
         }
 
-        const int n = (line) ? line->getNumPoints() : 0;
         poDS->PrintLine("<rte>");
         WriteFeatureAttributes(poFeatureIn);
-        for( int i = 0; i < n; i++ )
+        if( line )
         {
-            double lat = line->getY(i);
-            double lon = line->getX(i);
-            CheckAndFixCoordinatesValidity(&lat, &lon);
-            poDS->AddCoord(lon, lat);
-            OGRFormatDouble(szLat, sizeof(szLat), lat, '.');
-            OGRFormatDouble(szLon, sizeof(szLon), lon, '.');
-            poDS->PrintLine("  <rtept lat=\"%s\" lon=\"%s\">", szLat, szLon);
-            if (poGeom->getGeometryType() == wkbLineString25D ||
-                poGeom->getGeometryType() == wkbMultiLineString25D)
+            const int n = line->getNumPoints();
+            for( int i = 0; i < n; i++ )
             {
-                OGRFormatDouble(szAlt, sizeof(szAlt), line->getZ(i), '.');
-                poDS->PrintLine("    <ele>%s</ele>", szAlt);
+                double lat = line->getY(i);
+                double lon = line->getX(i);
+                CheckAndFixCoordinatesValidity(&lat, &lon);
+                poDS->AddCoord(lon, lat);
+                OGRFormatDouble(szLat, sizeof(szLat), lat, '.');
+                OGRFormatDouble(szLon, sizeof(szLon), lon, '.');
+                poDS->PrintLine("  <rtept lat=\"%s\" lon=\"%s\">", szLat, szLon);
+                if (poGeom->getGeometryType() == wkbLineString25D ||
+                    poGeom->getGeometryType() == wkbMultiLineString25D)
+                {
+                    OGRFormatDouble(szAlt, sizeof(szAlt), line->getZ(i), '.');
+                    poDS->PrintLine("    <ele>%s</ele>", szAlt);
+                }
+                poDS->PrintLine("  </rtept>");
             }
-            poDS->PrintLine("  </rtept>");
         }
         poDS->PrintLine("</rte>");
     }

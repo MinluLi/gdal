@@ -116,8 +116,8 @@ method.
 
 The block size (tile width and height) used for overviews (internal or
 external) can be specified by setting the GDAL_TIFF_OVR_BLOCKSIZE
-environment variable to a power-of-two value between 64 and 4096. The 
-default is 128, or starting with GDAL 3.1 to use the same block size 
+environment variable to a power-of-two value between 64 and 4096. The
+default is 128, or starting with GDAL 3.1 to use the same block size
 as the full-resolution dataset if possible (i.e. block height and width
 are equal, a power-of-two, and between 64 and 4096).
 
@@ -374,17 +374,20 @@ Creation Options
    (UInt32 type) are also accepted. From GDAL 2.2, n=16 is accepted for
    Float32 type to generate half-precision floating point values.
 
--  **COMPRESS=[JPEG/LZW/PACKBITS/DEFLATE/CCITTRLE/CCITTFAX3/CCITTFAX4/LZMA/ZSTD/LERC/LERC_DEFLATE/LERC_ZSTD/WEBP/NONE]**:
+-  **COMPRESS=[JPEG/LZW/PACKBITS/DEFLATE/CCITTRLE/CCITTFAX3/CCITTFAX4/LZMA/ZSTD/LERC/LERC_DEFLATE/LERC_ZSTD/WEBP/JXL/NONE]**:
    Set the compression to use.
 
-   * ``JPEG`` should generally only be used with
-     Byte data (8 bit per channel). But if GDAL is built with internal libtiff and
-     libjpeg, it is    possible to read and write TIFF files with 12bit JPEG compressed TIFF
-     files (seen as UInt16 bands with NBITS=12). See the `"8 and 12 bit
-     JPEG in TIFF" <http://trac.osgeo.org/gdal/wiki/TIFF12BitJPEG>`__ wiki
-     page for more details.
+   * ``JPEG`` should generally only be used with Byte data (8 bit per channel).
      Better compression for RGB images can be obtained by using the PHOTOMETRIC=YCBCR
      colorspace with a 4:2:2 subsampling of the Y,Cb,Cr components.
+
+     Starting with GDAL 3.4, if GDAL is built with its internal libtiff,
+     read and write support for JPEG-in-TIFF compressed images with 12-bit sample
+     is enabled by default (if JPEG support is also enabled), using GDAL internal libjpeg
+     (based on IJG libjpeg-6b, with additional changes for 12-bit sample support).
+     Support for JPEG with 12-bit sample is independent of whether
+     8-bit JPEG support is enabled through internal IJG libjpeg-6b or external libjpeg
+     (like libjpeg-turbo)
 
    * ``CCITTFAX3``, ``CCITTFAX4`` or ``CCITRLE`` compression should only be used with 1bit (NBITS=1) data
 
@@ -393,9 +396,15 @@ Creation Options
    * ``ZSTD`` is available since GDAL 2.3 when using internal libtiff and if GDAL
      built against libzstd >=1.0, or if built against external libtiff with zstd support.
 
-   * ``LERC`` and ``LERC_DEFLATE`` are available only when using internal libtiff.
+   * ``LERC`` and ``LERC_DEFLATE`` are available only when using internal libtiff for GDAL < 3.3.0.
+     Since GDAL 3.3.0, LERC compression is also available when building GDAL
+     against external libtiff >= 4.3.0, built itself against https://github.com/esri/lerc
 
    * ``LERC_ZSTD`` is available when ``LERC`` and ``ZSTD`` are available.
+
+   * ``JXL`` is for JPEG-XL, and is only available when using internal libtiff and building GDAL against
+     https://github.com/libjxl/libxl . JXL compression may only be used alongside ``INTERLEAVE=PIXEL`` 
+     (the default) on datasets with 4 bands or less.
 
    * ``NONE`` is the default.
 
@@ -468,6 +477,17 @@ Creation Options
    compression will be used. There is a significant time penalty for each
    tile/strip with lossless WebP compression, so you may want to increase the
    BLOCKYSIZE value for strip layout.
+
+-  **JXL_LOSSLESS=YES/NO**: Set whether JPEG-XL compression should be lossless
+   (YES, default) or lossy (NO). For lossy compression, the underlying data
+   should be either gray, gray+alpha, rgb or rgb+alpha.
+
+-  **JXL_EFFORT=[1-9]**: Level of effort for JPEG-XL compression.
+   The higher, the smaller file and slower compression time. Default is 5.
+
+-  **JXL_DISTANCE=[0.1-15]**: Distance level for lossy JPEG-XL compression
+   0=mathematically lossless, 1.0=visually lossless, usual range [0.5,3].
+   Default is 1.0
 
 -  **PHOTOMETRIC=[MINISBLACK/MINISWHITE/RGB/CMYK/YCBCR/CIELAB/ICCLAB/ITULAB]**:
    Set the photometric interpretation tag. Default is MINISBLACK, but if
@@ -585,6 +605,45 @@ libtiff will fail to compress the data.
 
 Note also that the dimensions of the tiles or strips must be a multiple
 of 8 for PHOTOMETRIC=RGB or 16 for PHOTOMETRIC=YCBCR
+
+Lossless conversion of JPEG into JPEG-in-TIFF
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The conversion of a JPEG file (but *not* a JPEG-in-TIFF file) to a JPEG-in-TIFF
+file without decompression and compression cycles, and thus without any additional
+quality loss, can be done with gdal_translate (or the CreateCopy() API),
+if all the following conditions are met:
+
+- the source dataset is a JPEG file (or a VRT with a JPEG as a single SimpleSource)
+- the target dataset is a JPEG-in-TIFF file
+- no explicitly target JPEG quality is specified
+- no change in colorspace is specified
+- no sub-windowing is requested
+- and more generally, no change that alters pixel values
+
+The generation of a tiled JPEG-in-TIFF from the original JPEG image is possible.
+Explicit assignment of target SRS and bounds are also possible.
+
+So, the following commands will use the lossless copy method :
+
+::
+
+    gdal_translate in.jpg out.tif -co COMPRESS=JPEG
+
+    gdal_translate in.jpg out.tif -co COMPRESS=JPEG -co TILED=YES
+
+    gdal_translate in.jpg out.tif -co COMPRESS=JPEG -a_srs EPSG:4326 -a_ullr -180 90 180 -90
+
+
+whereas the following commands will *not* (and thus cause JPEG decompression and
+compression):
+
+::
+
+    gdal_translate in.jpg out.tif -co COMPRESS=JPEG -co JPEG_QUALITY=60
+
+    gdal_translate in.jpg out.tif -srcwin 0 0 500 500 -co COMPRESS=JPEG
+
 
 Streaming operations
 ~~~~~~~~~~~~~~~~~~~~

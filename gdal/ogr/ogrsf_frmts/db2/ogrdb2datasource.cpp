@@ -223,7 +223,7 @@ OGRDB2DataSource::~OGRDB2DataSource()
                     m_osRasterTable.c_str());
         }
 
-        OGRDB2DataSource::FlushCache();
+        OGRDB2DataSource::FlushCache(true);
         FlushMetadata();
     }
 
@@ -2260,16 +2260,15 @@ void OGRDB2DataSource::CheckUnknownExtensions(int /*bCheckRasterTable*/)
                      "SELECT extension_name, definition, scope FROM gpkg_extensions WHERE table_name = '%q'",
                      m_osRasterTable.c_str());
 
-    SQLResult oResultTable;
-    OGRErr err = SQLQuery(GetDB(), pszSQL, &oResultTable);
+    auto oResultTable = SQLQuery(GetDB(), pszSQL);
     sqlite3_free(pszSQL);
-    if ( err == OGRERR_NONE && oResultTable.nRowCount > 0 )
+    if (oResultTable && oResultTable->nRowCount > 0 )
     {
-        for(int i=0; i<oResultTable.nRowCount; i++)
+        for(int i=0; i<oResultTable->nRowCount; i++)
         {
-            const char* pszExtName = SQLResultGetValue(&oResultTable, 0, i);
-            const char* pszDefinition = SQLResultGetValue(&oResultTable, 1, i);
-            const char* pszScope = SQLResultGetValue(&oResultTable, 2, i);
+            const char* pszExtName = oResultTable->GetValue(0, i);
+            const char* pszDefinition = oResultTable->GetValue(1, i);
+            const char* pszScope = oResultTable->GetValue(2, i);
             if( pszExtName == NULL ) pszExtName = "(null)";
             if( pszDefinition == NULL ) pszDefinition = "(null)";
             if( pszScope == NULL ) pszScope = "(null)";
@@ -2318,7 +2317,6 @@ void OGRDB2DataSource::CheckUnknownExtensions(int /*bCheckRasterTable*/)
             }
         }
     }
-    SQLResultFree(&oResultTable);
 #endif
 }
 
@@ -2399,12 +2397,10 @@ int OGRDB2DataSource::HasExtensionsTable()
 {
     CPLDebug("OGRDB2DataSource::HasExtensionsTable", "NO-OP");
 #ifdef LATER
-    SQLResult oResultTable;
-    OGRErr err = SQLQuery(hDB,
-                          "SELECT * FROM sqlite_master WHERE name = 'gpkg_extensions' "
-                          "AND type IN ('table', 'view')", &oResultTable);
-    int bHasExtensionsTable = ( err == OGRERR_NONE && oResultTable.nRowCount == 1 );
-    SQLResultFree(&oResultTable);
+    auto oResultTable = SQLQuery(hDB,
+                                 "SELECT * FROM sqlite_master WHERE name = 'gpkg_extensions' "
+                                 "AND type IN ('table', 'view')");
+    int bHasExtensionsTable = ( oResultTable && oResultTable->nRowCount == 1 );
     return bHasExtensionsTable;
 #endif
     return OGRERR_NONE;
@@ -2414,7 +2410,7 @@ int OGRDB2DataSource::HasExtensionsTable()
 /*                             FlushCache()                             */
 /************************************************************************/
 
-void OGRDB2DataSource::FlushCache()
+void OGRDB2DataSource::FlushCache(bool /* bAtClosing */)
 {
     DB2_DEBUG_ENTER("OGRDB2DataSource::FlushCache");
     FlushCacheWithErrCode();
@@ -3226,7 +3222,7 @@ CPLErr OGRDB2DataSource::IBuildOverviews(
     if( nOverviews == 0 )
     {
         for(int i=0; i<m_nOverviewCount; i++)
-            m_papoOverviewDS[i]->FlushCache();
+            m_papoOverviewDS[i]->FlushCache(false);
         oStatement.Appendf("DELETE FROM %s WHERE zoom_level < %d",
                            m_osRasterTable.c_str(),
                            m_nZoomLevel);
@@ -3258,7 +3254,7 @@ CPLErr OGRDB2DataSource::IBuildOverviews(
         return CE_Failure;
     }
 
-    FlushCache();
+    FlushCache(false);
     for(int i=0; i<nOverviews; i++)
     {
         if( panOverviewList[i] < 2 )

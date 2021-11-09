@@ -101,7 +101,7 @@ private:
     CPLString osRequestUrl;
     char* pszPath = nullptr;
     char* pszCid = nullptr;
-    char* pszProjection = nullptr;
+    OGRSpatialReference m_oSRS{};
 
     int nPos = 0;
     int nVBASLen = 0;
@@ -174,19 +174,13 @@ public:
 
     int TestUseBlockIO( int nXOff, int nYOff, int nXSize, int nYSize,
                         int nBufXSize, int nBufYSize, GDALDataType eDataType,
-                        int nBandCount, int *panBandList ) const;
+                        int nBandCount, const int *panBandList ) const;
 
     //gdaldataset methods
     virtual CPLErr GetGeoTransform( double * ) override;
-    virtual const char *_GetProjectionRef() override;
-    const OGRSpatialReference* GetSpatialRef() const override {
-        return GetSpatialRefFromOldGetProjectionRef();
-    }
+    const OGRSpatialReference* GetSpatialRef() const override;
     virtual int    GetGCPCount() override;
-    virtual const char *_GetGCPProjection() override;
-    const OGRSpatialReference* GetGCPSpatialRef() const override {
-        return GetGCPSpatialRefFromOldGetGCPProjection();
-    }
+    const OGRSpatialReference* GetGCPSpatialRef() const override;
     virtual const GDAL_GCP *GetGCPs() override;
     virtual CPLErr IRasterIO( GDALRWFlag eRWFlag,
                               int nXOff, int nYOff, int nXSize, int nYSize,

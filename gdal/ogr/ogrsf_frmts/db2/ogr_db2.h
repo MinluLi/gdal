@@ -754,7 +754,7 @@ public:
     virtual ~OGRDB2DataSource();
 //***************** For raster support
 
-    virtual char **     GetMetadata( const char *pszDomain = nullptr ) override;
+    virtual char **     GetMetadata( const char *pszDomain = "" ) override;
     virtual const char *GetMetadataItem( const char * pszName,
                                          const char * pszDomain = "" ) override;
     virtual char **     GetMetadataDomainList() override;
@@ -791,7 +791,7 @@ public:
     OGRErr              CreateExtensionsTableIfNecessary();
     // cppcheck-suppress functionStatic
     int                 HasExtensionsTable();
-    virtual void        FlushCache() override;
+    virtual void        FlushCache(bool bAtClosing) override;
     static GDALDataset* CreateCopy( const char *pszFilename,
                                     GDALDataset *poSrcDS,
                                     int bStrict,
@@ -898,7 +898,7 @@ public:
                                        void* pData) override;
     virtual CPLErr          IWriteBlock(int nBlockXOff, int nBlockYOff,
                                         void* pData) override;
-    virtual CPLErr          FlushCache() override;
+    virtual CPLErr          FlushCache(bool bAtClosing) override;
 
     virtual GDALColorTable* GetColorTable() override;
     virtual CPLErr          SetColorTable(GDALColorTable* poCT) override;

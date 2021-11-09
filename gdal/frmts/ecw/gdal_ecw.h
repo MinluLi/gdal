@@ -591,10 +591,7 @@ class CPL_DLL ECWDataset final: public GDALJP2AbstractDataset
     virtual char      **GetMetadata( const char * pszDomain = "" ) override;
 
     virtual CPLErr SetGeoTransform( double * padfGeoTransform ) override;
-    virtual CPLErr _SetProjection( const char* pszProjection ) override;
-    CPLErr SetSpatialRef(const OGRSpatialReference* poSRS) override {
-        return OldSetProjectionFromSetSpatialRef(poSRS);
-    }
+    CPLErr SetSpatialRef(const OGRSpatialReference* poSRS) override;
 
     virtual CPLErr SetMetadataItem( const char * pszName,
                                  const char * pszValue,
@@ -700,11 +697,15 @@ class ECWRasterBand final: public GDALPamRasterBand
                                   double *pdfMean, double *padfStdDev ) override;
     virtual CPLErr SetStatistics( double dfMin, double dfMax,
                                   double dfMean, double dfStdDev ) override;
+
+    virtual CPLErr SetMetadataItem( const char * pszName,
+                                 const char * pszValue,
+                                 const char * pszDomain = "" ) override;
 #endif
 
 };
 
-int ECWTranslateFromWKT( const char *pszWKT,
+int ECWTranslateFromWKT( const OGRSpatialReference *poSRS,
                          char *pszProjection,
                          int nProjectionLen,
                          char *pszDatum,

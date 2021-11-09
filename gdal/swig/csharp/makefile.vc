@@ -177,7 +177,7 @@ interface:
 	cd ogr
 	$(SWIG) -DSWIG2_CSHARP -c++ -csharp -namespace OSGeo.OGR -dllimport ogr_wrap -I../../include/csharp -o ogr_wrap.cpp ../../include/ogr.i
 	cd ..
-    
+
 sampleprojects: apps/ogrinfo.csproj apps/createdata.csproj apps/OSRTransform.csproj apps/GDALRead.csproj apps/GDALReadDirect.csproj apps/GDALAdjustContrast.csproj apps/GDALDatasetRasterIO.csproj apps/GDALDatasetRasterIOEx.csproj apps/GDALWrite.csproj apps/GDALDatasetWrite.csproj apps/GDALColorTable.csproj apps/WKT2WKB.csproj apps/OGRGEOS.csproj apps/ReadXML.csproj apps/GDALInfo.csproj apps/GDALOverviews.csproj apps/GDALCreateCopy.csproj apps/GDALGetHistogram.csproj apps/VSIMem.csproj apps/GDALMemDataset.csproj apps/OGRLayerAlg.csproj apps/OGRFeatureEdit.csproj apps/GDALWarp.csproj apps/GetCRSInfo.csproj
 
 samples: sampleprojects
@@ -205,7 +205,7 @@ samples: sampleprojects
     dotnet build -c $(DOTNET_CONFIG) -o "." -r $(DOTNET_RID) GDALDatasetRasterIO.csproj
     dotnet add GDALDatasetRasterIOEx.csproj reference ..\gdal\gdal_csharp.csproj
     dotnet add GDALDatasetRasterIOEx.csproj package System.Drawing.Common
-    dotnet build -c $(DOTNET_CONFIG) -o "." -r $(DOTNET_RID) GDALDatasetRasterIOEx.csproj  
+    dotnet build -c $(DOTNET_CONFIG) -o "." -r $(DOTNET_RID) GDALDatasetRasterIOEx.csproj
     dotnet add GDALWrite.csproj reference ..\gdal\gdal_csharp.csproj
     dotnet build -c $(DOTNET_CONFIG) -o "." -r $(DOTNET_RID) GDALWrite.csproj
     dotnet add GDALDatasetWrite.csproj reference ..\gdal\gdal_csharp.csproj
@@ -247,7 +247,7 @@ samples: sampleprojects
     -move /Y *.pdb ..
     -move /Y *.json ..
     -move /Y *.md ..
-    cd ..    
+    cd ..
 !ELSE
     $(CSC) $(CSDEBUG) /r:ogr_csharp.dll /r:osr_csharp.dll /out:ogrinfo.exe apps\ogrinfo.cs
     $(CSC) $(CSDEBUG) /r:ogr_csharp.dll /r:osr_csharp.dll /out:createdata.exe apps\createdata.cs
@@ -285,7 +285,7 @@ test:
 	mono GDALCreateCopy.exe Data/sample.tif Data/sample2.tif
 	mono GDALOverviews.exe Data/sample.tif NEAREST 2 4
 	mono GDALInfo.exe Data/sample.tif
-	mono GDALInfo.exe ../../../autotest/gcore/data/byte.tif
+	mono GDALInfo.exe ../../autotest/gcore/data/byte.tif
 !ELSE
     createdata.exe Data pointlayer
     ogrinfo.exe Data/pointlayer.shp
@@ -296,10 +296,10 @@ test:
     GDALReadDirect.exe Data/sample.tif Data/sample.png
 	GDALOverviews.exe Data/sample.tif NEAREST 2 4
 	GDALInfo.exe Data/sample.tif
-	GDALInfo.exe ../../../autotest/gcore/data/byte.tif
+	GDALInfo.exe ../../autotest/gcore/data/byte.tif
 	ogrlayeralg.exe Intersection Data/pointlayer.shp pointlayer Data/pointlayer.shp pointlayer Data intersectionresult
 	ogrinfo.exe Data/intersectionresult.shp
-	gdalwarp.exe Data/testwarp.tif "-of GTiff -t_srs EPSG:32645 -overwrite" "../../../autotest/gcore/data/byte.tif"
+	gdalwarp.exe Data/testwarp.tif "-of GTiff -t_srs EPSG:32645 -overwrite" "../../autotest/gcore/data/byte.tif"
 	getcrsinfo.exe "EPSG" 20
     sn -vf osr_csharp.dll
     sn -vf ogr_csharp.dll

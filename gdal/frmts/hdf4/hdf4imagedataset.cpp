@@ -163,7 +163,7 @@ class HDF4ImageDataset final: public HDF4Dataset
     static GDALDataset  *Create( const char * pszFilename,
                                  int nXSize, int nYSize, int nBands,
                                  GDALDataType eType, char ** papszParamList );
-    virtual void        FlushCache( void ) override;
+    virtual void        FlushCache( bool bAtClosing ) override;
     CPLErr              GetGeoTransform( double * padfTransform ) override;
     virtual CPLErr      SetGeoTransform( double * ) override;
     const char          *_GetProjectionRef() override;
@@ -827,7 +827,7 @@ HDF4ImageDataset::~HDF4ImageDataset()
 {
     CPLMutexHolderD(&hHDF4Mutex);
 
-    HDF4ImageDataset::FlushCache();
+    HDF4ImageDataset::FlushCache(true);
 
     CPLFree( pszFilename );
     if( iSDS != FAIL )
@@ -972,12 +972,12 @@ const GDAL_GCP *HDF4ImageDataset::GetGCPs()
 /*                             FlushCache()                             */
 /************************************************************************/
 
-void HDF4ImageDataset::FlushCache()
+void HDF4ImageDataset::FlushCache(bool bAtClosing)
 
 {
     CPLMutexHolderD(&hHDF4Mutex);
 
-    GDALDataset::FlushCache();
+    GDALDataset::FlushCache(bAtClosing);
 
     if( eAccess == GA_ReadOnly )
         return;
@@ -2558,18 +2558,16 @@ int HDF4ImageDataset::ProcessSwathGeolocation( int32 hSW, char **papszDimList )
 #endif
             char **papszParams = pszParams ?
                 CSLTokenizeString2( pszParams, ",", CSLT_HONOURSTRINGS ) : nullptr;
-            int nParams = CSLCount(papszParams);
-            if( nParams >= 15 )
-                nParams = 15;
-            double adfProjParams[15] = {};
-            for( int i = 0; i < nParams; i++)
-                adfProjParams[i] = CPLAtof( papszParams[i] );
-            for ( int i = nParams; i < 15; i++)
-                adfProjParams[i] = 0.0;
+            std::vector<double> adfProjParams(15);
+            if( papszParams )
+            {
+                for( int i = 0; i < 15 && papszParams[i] != nullptr ; i++)
+                    adfProjParams[i] = CPLAtof( papszParams[i] );
+            }
 
             // Create projection definition
             oSRS.importFromUSGS( iProjSys, iZone,
-                                 adfProjParams, iEllipsoid );
+                                 adfProjParams.data(), iEllipsoid );
             oSRS.SetLinearUnits( SRS_UL_METER, 1.0 );
             oSRS.exportToWkt( &pszGCPProjection );
 

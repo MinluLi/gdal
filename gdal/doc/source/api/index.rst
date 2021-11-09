@@ -101,8 +101,8 @@ API
    .. toctree::
        :maxdepth: 1
 
-       csharp
-       java
+       csharp/index
+       java/index
 
    There are also other bindings that are developed outside of the GDAL source tree (**note**: those offer APIs not strictly coupled the GDAL/OGR C/C++ API). These include bindings for
 
@@ -112,7 +112,8 @@ API
        Go <https://github.com/lukeroth/gdal>
        Julia <https://github.com/JuliaGeo/GDAL.jl>
        Lua <https://trac.osgeo.org/gdal/wiki/GdalOgrInLua>
-       Node.js <https://github.com/naturalatlas/node-gdal>
+       Original Node.js bindings <https://github.com/naturalatlas/node-gdal>
+       Node.js fork with full Promise-based async and TypeScript support <https://www.npmjs.com/package/gdal-async>
        Perl <https://metacpan.org/release/Geo-GDAL-FFI>
        PHP <http://dl.maptools.org/dl/php_ogr/php_ogr_documentation.html>
        R <http://cran.r-project.org/web/packages/rgdal/index.html>
@@ -131,6 +132,13 @@ API
 
        Fiona <https://github.com/Toblerity/Fiona>
        Rasterio <https://github.com/mapbox/rasterio>
+
+    There is a more idiomatic Golang way of using the raster functions with
+
+      .. toctree::
+       :maxdepth: 1
+
+       Godal <https://github.com/airbusgeo/godal>
 
 .. only:: latex
 

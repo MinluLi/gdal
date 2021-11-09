@@ -1247,8 +1247,7 @@ def create_overview_tiles(tile_job_info: 'TileJobInfo', output_folder: str, opti
                     continue
 
                 # Create directories for the tile
-                if not os.path.exists(os.path.dirname(tilefilename)):
-                    os.makedirs(os.path.dirname(tilefilename))
+                os.makedirs(os.path.dirname(tilefilename), exist_ok=True)
 
                 dsquery = mem_driver.Create('', 2 * tile_job_info.tile_size,
                                             2 * tile_job_info.tile_size, tilebands)
@@ -1992,8 +1991,7 @@ class GDAL2Tiles(object):
         tiles are generated during the tile processing).
         """
 
-        if not os.path.exists(self.output_folder):
-            os.makedirs(self.output_folder)
+        os.makedirs(self.output_folder, exist_ok=True)
 
         if self.options.profile == 'mercator':
 
@@ -2122,8 +2120,7 @@ class GDAL2Tiles(object):
                     continue
 
                 # Create directories for the tile
-                if not os.path.exists(os.path.dirname(tilefilename)):
-                    os.makedirs(os.path.dirname(tilefilename))
+                os.makedirs(os.path.dirname(tilefilename), exist_ok=True)
 
                 if self.options.profile == 'mercator':
                     # Tile bounds in EPSG:3857
@@ -2872,7 +2869,10 @@ class GDAL2Tiles(object):
             args['resolutions'] = '[' + ','.join('%.18g' % res for res in resolutions) + ']'
 
             if self.options.xyz:
-                args['origin'] = '[-180,90]'
+                if self.options.tmscompatible:
+                    args['origin'] = '[-180,90]'
+                else:
+                    args['origin'] = '[-180,270]'
                 args['y_formula'] = 'tileCoord[2]'
             else:
                 args['origin'] = '[-180,-90]'

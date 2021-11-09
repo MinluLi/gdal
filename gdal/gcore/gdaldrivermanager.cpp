@@ -40,11 +40,16 @@
 #include "cpl_port.h"
 #include "cpl_string.h"
 #include "cpl_vsi.h"
+#include "cpl_compressor.h"
 #include "gdal_alg.h"
 #include "gdal_alg_priv.h"
 #include "gdal.h"
 #include "gdal_pam.h"
+#ifdef GDAL_CMAKE_BUILD
+#include "gdal_version_full/gdal_version.h"
+#else
 #include "gdal_version.h"
+#endif
 #include "gdal_thread_pool.h"
 #include "ogr_srs_api.h"
 #include "ograpispy.h"
@@ -264,6 +269,7 @@ GDALDriverManager::~GDALDriverManager()
 /*      Cleanup VSIFileManager.                                         */
 /* -------------------------------------------------------------------- */
     VSICleanupFileManager();
+    CPLDestroyCompressorRegistry();
 
 /* -------------------------------------------------------------------- */
 /*      Cleanup thread local storage ... I hope the program is all      */
@@ -713,7 +719,10 @@ char** GDALDriverManager::GetSearchPaths(const char* pszGDAL_DRIVER_PATH)
     }
     else
     {
-#ifdef GDAL_PREFIX
+#ifdef INSTALL_PLUGIN_FULL_DIR
+        // CMake way
+        papszSearchPaths = CSLAddString( papszSearchPaths, INSTALL_PLUGIN_FULL_DIR);
+#elif defined(GDAL_PREFIX)
         papszSearchPaths = CSLAddString( papszSearchPaths,
     #ifdef MACOSX_FRAMEWORK
                                         GDAL_PREFIX "/PlugIns");
@@ -933,12 +942,12 @@ bool GDALIsDriverDeprecatedForGDAL35StillEnabled(const char* pszDriverName, cons
     }
     CPLError(CE_Failure, CPLE_AppDefined,
         "Driver %s is considered for removal in GDAL 3.5.%s You are invited "
-        "to convert any dataset in that format to another more common one ."
+        "to convert any dataset in that format to another more common one. "
         "If you need this driver in future GDAL versions, create a ticket at "
         "https://github.com/OSGeo/gdal (look first for an existing one first) to "
         "explain how critical it is for you (but the GDAL project may still "
         "remove it), and to enable it now, set the %s "
-        "configuration option / environment variable to YES",
+        "configuration option / environment variable to YES.",
         pszDriverName, pszExtraMsg, osConfigOption.c_str());
     return false;
 }

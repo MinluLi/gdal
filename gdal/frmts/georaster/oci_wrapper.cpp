@@ -122,8 +122,7 @@ OWConnection::OWConnection( const char* pszUserIn,
 
     ub4 eCred = OCI_CRED_RDBMS;
 
-    if( EQUAL(pszServer, "") &&
-        EQUAL(pszPassword, "") &&
+    if( EQUAL(pszPassword, "") &&
         EQUAL(pszUser, "") )
     {
         eCred = OCI_CRED_EXT;
@@ -239,6 +238,22 @@ OWConnection::OWConnection( const char* pszUserIn,
     bSuceeeded = true;
 
     // ------------------------------------------------------
+    //  If no user specified, get it from the session 
+    // ------------------------------------------------------
+    if (EQUAL(pszUser, "") )
+    {
+      OWStatement* poStmt = CreateStatement(
+            "select sys_context('userenv','session_user')\n"
+            "from dual\n" );
+
+      pszSessionUser = static_cast<char*>(CPLMalloc(OWNAME)); 
+      poStmt->Define(pszSessionUser);
+      CPL_IGNORE_RET_VAL(poStmt->Execute());
+      delete poStmt;
+      CPLDebug("OCI: ", "Implicit User: %s\n", pszSessionUser);
+    }
+
+    // ------------------------------------------------------
     //  Initialize/Describe types
     // ------------------------------------------------------
 
@@ -289,6 +304,7 @@ void OWConnection::QueryVersion()
 OWConnection::~OWConnection()
 {
     CPLFree( pszUser );
+    CPLFree( pszSessionUser );
     CPLFree( pszPassword );
     CPLFree( pszServer );
 

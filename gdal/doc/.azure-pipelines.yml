@@ -19,7 +19,7 @@ variables:
 jobs:
   - job: 'Documentation'
     pool:
-      vmImage: 'ubuntu-16.04'
+      vmImage: 'ubuntu-latest'
     container:
       image: osgeo/proj-docs
       options: --privileged
@@ -33,17 +33,21 @@ jobs:
         displayName: 'Sphinx version'
       - script: |
           set -e
-          cd gdal/doc
+          cd doc
           if find . -name '*.rst' | xargs grep -P '\t'; then echo 'Tabs are bad, please use four spaces in .rst files.'; false; fi
+          if find . -name '*.rst' | xargs grep "\.\.versionadded"; then echo 'Wrong annotation. Should be .. versionadded'; false; fi
+          if find . -name '*.rst' | xargs grep "\.\.note"; then echo 'Wrong annotation. Should be .. note'; false; fi
+          if find . -name '*.rst' | xargs grep "\.\.warning"; then echo 'Wrong annotation. Should be .. warning'; false; fi
+          if find . -name '*.rst' | xargs grep "\.\.codeblock"; then echo 'Wrong annotation. Should be .. codeblock'; false; fi
         displayName: 'Lint .rst files'
       - script: |
           set -e
-          cd gdal/doc
+          cd doc
           make html O="-D enable_redirects=1 -t website"
         displayName: 'Make html'
       - script: |
           set -e
-          cd gdal/doc
+          cd doc
           make latexpdf
         displayName: 'Make pdf'
       - task: DownloadSecureFile@1
@@ -60,10 +64,10 @@ jobs:
         condition: notin(variables['Build.Reason'], 'PullRequest')
       - script: |
           set -e
-          mv gdal/doc/build/html gdal-docs
+          mv doc/build/html gdal-docs
           rm gdal-docs/gdal.pdf
-          cp gdal/doc/build/latex/gdal.pdf gdal-docs
-          cp gdal/data/gdalicon.png gdal-docs # For GDAL autotest...
+          cp doc/build/latex/gdal.pdf gdal-docs
+          cp data/gdalicon.png gdal-docs # For GDAL autotest...
           cd gdal-docs
           wget http://download.osgeo.org/gdal/for_doc/javadoc.zip -O /tmp/javadoc.zip
           wget http://download.osgeo.org/gdal/for_doc/python-doc.tar.gz -O /tmp/python-doc.tar.gz

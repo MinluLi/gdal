@@ -207,7 +207,7 @@ ZMapDataset::ZMapDataset() :
 ZMapDataset::~ZMapDataset()
 
 {
-    FlushCache();
+    FlushCache(true);
     if (fp)
         VSIFCloseL(fp);
 }
@@ -279,9 +279,6 @@ GDALDataset *ZMapDataset::Open( GDALOpenInfo * poOpenInfo )
 
 {
     if (!Identify(poOpenInfo) || poOpenInfo->fpL == nullptr )
-        return nullptr;
-
-    if( !GDALIsDriverDeprecatedForGDAL35StillEnabled("ZMAP") )
         return nullptr;
 
 /* -------------------------------------------------------------------- */
@@ -538,9 +535,6 @@ GDALDataset* ZMapDataset::CreateCopy( const char * pszFilename,
                                       GDALProgressFunc pfnProgress,
                                       void * pProgressData )
 {
-    if( !GDALIsDriverDeprecatedForGDAL35StillEnabled("ZMAP") )
-        return nullptr;
-
 /* -------------------------------------------------------------------- */
 /*      Some some rudimentary checks                                    */
 /* -------------------------------------------------------------------- */

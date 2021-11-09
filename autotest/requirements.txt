@@ -1,4 +1,0 @@
-pytest>=3.6.0
-pytest-sugar
-pytest-env
-lxml==4.6.3

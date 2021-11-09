@@ -50,7 +50,11 @@
 #include "cpl_multiproc.h"
 #include "cpl_string.h"
 #include "cpl_vsi.h"
+#ifdef GDAL_CMAKE_BUILD
+#include "gdal_version_full/gdal_version.h"
+#else
 #include "gdal_version.h"
+#endif
 #include "gdal.h"
 #include "gdal_mdreader.h"
 #include "gdal_priv.h"
@@ -175,6 +179,9 @@ GDALDataTypeUnion( GDALDataType eType1, GDALDataType eType2 )
 GDALDataType CPL_STDCALL GDALDataTypeUnionWithValue(
     GDALDataType eDT, double dValue, int bComplex )
 {
+    if( eDT == GDT_Float32 && !bComplex && static_cast<float>(dValue) == dValue )
+        return eDT;
+
     const GDALDataType eDT2 = GDALFindDataTypeForValue(dValue, bComplex);
     return GDALDataTypeUnion(eDT, eDT2);
 }
@@ -3212,7 +3219,7 @@ GDALGeneralCmdLineProcessor( int nArgc, char ***ppapszArgv, int nOptions )
                         CSLFetchNameValue( papszMD, GDAL_DMD_HELPTOPIC ) );
 
             if( CPLFetchBool( papszMD, GDAL_DMD_SUBDATASETS, false ) )
-                printf( "  Supports: Subdatasets\n" );/*ok*/
+                printf( "  Supports: Raster subdatasets\n" );/*ok*/
             if( CPLFetchBool( papszMD, GDAL_DCAP_OPEN, false ) )
                 printf( "  Supports: Open() - Open existing dataset.\n" );/*ok*/
             if( CPLFetchBool( papszMD, GDAL_DCAP_CREATE, false ) )
@@ -3244,6 +3251,10 @@ GDALGeneralCmdLineProcessor( int nArgc, char ***ppapszArgv, int nOptions )
                 printf( "  No support for geometries.\n" );/*ok*/
             if( CPLFetchBool( papszMD, GDAL_DCAP_FEATURE_STYLES, false ) )
                 printf( "  Supports: Feature styles.\n" );/*ok*/
+            if( CPLFetchBool( papszMD, GDAL_DCAP_COORDINATE_EPOCH, false ) )
+                printf( "  Supports: Coordinate epoch.\n" );/*ok*/
+            if( CPLFetchBool( papszMD, GDAL_DCAP_MULTIPLE_VECTOR_LAYERS, false ) )
+                printf( "  Supports: Multiple vector layers.\n" );/*ok*/
 
             for( const char* key: { GDAL_DMD_CREATIONOPTIONLIST,
                                     GDAL_DMD_MULTIDIM_DATASET_CREATIONOPTIONLIST,
@@ -3853,7 +3864,7 @@ void GDALDeserializeGCPListFromXML( CPLXMLNode* psGCPList,
         if( pszRawProj && pszRawProj[0] )
         {
             *ppoGCP_SRS = new OGRSpatialReference();
-            (*ppoGCP_SRS)->SetFromUserInput( pszRawProj );
+            (*ppoGCP_SRS)->SetFromUserInput( pszRawProj, OGRSpatialReference::SET_FROM_USER_INPUT_LIMITATIONS );
 
             const char* pszMapping =
                 CPLGetXMLValue(psGCPList, "dataAxisToSRSAxisMapping", nullptr);

@@ -339,6 +339,18 @@ class MajorObject(_object):
 MajorObject_swigregister = _ogr.MajorObject_swigregister
 MajorObject_swigregister(MajorObject)
 
+
+def GetGEOSVersionMajor(*args):
+    """GetGEOSVersionMajor() -> int"""
+    return _ogr.GetGEOSVersionMajor(*args)
+
+def GetGEOSVersionMinor(*args):
+    """GetGEOSVersionMinor() -> int"""
+    return _ogr.GetGEOSVersionMinor(*args)
+
+def GetGEOSVersionMicro(*args):
+    """GetGEOSVersionMicro() -> int"""
+    return _ogr.GetGEOSVersionMicro(*args)
 class StyleTable(_object):
     """Proxy of C++ OGRStyleTableShadow class."""
 
@@ -6524,7 +6536,7 @@ class Geometry(_object):
 
     def MakeValid(self, *args):
         """
-        MakeValid(Geometry self) -> Geometry
+        MakeValid(Geometry self, char ** options=None) -> Geometry
 
         OGRGeometryH
         OGR_G_MakeValid(OGRGeometryH hGeom)
@@ -7835,7 +7847,6 @@ class Geometry(_object):
 
     def Destroy(self):
       self.__swig_destroy__(self)
-      self.__del__()
       self.thisown = 0
 
     def __str__(self):

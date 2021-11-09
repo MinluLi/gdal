@@ -115,13 +115,14 @@ fi
 if test "$forcedate" != "no" ; then
   echo "* Updating release date..."
   echo "Forcing Date To: $forcedate"
-  rm -f gdal/gcore/gdal_new.h
-  sed -e "/define GDAL_RELEASE_DATE/s/20[0-9][0-9][0-9][0-9][0-9][0-9]/$forcedate/" gdal/gcore/gdal.h > gdal/gcore/gdal_new.h
-  mv gdal/gcore/gdal_new.h gdal/gcore/gdal.h
+  rm -f gcore/gdal_new.h
+  sed -e "/define GDAL_RELEASE_DATE/s/20[0-9][0-9][0-9][0-9][0-9][0-9]/$forcedate/" gcore/gdal.h > gcore/gdal_new.h
+  mv gcore/gdal_new.h gcore/gdal.h
 fi
 
-echo "* Cleaning .gitignore under $PWD..."
-rm -f gdal/.gitignore
+echo "* Cleaning .git and .gitignore under $PWD..."
+rm -rf .git
+rm -f .gitignore
 
 echo "* Substituting \$Id\$..."
 find . -name "*.h" -o -name "*.c" -o -name "*.cpp" -o -name "*.dox" \
@@ -133,12 +134,20 @@ find . -name "*.h" -o -name "*.c" -o -name "*.cpp" -o -name "*.dox" \
     sed -i "s/\\\$Id\\\$/\\\$Id: ${ID} \\\$/" "$i"
 done
 
+
+CWD=${PWD}
+
+#
+# Generate ./configure
+#
+echo "* Generating ./configure..."
+./autogen.sh
+rm -rf autom4te.cache
+
 #
 # Generate man pages
 #
 echo "* Generating man pages..."
-CWD=${PWD}
-cd gdal
 if test -d "man"; then
     rm -rf man
 fi
@@ -170,7 +179,7 @@ echo "SWIG C# interfaces *NOT* generated !"
 #
 #echo "* Generating SWIG C# interfaces..."
 #CWD=${PWD}
-#cd gdal/swig/csharp
+#cd swig/csharp
 #./mkinterface.sh
 #cd ${CWD}
 
@@ -180,38 +189,39 @@ echo "SWIG C# interfaces *NOT* generated !"
 echo "* Generating SWIG Perl interfaces..."
 CWD=${PWD}
 
-rm -f gdal/swig/perl/*wrap*
-touch gdal/GDALmake.opt
-(cd gdal/swig/perl && make generate)
-rm gdal/GDALmake.opt
+rm -f swig/perl/*wrap*
+touch GDALmake.opt
+(cd swig/perl && make generate)
+rm GDALmake.opt
 
 #
 # Make distribution packages
 #
 echo "* Making distribution packages..."
-rm -f gdal/VERSION
-echo "$GDAL_VERSION" > gdal/VERSION
+rm -f VERSION
+echo "$GDAL_VERSION" > VERSION
 
+cd ..
+mv gdal/autotest "gdalautotest-${GDAL_VERSION}"
 mv gdal "gdal-${GDAL_VERSION}"
 
-rm -f "../../gdal-${GDAL_VERSION}${RC}.tar.gz" "../../gdal${COMPRESSED_VERSION}${RC}.zip"
+rm -f "../gdal-${GDAL_VERSION}${RC}.tar.xz" "../gdal-${GDAL_VERSION}${RC}.tar.gz" "../gdal${COMPRESSED_VERSION}${RC}.zip"
 
-tar cf "../../gdal-${GDAL_VERSION}${RC}.tar" "gdal-${GDAL_VERSION}"
-xz -k9e "../../gdal-${GDAL_VERSION}${RC}.tar"
-gzip -9 "../../gdal-${GDAL_VERSION}${RC}.tar"
-zip -qr "../../gdal${COMPRESSED_VERSION}${RC}.zip" "gdal-${GDAL_VERSION}"
+tar cf "../gdal-${GDAL_VERSION}${RC}.tar" "gdal-${GDAL_VERSION}"
+xz -k9e "../gdal-${GDAL_VERSION}${RC}.tar"
+gzip -9 "../gdal-${GDAL_VERSION}${RC}.tar"
+zip -qr "../gdal${COMPRESSED_VERSION}${RC}.zip" "gdal-${GDAL_VERSION}"
 
-mv autotest "gdalautotest-${GDAL_VERSION}"
-rm -f "../../gdalautotest-${GDAL_VERSION}${RC}.tar.gz"
-rm -f "../../gdalautotest-${GDAL_VERSION}${RC}.zip"
-tar cf "../../gdalautotest-${GDAL_VERSION}${RC}.tar.gz" "gdalautotest-${GDAL_VERSION}"
-zip -qr "../../gdalautotest-${GDAL_VERSION}${RC}.zip" "gdalautotest-${GDAL_VERSION}"
+rm -f "../gdalautotest-${GDAL_VERSION}${RC}.tar.gz"
+rm -f "../gdalautotest-${GDAL_VERSION}${RC}.zip"
+tar cf "../gdalautotest-${GDAL_VERSION}${RC}.tar.gz" "gdalautotest-${GDAL_VERSION}"
+zip -qr "../gdalautotest-${GDAL_VERSION}${RC}.zip" "gdalautotest-${GDAL_VERSION}"
 
 cd "gdal-${GDAL_VERSION}"
 echo "GDAL_VER=${GDAL_VERSION}" > GDALmake.opt
 cd frmts/grass
 make dist
-mv ./*.tar.gz ../../../../..
+mv ./*.tar.gz ../../../..
 cd ../../..
 
 echo "* Generating MD5 sums ..."
@@ -223,7 +233,7 @@ else
 MD5=md5sum
 fi
 
-cd ../..
+cd ..
 $MD5 "gdal-${GDAL_VERSION}${RC}.tar.xz" > "gdal-${GDAL_VERSION}${RC}.tar.xz.md5"
 $MD5 "gdal-${GDAL_VERSION}${RC}.tar.gz" > "gdal-${GDAL_VERSION}${RC}.tar.gz.md5"
 $MD5 "gdal${COMPRESSED_VERSION}${RC}.zip" > "gdal${COMPRESSED_VERSION}${RC}.zip.md5"

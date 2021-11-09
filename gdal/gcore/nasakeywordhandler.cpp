@@ -74,7 +74,6 @@ CPL_CVSID("$Id$")
 /************************************************************************/
 
 NASAKeywordHandler::NASAKeywordHandler() :
-    papszKeywordList(nullptr),
     pszHeaderNext(nullptr),
     m_bStripSurroundingQuotes(false)
 {
@@ -88,8 +87,6 @@ NASAKeywordHandler::NASAKeywordHandler() :
 NASAKeywordHandler::~NASAKeywordHandler()
 
 {
-    CSLDestroy( papszKeywordList );
-    papszKeywordList = nullptr;
 }
 
 /************************************************************************/
@@ -157,10 +154,15 @@ inline CPLString& Trim(CPLString &ss)
 /*                             ReadGroup()                              */
 /************************************************************************/
 
-int NASAKeywordHandler::ReadGroup( const char *pszPathPrefix, CPLJSONObject &oCur,
+int NASAKeywordHandler::ReadGroup( const std::string& osPathPrefix, CPLJSONObject &oCur,
                                    int nRecLevel )
 
 {
+    if( osPathPrefix.size() > 256 )
+    {
+        CPLError(CE_Failure, CPLE_NotSupported, "Too big prefix for GROUP");
+        return FALSE;
+    }
     if( nRecLevel == 100 )
         return FALSE;
     for( ; true; )
@@ -176,7 +178,7 @@ int NASAKeywordHandler::ReadGroup( const char *pszPathPrefix, CPLJSONObject &oCu
         {
             CPLJSONObject oNewGroup;
             oNewGroup.Add( "_type", EQUAL(osName,"OBJECT") ? "object" : "group" );
-            if( !ReadGroup( (CPLString(pszPathPrefix) + osValue + ".").c_str(),
+            if( !ReadGroup( (osPathPrefix + osValue + ".").c_str(),
                             oNewGroup, nRecLevel + 1 ) )
             {
                 return FALSE;
@@ -211,9 +213,8 @@ int NASAKeywordHandler::ReadGroup( const char *pszPathPrefix, CPLJSONObject &oCu
         }
         else
         {
-            osName = pszPathPrefix + osName;
-            papszKeywordList = CSLSetNameValue( papszKeywordList,
-                                                osName, osValue );
+            osName = osPathPrefix + osName;
+            aosKeywordList.AddNameValue( osName, osValue );
         }
     }
 }
@@ -654,12 +655,7 @@ const char *NASAKeywordHandler::GetKeyword( const char *pszPath,
                                             const char *pszDefault )
 
 {
-    const char *pszResult = CSLFetchNameValue( papszKeywordList, pszPath );
-
-    if( pszResult == nullptr )
-        return pszDefault;
-
-    return pszResult;
+    return aosKeywordList.FetchNameValueDef(pszPath, pszDefault);
 }
 
 /************************************************************************/
@@ -668,7 +664,7 @@ const char *NASAKeywordHandler::GetKeyword( const char *pszPath,
 
 char **NASAKeywordHandler::GetKeywordList()
 {
-    return papszKeywordList;
+    return aosKeywordList.List();
 }
 
 /************************************************************************/

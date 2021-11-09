@@ -5,14 +5,14 @@
 # Public domain
 # or licensed under X/MIT (LICENSE.TXT) Copyright 2019 Even Rouault <even.rouault@spatialys.com>
 
-ARG ALPINE_VERSION=3.13
+ARG ALPINE_VERSION=3.14
 FROM alpine:${ALPINE_VERSION} as builder
 
 # Derived from osgeo/proj by Howard Butler <howard@hobu.co>
 LABEL maintainer="Even Rouault <even.rouault@spatialys.com>"
 
 # Setup build env for PROJ
-RUN apk add --no-cache wget curl unzip make libtool autoconf automake pkgconfig g++ sqlite sqlite-dev
+RUN apk add --no-cache  wget curl unzip make libtool autoconf automake pkgconfig g++ sqlite sqlite-dev
 
 ARG PROJ_DATUMGRID_LATEST_LAST_MODIFIED
 RUN \
@@ -26,15 +26,44 @@ ARG POPPLER_DEV=poppler-dev
 RUN apk add --no-cache \
     linux-headers \
     curl-dev tiff-dev \
-    zlib-dev zstd-dev \
+    zlib-dev zstd-dev xz-dev snappy-dev \
     libjpeg-turbo-dev libpng-dev openjpeg-dev libwebp-dev expat-dev \
-    py3-numpy-dev python3-dev py3-numpy \
+    py3-numpy-dev python3-dev py3-setuptools py3-numpy \
     ${POPPLER_DEV} postgresql-dev \
     openexr-dev libheif-dev xerces-c-dev geos-dev cfitsio-dev \
     netcdf-dev hdf5-dev freexl-dev \
+    lz4-dev \
     # For spatialite (and GDAL)
     libxml2-dev \
     && mkdir -p /build_thirdparty/usr/lib
+
+# Build blosc
+ARG BLOSC_VERSION=1.21.0
+RUN if test "${BLOSC_VERSION}" != ""; then ( \
+    apk add --no-cache cmake \
+    && wget -q https://github.com/Blosc/c-blosc/archive/refs/tags/v${BLOSC_VERSION}.tar.gz \
+    && tar xzf v${BLOSC_VERSION}.tar.gz \
+    && rm -f v${BLOSC_VERSION}.tar.gz \
+    && cd c-blosc-${BLOSC_VERSION} \
+    && cmake . \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DBUILD_SHARED=ON \
+        -DBUILD_STATIC=OFF \
+        -DBUILD_BENCHMARKS=OFF \
+        -DBUILD_FUZZERS=OFF \
+        -DBUILD_TESTS=OFF \
+        -DPREFER_EXTERNAL_LZ4=ON \
+        -DPREFER_EXTERNAL_ZLIB=ON \
+        -DPREFER_EXTERNAL_ZSTD=ON \
+        -DDEACTIVATE_SNAPPY=OFF \
+    && make -j$(nproc) \
+    && make install \
+    && cp -P /usr/lib/libblosc*.so* /build_thirdparty/usr/lib \
+    && for i in /build_thirdparty/usr/lib/*; do strip -s $i 2>/dev/null || /bin/true; done \
+    && cd .. \
+    && rm -rf c-blosc-${BLOSC_VERSION} \
+    ); fi
 
 # Build szip
 ARG SZIP_VERSION=2.1.1
@@ -54,7 +83,7 @@ RUN if test "${SZIP_VERSION}" != ""; then ( \
 
 # Build hdf4
 ARG HDF4_VERSION=4.2.15
-RUN if test "${HDF4_VERSION}" != ""; then ( \
+RUN if test "${HDF4_VERSION}" != "" -a "$(uname -m)" = "x86_64"; then ( \
     apk add --no-cache byacc flex portablexdr-dev \
     && mkdir hdf4 \
     && wget -q https://support.hdfgroup.org/ftp/HDF/releases/HDF${HDF4_VERSION}/src/hdf-${HDF4_VERSION}.tar.gz -O - \
@@ -132,27 +161,33 @@ ARG RSYNC_REMOTE
 # Build PROJ
 ARG PROJ_VERSION=master
 RUN mkdir proj \
+    && apk add --no-cache cmake \
     && wget -q https://github.com/OSGeo/PROJ/archive/${PROJ_VERSION}.tar.gz -O - \
         | tar xz -C proj --strip-components=1 \
     && cd proj \
-    && ./autogen.sh \
     && if test "${RSYNC_REMOTE}" != ""; then \
         echo "Downloading cache..."; \
-        rsync -ra ${RSYNC_REMOTE}/proj/ $HOME/; \
+        rsync -ra ${RSYNC_REMOTE}/proj/$(uname -m)/ $HOME/; \
         echo "Finished"; \
         export CC="ccache gcc"; \
         export CXX="ccache g++"; \
+        mkdir -p "$HOME/.ccache"; \
         export PROJ_DB_CACHE_DIR="$HOME/.ccache"; \
         ccache -M 100M; \
     fi \
-    && ./configure --prefix=/usr --disable-static --enable-lto \
+    && cmake . \
+        -DBUILD_SHARED_LIBS=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/usr \
+        -DENABLE_IPO=ON \
+        -DBUILD_TESTING=OFF \
     && make -j$(nproc) \
     && make install \
     && make install DESTDIR="/build_proj" \
     && if test "${RSYNC_REMOTE}" != ""; then \
         ccache -s; \
         echo "Uploading cache..."; \
-        rsync -ra --delete $HOME/.ccache ${RSYNC_REMOTE}/proj/; \
+        rsync -ra --delete $HOME/.ccache ${RSYNC_REMOTE}/proj/$(uname -m)/; \
         echo "Finished"; \
         rm -rf $HOME/.ccache; \
         unset CC; \
@@ -161,11 +196,12 @@ RUN mkdir proj \
     && cd .. \
     && rm -rf proj \
     && for i in /build_proj/usr/lib/*; do strip -s $i 2>/dev/null || /bin/true; done \
-    && for i in /build_proj/usr/bin/*; do strip -s $i 2>/dev/null || /bin/true; done
+    && for i in /build_proj/usr/bin/*; do strip -s $i 2>/dev/null || /bin/true; done \
+    && apk del cmake
 
 # Build spatialite
 ARG SPATIALITE_VERSION=5.0.1
-RUN if test "${SPATIALITE_VERSION}" != ""; then ( \
+RUN if test "${SPATIALITE_VERSION}" != "" -a "$(uname -m)" = "x86_64"; then ( \
     wget -q http://www.gaia-gis.it/gaia-sins/libspatialite-${SPATIALITE_VERSION}.tar.gz \
     && tar xzf libspatialite-${SPATIALITE_VERSION}.tar.gz \
     && rm -f libspatialite-${SPATIALITE_VERSION}.tar.gz \
@@ -177,6 +213,7 @@ RUN if test "${SPATIALITE_VERSION}" != ""; then ( \
         echo "Finished"; \
         export CC="ccache gcc"; \
         export CXX="ccache g++"; \
+        mkdir -p "$HOME/.ccache"; \
         ccache -M 100M; \
     fi \
     && ./configure --prefix=/usr --disable-static --disable-rttopo \
@@ -204,8 +241,10 @@ RUN if test "${SPATIALITE_VERSION}" != ""; then ( \
 ARG GDAL_VERSION=master
 ARG GDAL_RELEASE_DATE
 ARG GDAL_BUILD_IS_RELEASE
+ARG GDAL_REPOSITORY=OSGeo/gdal
+
 RUN if test "${GDAL_VERSION}" = "master"; then \
-        export GDAL_VERSION=$(curl -Ls https://api.github.com/repos/OSGeo/gdal/commits/HEAD -H "Accept: application/vnd.github.VERSION.sha"); \
+        export GDAL_VERSION=$(curl -Ls https://api.github.com/repos/${GDAL_REPOSITORY}/commits/HEAD -H "Accept: application/vnd.github.VERSION.sha"); \
         export GDAL_RELEASE_DATE=$(date "+%Y%m%d"); \
     fi \
     && if test "x${GDAL_BUILD_IS_RELEASE}" = "x"; then \
@@ -216,14 +255,14 @@ RUN if test "${GDAL_VERSION}" = "master"; then \
     && if test "${XERCESC_VERSION}" != ""; then \
         export GDAL_EXTRA_ARGS="--with-xerces ${GDAL_EXTRA_ARGS}"; \
     fi \
-    && if test "${HDF4_VERSION}" != ""; then \
+    && if test "${HDF4_VERSION}" != "" -a "$(uname -m)" = "x86_64"; then \
         apk add --no-cache portablexdr-dev \
         && export LDFLAGS="-lportablexdr ${LDFLAGS}" \
         && export GDAL_EXTRA_ARGS="--with-hdf4 ${GDAL_EXTRA_ARGS}"; \
     fi \
     && export GDAL_EXTRA_ARGS="--with-hdf5 ${GDAL_EXTRA_ARGS}" \
     && export GDAL_EXTRA_ARGS="--with-netcdf ${GDAL_EXTRA_ARGS}" \
-    && if test "${SPATIALITE_VERSION}" != ""; then \
+    && if test "${SPATIALITE_VERSION}" != "" -a "$(uname -m)" = "x86_64"; then \
         export GDAL_EXTRA_ARGS="--with-spatialite ${GDAL_EXTRA_ARGS}"; \
     fi \
     && if test "${POPPLER_DEV}" != ""; then \
@@ -231,12 +270,12 @@ RUN if test "${GDAL_VERSION}" = "master"; then \
     fi \
     && echo ${GDAL_EXTRA_ARGS} \
     && mkdir gdal \
-    && wget -q https://github.com/OSGeo/gdal/archive/${GDAL_VERSION}.tar.gz -O - \
+    && wget -q https://github.com/${GDAL_REPOSITORY}/archive/${GDAL_VERSION}.tar.gz -O - \
         | tar xz -C gdal --strip-components=1 \
-    && cd gdal/gdal \
+    && cd gdal \
     && if test "${RSYNC_REMOTE}" != ""; then \
         echo "Downloading cache..."; \
-        rsync -ra ${RSYNC_REMOTE}/gdal/ $HOME/; \
+        rsync -ra ${RSYNC_REMOTE}/gdal/$(uname -m)/ $HOME/; \
         echo "Finished"; \
         # Little trick to avoid issues with Python bindings
         printf "#!/bin/sh\nccache gcc \$*" > ccache_gcc.sh; \
@@ -245,10 +284,13 @@ RUN if test "${GDAL_VERSION}" = "master"; then \
         chmod +x ccache_g++.sh; \
         export CC=$PWD/ccache_gcc.sh; \
         export CXX=$PWD/ccache_g++.sh; \
+        mkdir -p "$HOME/.ccache"; \
         ccache -M 1G; \
     fi \
-    && ./configure --prefix=/usr --without-libtool \
+    && ./autogen.sh \
+    && ./configure --prefix=/usr --sysconfdir=/etc --without-libtool \
     --with-hide-internal-symbols \
+    --with-liblzma \
     --with-proj=/usr \
     --with-libtiff=internal --with-rename-internal-libtiff-symbols \
     --with-geotiff=internal --with-rename-internal-libgeotiff-symbols \
@@ -261,24 +303,25 @@ RUN if test "${GDAL_VERSION}" = "master"; then \
     && if test "${RSYNC_REMOTE}" != ""; then \
         ccache -s; \
         echo "Uploading cache..."; \
-        rsync -ra --delete $HOME/.ccache ${RSYNC_REMOTE}/gdal/; \
+        rsync -ra --delete $HOME/.ccache ${RSYNC_REMOTE}/gdal/$(uname -m)/; \
         echo "Finished"; \
         rm -rf $HOME/.ccache; \
         unset CC; \
         unset CXX; \
     fi \
-    && cd ../.. \
+    && cd .. \
     && rm -rf gdal \
     && mkdir -p /build_gdal_python/usr/lib \
     && mkdir -p /build_gdal_python/usr/bin \
     && mkdir -p /build_gdal_version_changing/usr/include \
-    && mv /build/usr/lib/python3.8          /build_gdal_python/usr/lib \
+    && export py_version=$(python3 -c "import sys; print(str(sys.version_info.major) + '.' + str(sys.version_info.minor))") \
+    && mv /build/usr/lib/python${py_version} /build_gdal_python/usr/lib \
     && mv /build/usr/lib                    /build_gdal_version_changing/usr \
     && mv /build/usr/include/gdal_version.h /build_gdal_version_changing/usr/include \
     && mv /build/usr/bin/*.py               /build_gdal_python/usr/bin \
     && mv /build/usr/bin                    /build_gdal_version_changing/usr \
     && for i in /build_gdal_version_changing/usr/lib/*; do strip -s $i 2>/dev/null || /bin/true; done \
-    && for i in /build_gdal_python/usr/lib/python3.8/site-packages/osgeo/*.so; do strip -s $i 2>/dev/null || /bin/true; done \
+    && for i in /build_gdal_python/usr/lib/python${py_version}/site-packages/osgeo/*.so; do strip -s $i 2>/dev/null || /bin/true; done \
     && for i in /build_gdal_version_changing/usr/bin/*; do strip -s $i 2>/dev/null || /bin/true; done \
     # Remove resource files of uncompiled drivers
     && (for i in \
@@ -298,12 +341,13 @@ RUN apk add --no-cache \
         libstdc++ \
         sqlite-libs \
         libcurl tiff \
-        zlib zstd-libs\
+        zlib zstd-libs xz-libs snappy \
         libjpeg-turbo libpng libwebp expat \
         icu-libs \
         python3 py3-numpy ${POPPLER} pcre libpq libxml2 portablexdr openjpeg \
         netcdf hdf5 freexl \
         openexr libheif xerces-c geos cfitsio minizip \
+        lz4-libs \
     # Remove /usr/lib/libopenjp2.so.2.3.0 since we are building v2.3.1 manually
     # && rm -f /usr/lib/libopenjp2.so.2.3.0 \
     # libturbojpeg.so is not used by GDAL. Only libjpeg.so*

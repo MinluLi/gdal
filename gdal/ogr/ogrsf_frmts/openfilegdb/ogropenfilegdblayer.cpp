@@ -115,28 +115,26 @@ class OGROpenFileGDBFeatureDefn: public OGRFeatureDefn
 
         void UnsetLayer()
         {
-            if( nGeomFieldCount )
-                reinterpret_cast<OGROpenFileGDBGeomFieldDefn *>(
-                    papoGeomFieldDefn[0])->UnsetLayer();
+            if( !apoGeomFieldDefn.empty() )
+                cpl::down_cast<OGROpenFileGDBGeomFieldDefn *>(
+                    apoGeomFieldDefn[0].get())->UnsetLayer();
             m_poLayer = nullptr;
         }
 
         virtual int GetFieldCount() const override
         {
-            if( nFieldCount )
-                return nFieldCount;
             if( !m_bHasBuildFieldDefn && m_poLayer != nullptr )
             {
                 m_bHasBuildFieldDefn = TRUE;
                 (void) m_poLayer->BuildLayerDefinition();
             }
-            return nFieldCount;
+            return OGRFeatureDefn::GetFieldCount();
         }
 
         virtual int GetGeomFieldCount() const override
         {
             LazyGeomInit();
-            return nGeomFieldCount;
+            return OGRFeatureDefn::GetGeomFieldCount();
         }
 
         virtual OGRGeomFieldDefn* GetGeomFieldDefn( int i ) override
@@ -348,8 +346,8 @@ int OGROpenFileGDBLayer::BuildGeometryColumnGDBv10()
         int nLatestWKID = atoi(
             CPLGetXMLValue( psInfo, "SpatialReference.LatestWKID", "0" ));
 
-        OGROpenFileGDBGeomFieldDefn* poGeomFieldDefn =
-            new OGROpenFileGDBGeomFieldDefn(nullptr, pszShapeFieldName, m_eGeomType);
+       auto poGeomFieldDefn =
+            cpl::make_unique<OGROpenFileGDBGeomFieldDefn>(nullptr, pszShapeFieldName, m_eGeomType);
 
         CPLXMLNode* psGPFieldInfoExs = CPLGetXMLNode(psInfo, "GPFieldInfoExs");
         if( psGPFieldInfoExs )
@@ -421,7 +419,7 @@ int OGROpenFileGDBLayer::BuildGeometryColumnGDBv10()
             poGeomFieldDefn->SetSpatialRef(poSRS);
             poSRS->Dereference();
         }
-        m_poFeatureDefn->AddGeomFieldDefn(poGeomFieldDefn, FALSE);
+        m_poFeatureDefn->AddGeomFieldDefn(std::move(poGeomFieldDefn));
     }
     else
     {
@@ -585,11 +583,14 @@ int OGROpenFileGDBLayer::BuildLayerDefinition()
         if( m_poLyrTable->GetGeomTypeHasM() )
             m_eGeomType = wkbSetM(m_eGeomType);
 
-        OGROpenFileGDBGeomFieldDefn* poGeomFieldDefn =
-                new OGROpenFileGDBGeomFieldDefn(nullptr, pszName, m_eGeomType);
-        poGeomFieldDefn->SetNullable(poGDBGeomField->IsNullable());
+        {
+            auto poGeomFieldDefn =
+                    cpl::make_unique<OGROpenFileGDBGeomFieldDefn>(nullptr, pszName, m_eGeomType);
+            poGeomFieldDefn->SetNullable(poGDBGeomField->IsNullable());
 
-        m_poFeatureDefn->AddGeomFieldDefn(poGeomFieldDefn, FALSE);
+            m_poFeatureDefn->AddGeomFieldDefn(std::move(poGeomFieldDefn));
+        }
+        auto poGeomFieldDefn = m_poFeatureDefn->GetGeomFieldDefn(0);
 
         OGRSpatialReference* poSRS = nullptr;
         if( !poGDBGeomField->GetWKT().empty() &&
@@ -670,7 +671,6 @@ int OGROpenFileGDBLayer::BuildLayerDefinition()
                 CPLAssert(false);
                 break;
             case FGFT_BINARY:
-            case FGFT_RASTER:
             {
                 /* Special case for v9 GDB_UserMetadata table */
                 if( m_iFieldToReadAsBinary < 0 &&
@@ -681,7 +681,18 @@ int OGROpenFileGDBLayer::BuildLayerDefinition()
                     eType = OFTString;
                 }
                 else
+                {
                     eType = OFTBinary;
+                }
+                break;
+            }
+            case FGFT_RASTER:
+            {
+                const FileGDBRasterField* rasterField = cpl::down_cast<const FileGDBRasterField*>(poGDBField);
+                if( rasterField->IsManaged() )
+                    eType = OFTInteger;
+                else
+                    eType = OFTString;
                 break;
             }
         }
