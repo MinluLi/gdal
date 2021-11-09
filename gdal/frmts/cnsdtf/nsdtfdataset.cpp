@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
 *
 * Project:  GDAL
 * Purpose:  Implements China Geospatial Data Transfer Grid Format.
@@ -649,19 +649,19 @@ int NSDTFDataset::ParseHeader(const char* pszHeader)
 {
     char** papszTokens = CSLTokenizeString2(pszHeader, " \n\r", 0);
     int nTokens = CSLCount(papszTokens);
-    if ( nTokens < 14)
+    if (nTokens < 14)
     {
         CSLDestroy(papszTokens);
         return FALSE;
     }
 
-    if(!EQUAL(papszTokens[0], "NSDTF-DEM"))
+    if (!EQUAL(papszTokens[0], "NSDTF-DEM"))
     {
         CSLDestroy(papszTokens);
         return FALSE;
     }
 
-    if(!EQUAL(papszTokens[2], "M") &&!EQUAL(papszTokens[2], "D") && !EQUAL(papszTokens[2], "K") )
+    if (!EQUAL(papszTokens[2], "M") && !EQUAL(papszTokens[2], "D") && !EQUAL(papszTokens[2], "K"))
     {
         CSLDestroy(papszTokens);
         return FALSE;
