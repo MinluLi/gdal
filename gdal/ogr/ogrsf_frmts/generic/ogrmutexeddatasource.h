@@ -67,7 +67,7 @@ class CPL_DLL OGRMutexedDataSource : public OGRDataSource
                                       int bWrapLayersInMutexedLayer);
 
     /* The destruction of the object isn't protected by the mutex */
-    virtual     ~OGRMutexedDataSource() override;
+    virtual     ~OGRMutexedDataSource();
 
     OGRDataSource*      GetBaseDataSource() { return m_poBaseDataSource; }
 
@@ -77,7 +77,6 @@ class CPL_DLL OGRMutexedDataSource : public OGRDataSource
     virtual OGRLayer    *GetLayer(int) override;
     virtual OGRLayer    *GetLayerByName(const char *) override;
     virtual OGRErr      DeleteLayer(int) override;
-    virtual bool        IsLayerPrivate(int iLayer) const override;
 
     virtual int         TestCapability( const char * ) override;
 
@@ -99,7 +98,7 @@ class CPL_DLL OGRMutexedDataSource : public OGRDataSource
                                     const char *pszDialect ) override;
     virtual void        ReleaseResultSet( OGRLayer * poResultsSet ) override;
 
-    virtual void        FlushCache(bool bAtClosing) override;
+    virtual void        FlushCache() override;
 
     virtual OGRErr      StartTransaction(int bForce=FALSE) override;
     virtual OGRErr      CommitTransaction() override;
@@ -118,8 +117,6 @@ class CPL_DLL OGRMutexedDataSource : public OGRDataSource
 
     virtual bool        AddFieldDomain(std::unique_ptr<OGRFieldDomain>&& domain,
                                        std::string& failureReason) override;
-
-    virtual std::shared_ptr<GDALGroup> GetRootGroup() const override;
 
 };
 

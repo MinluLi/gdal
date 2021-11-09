@@ -35,8 +35,6 @@
 
 #include "cpl_json_header.h"
 
-#include <algorithm>
-
 CPL_CVSID("$Id$")
 
 /************************************************************************/
@@ -116,18 +114,10 @@ GMLASInputSource::GMLASInputSource(const char* pszFilename,
 {
     m_fp = fp;
     m_bOwnFP = bOwnFP;
-    try
-    {
-        XMLCh* pFilename = XMLString::transcode(pszFilename);
-        setPublicId(pFilename);
-        setSystemId(pFilename);
-        XMLString::release( &pFilename );
-    }
-    catch( const TranscodingException& e )
-    {
-        CPLError(CE_Failure, CPLE_AppDefined, "TranscodingException: %s",
-                 transcode(e.getMessage()).c_str());
-    }
+    XMLCh* pFilename = XMLString::transcode(pszFilename);
+    setPublicId(pFilename);
+    setSystemId(pFilename);
+    XMLString::release( &pFilename );
     m_nCounter = 0;
     m_pnCounter = &m_nCounter;
     m_cbk = nullptr;
@@ -445,15 +435,11 @@ GMLASReader::~GMLASReader()
             delete m_aoStackContext[i].m_poFeature;
         }
     }
+    for( size_t i = 0; i < m_aoFeaturesReady.size(); i++ )
     {
-        int i = 0;
-        for( auto& feature: m_aoFeaturesReady )
-        {
-            CPLDebug("GMLAS", "Delete feature m_aoFeaturesReady[%d].first=%p",
-                     i, feature.first);
-            delete feature.first;
-            ++i;
-        }
+        CPLDebug("GMLAS", "Delete feature m_aoFeaturesReady[%d].first=%p",
+                 static_cast<int>(i), m_aoFeaturesReady[i].first);
+        delete m_aoFeaturesReady[i].first;
     }
     if( !m_apsXMLNodeStack.empty() )
     {
@@ -541,59 +527,9 @@ bool GMLASReader::LoadXSDInParser( SAX2XMLReader* poParser,
 
     GMLASInputSource oSource(osResolvedFilename, fpXSD, false);
     const bool bCacheGrammar = true;
-    Grammar* poGrammar = nullptr;
-    std::string osLoadGrammarErrorMsg("loadGrammar failed");
-
-    const int nMaxMem = std::min(2048, std::max(0, atoi(
-        CPLGetConfigOption("OGR_GMLAS_XERCES_MAX_MEMORY", "500"))));
-    const std::string osMsgMaxMem = CPLSPrintf(
-        "Xerces-C memory allocation exceeds %d MB. "
-        "This can happen on schemas with a big value for maxOccurs. "
-        "Define the OGR_GMLAS_XERCES_MAX_MEMORY configuration option to a "
-        "bigger value (in MB) to increase that limitation, "
-        "or 0 to remove it completely.",
-        nMaxMem);
-    const double dfTimeout = CPLAtof(
-        CPLGetConfigOption("OGR_GMLAS_XERCES_MAX_TIME", "2"));
-    const std::string osMsgTimeout = CPLSPrintf(
-        "Processing in Xerces exceeded maximum allowed of %.3f s. "
-        "This can happen on schemas with a big value for maxOccurs. "
-        "Define the OGR_GMLAS_XERCES_MAX_TIME configuration option to a "
-        "bigger value (in second) to increase that limitation, "
-        "or 0 to remove it completely.",
-        dfTimeout);
-    OGRStartXercesLimitsForThisThread(static_cast<size_t>(nMaxMem) * 1024 * 1024,
-                                      osMsgMaxMem.c_str(),
-                                      dfTimeout,
-                                      osMsgTimeout.c_str());
-    try
-    {
-        poGrammar = poParser->loadGrammar(oSource,
+    Grammar* poGrammar = poParser->loadGrammar(oSource,
                                             Grammar::SchemaGrammarType,
                                             bCacheGrammar);
-    }
-    catch( const SAXException& e )
-    {
-        osLoadGrammarErrorMsg += ": "+ transcode(e.getMessage());
-    }
-    catch( const XMLException& e )
-    {
-        osLoadGrammarErrorMsg += ": "+ transcode(e.getMessage());
-    }
-    catch( const OutOfMemoryException& e )
-    {
-        if( strstr(CPLGetLastErrorMsg(), "configuration option") == nullptr )
-        {
-            osLoadGrammarErrorMsg += ": "+ transcode(e.getMessage());
-        }
-    }
-    catch( const DOMException& e )
-    {
-        // Can happen with a .xsd that has a bad <?xml version="
-        // declaration.
-        osLoadGrammarErrorMsg += ": "+ transcode(e.getMessage());
-    }
-    OGRStopXercesLimitsForThisThread();
 
     // Restore previous handlers
     poParser->setEntityResolver( poOldEntityResolver );
@@ -602,11 +538,7 @@ bool GMLASReader::LoadXSDInParser( SAX2XMLReader* poParser,
 
     if( poGrammar == nullptr )
     {
-        if( !osLoadGrammarErrorMsg.empty() )
-        {
-            CPLError(CE_Failure, CPLE_AppDefined, "%s",
-                     osLoadGrammarErrorMsg.c_str());
-        }
+        CPLError(CE_Failure, CPLE_AppDefined, "loadGrammar failed");
         return false;
     }
     if( oErrorHandler.hasFailed() )
@@ -2694,9 +2626,6 @@ static size_t SkipSpace( const char* pszValues, size_t i )
 
 void GMLASReader::ProcessSWEDataArray(CPLXMLNode* psRoot)
 {
-    if( m_oCurCtxt.m_poLayer == nullptr )
-        return;
-
     CPLStripXMLNamespace( psRoot, "swe", true );
     CPLXMLNode* psElementType = CPLGetXMLNode(psRoot, "elementType");
     if( psElementType == nullptr )
@@ -2883,10 +2812,10 @@ void GMLASReader::ProcessSWEDataRecord(CPLXMLNode* psRoot)
         // patch them
         std::vector<OGRFeature*> apoFeatures;
         apoFeatures.push_back(m_oCurCtxt.m_poFeature);
-        for(auto& feature: m_aoFeaturesReady )
+        for(size_t i = 0; i < m_aoFeaturesReady.size(); ++i )
         {
-            if( feature.second == m_oCurCtxt.m_poLayer )
-                apoFeatures.push_back(feature.first);
+            if( m_aoFeaturesReady[i].second == m_oCurCtxt.m_poLayer )
+                apoFeatures.push_back(m_aoFeaturesReady[i].first);
         }
         m_oCurCtxt.m_poLayer->ProcessDataRecordCreateFields(
             psRoot, apoFeatures, m_poFieldsMetadataLayer);
@@ -2938,7 +2867,7 @@ void GMLASReader::ProcessGeometry(CPLXMLNode* psRoot)
                                 new OGRSpatialReference();
                 poSRS->SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER);
 
-                if( poSRS->SetFromUserInput( pszSRSName, OGRSpatialReference::SET_FROM_USER_INPUT_LIMITATIONS_get()) == OGRERR_NONE )
+                if( poSRS->SetFromUserInput( pszSRSName ) == OGRERR_NONE )
                 {
                     m_oMapGeomFieldDefnToSRSName[poGeomFieldDefn] = pszSRSName;
                     poGeomFieldDefn->SetSpatialRef(poSRS);
@@ -2973,7 +2902,7 @@ void GMLASReader::ProcessGeometry(CPLXMLNode* psRoot)
             if( oIter == m_oMapSRSNameToInvertedAxis.end() )
             {
                 OGRSpatialReference oSRS;
-                oSRS.SetFromUserInput( pszSRSName, OGRSpatialReference::SET_FROM_USER_INPUT_LIMITATIONS_get());
+                oSRS.SetFromUserInput( pszSRSName );
                 bSwapXY = !STARTS_WITH_CI(pszSRSName, "EPSG:") &&
                     (CPL_TO_BOOL(oSRS.EPSGTreatsAsLatLong()) ||
                      CPL_TO_BOOL(oSRS.EPSGTreatsAsNorthingEasting()));
@@ -2996,7 +2925,7 @@ void GMLASReader::ProcessGeometry(CPLXMLNode* psRoot)
         {
             bool bReprojectionOK = false;
             OGRSpatialReference oSRS;
-            if( oSRS.SetFromUserInput( pszSRSName, OGRSpatialReference::SET_FROM_USER_INPUT_LIMITATIONS_get()) == OGRERR_NONE )
+            if( oSRS.SetFromUserInput( pszSRSName ) == OGRERR_NONE )
             {
                 OGRCoordinateTransformation* poCT =
                     OGRCreateCoordinateTransformation( &oSRS,
@@ -3183,8 +3112,8 @@ OGRFeature* GMLASReader::GetNextFeature( OGRGMLASLayer** ppoBelongingLayer,
 {
     while( !m_aoFeaturesReady.empty() )
     {
-        OGRFeature* m_poFeatureReady = m_aoFeaturesReady.front().first;
-        OGRGMLASLayer* m_poFeatureReadyLayer = m_aoFeaturesReady.front().second;
+        OGRFeature* m_poFeatureReady = m_aoFeaturesReady[0].first;
+        OGRGMLASLayer* m_poFeatureReadyLayer = m_aoFeaturesReady[0].second;
         m_aoFeaturesReady.erase( m_aoFeaturesReady.begin() );
 
         if( m_poLayerOfInterest == nullptr ||
@@ -3233,9 +3162,9 @@ OGRFeature* GMLASReader::GetNextFeature( OGRGMLASLayer** ppoBelongingLayer,
 
             while( !m_aoFeaturesReady.empty() )
             {
-                OGRFeature* m_poFeatureReady = m_aoFeaturesReady.front().first;
+                OGRFeature* m_poFeatureReady = m_aoFeaturesReady[0].first;
                 OGRGMLASLayer* m_poFeatureReadyLayer =
-                                               m_aoFeaturesReady.front().second;
+                                               m_aoFeaturesReady[0].second;
                 m_aoFeaturesReady.erase( m_aoFeaturesReady.begin() );
 
                 if( m_poLayerOfInterest == nullptr ||

@@ -73,7 +73,7 @@ FujiBASDataset::FujiBASDataset() :
 FujiBASDataset::~FujiBASDataset()
 
 {
-    FlushCache(true);
+    FlushCache();
     if( fpImage != nullptr )
         VSIFCloseL( fpImage );
     CSLDestroy( papszHeader );

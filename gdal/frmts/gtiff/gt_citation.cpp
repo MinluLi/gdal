@@ -361,7 +361,7 @@ void SetLinearUnitCitation( std::map<geokey_t, std::string>& oMapAsciiKeys,
 /************************************************************************/
 void SetGeogCSCitation( GTIF * psGTIF,
                         std::map<geokey_t, std::string>& oMapAsciiKeys,
-                        const OGRSpatialReference *poSRS,
+                        OGRSpatialReference *poSRS,
                         const char* angUnitName, int nDatum, short nSpheroid )
 {
     bool bRewriteGeogCitation = false;

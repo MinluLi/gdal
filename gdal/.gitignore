@@ -5,8 +5,6 @@ detectsse.dSYM
 gdal.pc
 config.log
 config.status
-configure
-aclocal.m4
 libtool
 cpl_config.h
 clean_main_build_output.bat
@@ -24,7 +22,6 @@ clean_main_build_output.bat
 *.exp
 *.lo
 *.la
-*.so
 .libs
 *.pyc
 *.sdf
@@ -34,7 +31,6 @@ clean_main_build_output.bat
 *.vcxproj.user
 *.VC.db
 *.VC.opendb
-*.swp
 /[Dd]ebug
 /[Rr]elease
 /x64
@@ -143,38 +139,3 @@ nmake.local*
 *~
 *tmp
 .python-version
-.vagrant
-
-# IDE ignore
-.project
-.settings
-.pydevproject
-.cproject
-.idea
-.vscode
-.vs
-.vim
-
-# clangd lsp
-.clangd
-compile_commands.json
-
-# Python
-__pycache__/
-.env*/
-.venv*/
-gdal/nmake_ori.opt
-gdal/nmake_x64.opt
-gdal/nmake_x86.opt
-gdal/test.cpp
-gdal/gdaltest.cpp
-/gdal/proj
-gdal/nmake-my.opt
-# CMake
-CMakeLists.txt
-*.cmake
-
-# NuGet package manager storage
-gdal/packages*
-gdal/share
-

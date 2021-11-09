@@ -13,11 +13,16 @@ import sys
 import os
 
 from glob import glob
+from distutils.sysconfig import get_config_vars
+from distutils.command.build_ext import build_ext
+from distutils.ccompiler import get_default_compiler
+from distutils.errors import CompileError
 
-from setuptools.command.build_ext import build_ext
-from setuptools import setup
-from setuptools import find_packages
-from setuptools import Extension
+# Strip -Wstrict-prototypes from compiler options, if present. This is
+# not required when compiling a C++ extension.
+(opt,) = get_config_vars('OPT')
+if opt is not None:
+    os.environ['OPT'] = " ".join(f for f in opt.split() if f != '-Wstrict-prototypes')
 
 # If CXX is defined in the environment, it will be used to link the .so
 # but distutils will be confused if it is made of several words like 'ccache g++'
@@ -46,6 +51,7 @@ if 'CC' in os.environ and os.environ['CC'].strip().find(' ') >= 0:
 # ---------------------------------------------------------------------------
 
 HAVE_NUMPY = False
+HAVE_SETUPTOOLS = False
 BUILD_FOR_CHEESESHOP = False
 GNM_ENABLED = True
 
@@ -91,6 +97,16 @@ except ImportError:
     print('WARNING: numpy not available!  Array support will not be enabled')
     pass
 
+try:
+    from setuptools import setup, find_packages
+    from setuptools import Extension
+    HAVE_SETUPTOOLS = True
+except ImportError:
+    from distutils.core import setup, Extension
+    from distutils.command.build_py import build_py
+    from distutils.command.build_scripts import build_scripts
+
+
 class gdal_config_error(Exception):
     pass
 
@@ -135,7 +151,7 @@ int main () { return 0; }""")
             try:
                 compiler.compile([f.name], extra_postargs=extra_postargs)
                 ret = True
-            except Exception:
+            except CompileError:
                 pass
             os.dup2(oldstderr, sys.stderr.fileno())
             devnull.close()
@@ -143,7 +159,7 @@ int main () { return 0; }""")
             try:
                 compiler.compile([f.name], extra_postargs=extra_postargs)
                 ret = True
-            except Exception:
+            except CompileError:
                 pass
     os.unlink('gdal_python_cxx11_test.cpp')
     if os.path.exists('gdal_python_cxx11_test.o'):
@@ -161,6 +177,7 @@ def has_flag(compiler, flagname):
         except CompileError:
             return False
     return True
+
 
 class gdal_ext(build_ext):
 
@@ -181,7 +198,7 @@ class gdal_ext(build_ext):
         self.parallel = True # Python 3.5 only
 
     def get_compiler(self):
-        return self.compiler or ('msvc' if os.name == 'nt' else 'unix')
+        return self.compiler or get_default_compiler()
 
     def get_gdal_config(self, option):
         try:
@@ -193,7 +210,7 @@ class gdal_ext(build_ext):
             # We'll try to use the gdal-config that might be on the path.
             try:
                 return fetch_config(option)
-            except gdal_config_error:
+            except gdal_config_error as e:
                 msg = 'Could not find gdal-config. Make sure you have installed the GDAL native library and development headers.'
                 import sys
                 import traceback
@@ -323,7 +340,10 @@ if HAVE_NUMPY:
     ext_modules.append(array_module)
 
 utils_package_root = 'gdal-utils'   # path for gdal-utils sources
-packages = find_packages(utils_package_root)
+if HAVE_SETUPTOOLS:
+    packages = find_packages(utils_package_root)
+else:
+    packages = ['osgeo_utils', 'osgeo_utils.auxiliary', 'osgeo_utils.samples']
 packages = ['osgeo'] + packages
 package_dir = {'osgeo': 'osgeo', '': utils_package_root}
 
@@ -382,8 +402,13 @@ setup_kwargs = dict(
     scripts=glob(utils_package_root + '/scripts/*.py'),
     cmdclass={'build_ext': gdal_ext},
     extras_require={'numpy': ['numpy > 1.0.0']},
-    zip_safe=False,
-    exclude_package_data=exclude_package_data
 )
+
+if HAVE_SETUPTOOLS:
+    setup_kwargs['zip_safe'] = False
+    setup_kwargs['exclude_package_data'] = exclude_package_data
+else:
+    setup_kwargs['cmdclass']['build_py'] = build_py
+    setup_kwargs['cmdclass']['build_scripts'] = build_scripts
 
 setup(**setup_kwargs)

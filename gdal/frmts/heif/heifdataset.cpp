@@ -69,12 +69,12 @@ class GDALHEIFDataset final: public GDALPamDataset
                                                                void* userdata);
 #endif
 
+        GDALHEIFDataset();
         bool Init(GDALOpenInfo* poOpenInfo);
         void ReadMetadata();
         void OpenThumbnails();
 
     public:
-        GDALHEIFDataset();
         ~GDALHEIFDataset();
 
         static int Identify(GDALOpenInfo* poOpenInfo);
@@ -520,7 +520,7 @@ void GDALHEIFDataset::OpenThumbnails()
     }
 #endif
 
-    auto poOvrDS = cpl::make_unique<GDALHEIFDataset>();
+    auto poOvrDS = std::unique_ptr<GDALHEIFDataset>(new GDALHEIFDataset());
     poOvrDS->m_hImageHandle = hThumbnailHandle;
     poOvrDS->m_bIsThumbnail = true;
     poOvrDS->nRasterXSize = heif_image_handle_get_width(hThumbnailHandle);
@@ -547,7 +547,7 @@ GDALDataset* GDALHEIFDataset::Open(GDALOpenInfo* poOpenInfo)
         return nullptr;
     }
 
-    auto poDS = cpl::make_unique<GDALHEIFDataset>();
+    std::unique_ptr<GDALHEIFDataset> poDS(new GDALHEIFDataset());
     if( !poDS->Init(poOpenInfo) )
         return nullptr;
 

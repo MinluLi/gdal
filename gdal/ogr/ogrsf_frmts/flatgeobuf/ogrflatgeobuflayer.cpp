@@ -79,9 +79,9 @@ OGRFlatGeobufLayer::OGRFlatGeobufLayer(
     m_featuresCount = m_poHeader->features_count();
     m_geometryType = m_poHeader->geometry_type();
     m_indexNodeSize = m_poHeader->index_node_size();
-    m_hasZ = m_poHeader->has_z();
-    m_hasM = m_poHeader->has_m();
-    m_hasT = m_poHeader->has_t();
+    m_hasZ = m_poHeader->hasZ();
+    m_hasM = m_poHeader->hasM();
+    m_hasT = m_poHeader->hasT();
     const auto envelope = m_poHeader->envelope();
     if( envelope && envelope->size() == 4 )
     {
@@ -99,44 +99,20 @@ OGRFlatGeobufLayer::OGRFlatGeobufLayer(
         m_poSRS->SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER);
         const auto org = crs->org();
         const auto code = crs->code();
-        CPLString wkt = crs->wkt() ? crs->wkt()->c_str() : "";
-        double dfCoordEpoch = 0;
-        if( STARTS_WITH_CI( wkt.c_str(), "COORDINATEMETADATA[") )
-        {
-            size_t nPos = std::string::npos;
-            // We don't want to match FRAMEEPOCH[
-            for( const char* pszEpoch : { ",EPOCH[", " EPOCH[", "\tEPOCH[",
-                                          "\nEPOCH[", "\rEPOCH[" } )
-            {
-                nPos = wkt.ifind(pszEpoch);
-                if( nPos != std::string::npos )
-                    break;
-            }
-            if( nPos != std::string::npos )
-            {
-                dfCoordEpoch = CPLAtof(
-                    wkt.c_str() + nPos + strlen(",EPOCH["));
-                wkt.resize(nPos);
-                wkt = wkt.substr(strlen("COORDINATEMETADATA["));
-            }
-        }
-
+        const auto wkt = crs->wkt();
         if ((org == nullptr || EQUAL(org->c_str(), "EPSG")) && code != 0) {
             m_poSRS->importFromEPSG(code);
         } else if( org && code != 0 ) {
             CPLString osCode;
             osCode.Printf("%s:%d", org->c_str(), code);
-            if( m_poSRS->SetFromUserInput(osCode.c_str(), OGRSpatialReference::SET_FROM_USER_INPUT_LIMITATIONS_get()) != OGRERR_NONE &&
-                !wkt.empty() )
+            if( m_poSRS->SetFromUserInput(osCode.c_str()) != OGRERR_NONE &&
+                wkt != nullptr )
             {
-                m_poSRS->importFromWkt(wkt.c_str());
+                m_poSRS->importFromWkt(wkt->c_str());
             }
-        } else if (!wkt.empty()) {
-            m_poSRS->importFromWkt(wkt.c_str());
+        } else if (wkt) {
+            m_poSRS->importFromWkt(wkt->c_str());
         }
-
-        if( dfCoordEpoch > 0 )
-            m_poSRS->SetCoordinateEpoch( dfCoordEpoch );
     }
 
     m_eGType = getOGRwkbGeometryType();
@@ -145,10 +121,10 @@ OGRFlatGeobufLayer::OGRFlatGeobufLayer(
     m_poFeatureDefn = new OGRFeatureDefn(pszName);
     SetDescription(m_poFeatureDefn->GetName());
     m_poFeatureDefn->SetGeomType(wkbNone);
-    auto poGeomFieldDefn = cpl::make_unique<OGRGeomFieldDefn>(nullptr, m_eGType);
+    OGRGeomFieldDefn *poGeomFieldDefn = new OGRGeomFieldDefn(nullptr, m_eGType);
     if (m_poSRS != nullptr)
         poGeomFieldDefn->SetSpatialRef(m_poSRS);
-    m_poFeatureDefn->AddGeomFieldDefn(std::move(poGeomFieldDefn));
+    m_poFeatureDefn->AddGeomFieldDefn(poGeomFieldDefn, false);
     readColumns();
     m_poFeatureDefn->Reference();
 }
@@ -315,7 +291,6 @@ void OGRFlatGeobufLayer::writeHeader(VSILFILE *poFp, uint64_t featuresCount, std
     m_writeOffset += sizeof(magicbytes);
 
     FlatBufferBuilder fbb;
-    fbb.TrackMinAlign(8);
     auto columns = writeColumns(fbb);
 
     flatbuffers::Offset<Crs> crs = 0;
@@ -349,30 +324,12 @@ void OGRFlatGeobufLayer::writeHeader(VSILFILE *poFp, uint64_t featuresCount, std
 
         // Translate SRS to WKT.
         char *pszWKT = nullptr;
-        const char* const apszOptionsWkt[] = { "FORMAT=WKT2_2019", nullptr };
+        const char* const apszOptionsWkt[] = { "FORMAT=WKT2_2018", nullptr };
         m_poSRS->exportToWkt( &pszWKT, apszOptionsWkt );
         if( pszWKT && pszWKT[0] == '\0' )
         {
             CPLFree(pszWKT);
             pszWKT = nullptr;
-        }
-
-        if( pszWKT && m_poSRS->GetCoordinateEpoch() > 0 )
-        {
-            std::string osCoordinateEpoch = CPLSPrintf("%f", m_poSRS->GetCoordinateEpoch());
-            if( osCoordinateEpoch.find('.') != std::string::npos )
-            {
-                while( osCoordinateEpoch.back() == '0' )
-                    osCoordinateEpoch.resize(osCoordinateEpoch.size()-1);
-            }
-
-            std::string osWKT("COORDINATEMETADATA[");
-            osWKT += pszWKT;
-            osWKT += ",EPOCH[";
-            osWKT += osCoordinateEpoch;
-            osWKT += "]]";
-            CPLFree(pszWKT);
-            pszWKT = CPLStrdup(osWKT.c_str());
         }
 
         crs = CreateCrsDirect(fbb, pszAuthorityName, nAuthorityCode, m_poSRS->GetName(), nullptr, pszWKT);
@@ -726,7 +683,7 @@ OGRFeature *OGRFlatGeobufLayer::GetNextFeature()
             return nullptr;
         }
 
-        auto poFeature = cpl::make_unique<OGRFeature>(m_poFeatureDefn);
+        auto poFeature = std::unique_ptr<OGRFeature>(new OGRFeature(m_poFeatureDefn));
         if (parseFeature(poFeature.get()) != OGRERR_NONE) {
             CPLError(CE_Failure, CPLE_AppDefined, "Fatal error parsing feature");
             return nullptr;
@@ -1140,7 +1097,6 @@ OGRErr OGRFlatGeobufLayer::ICreateFeature(OGRFeature *poNewFeature)
     std::vector<uint8_t> properties;
     properties.reserve(1024 * 4);
     FlatBufferBuilder fbb;
-    fbb.TrackMinAlign(8);
 
     for (int i = 0; i < fieldCount; i++) {
         const auto fieldDef = m_poFeatureDefn->GetFieldDefn(i);

@@ -86,10 +86,6 @@ void        CPL_DLL   CPLQuadTreeInsertWithBounds(CPLQuadTree *hQuadtree,
                                                   void* hFeature,
                                                   const CPLRectObj* psBounds);
 
-void        CPL_DLL   CPLQuadTreeRemove(CPLQuadTree *hQuadtree,
-                                        void* hFeature,
-                                        const CPLRectObj* psBounds);
-
 void        CPL_DLL **CPLQuadTreeSearch(const CPLQuadTree *hQuadtree,
                                         const CPLRectObj* pAoi,
                                         int* pnFeatureCount);

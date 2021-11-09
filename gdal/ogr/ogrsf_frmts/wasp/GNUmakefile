@@ -4,7 +4,7 @@ include ../../../GDALmake.opt
 
 OBJ	=	ogrwaspdriver.o ogrwaspdatasource.o ogrwasplayer.o
 
-CPPFLAGS	:=	-iquote .. -iquote ../..  $(CPPFLAGS)
+CPPFLAGS	:=	-I.. -I../..  $(CPPFLAGS)
 
 default:	$(O_OBJ:.o=.$(OBJ_EXT))
 

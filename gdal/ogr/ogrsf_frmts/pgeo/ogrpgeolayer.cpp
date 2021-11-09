@@ -176,14 +176,12 @@ CPLErr OGRPGeoLayer::BuildFeatureDefn( const char *pszLayerName,
             /* leave it as OFTString */;
         }
 
+        if( pszGeomColumn != nullptr )
+            poFeatureDefn->GetGeomFieldDefn(0)->SetName(pszGeomColumn);
+
         poFeatureDefn->AddFieldDefn( &oField );
         panFieldOrdinals[poFeatureDefn->GetFieldCount() - 1] = iCol+1;
     }
-
-    if( pszGeomColumn != nullptr )
-        poFeatureDefn->GetGeomFieldDefn(0)->SetName(pszGeomColumn);
-    else
-        poFeatureDefn->SetGeomType( wkbNone );
 
     return CE_None;
 }
@@ -196,7 +194,6 @@ void OGRPGeoLayer::ResetReading()
 
 {
     iNextShapeId = 0;
-    m_bEOF = false;
 }
 
 /************************************************************************/
@@ -231,7 +228,7 @@ OGRFeature *OGRPGeoLayer::GetNextRawFeature()
 {
     OGRErr err = OGRERR_NONE;
 
-    if( m_bEOF || GetStatement() == nullptr )
+    if( GetStatement() == nullptr )
         return nullptr;
 
 /* -------------------------------------------------------------------- */
@@ -241,7 +238,6 @@ OGRFeature *OGRPGeoLayer::GetNextRawFeature()
     {
         delete poStmt;
         poStmt = nullptr;
-        m_bEOF = true;
         return nullptr;
     }
 
@@ -300,13 +296,6 @@ OGRFeature *OGRPGeoLayer::GetNextRawFeature()
 
         if( poGeom != nullptr && OGRERR_NONE == err )
         {
-            // always promote polygon/linestring geometries to multipolygon/multilinestring,
-            // so that the geometry types returned for the layer are predictable and match
-            // the advertised layer geometry type. See more details in OGRPGeoTableLayer::Initialize
-            const OGRwkbGeometryType eFlattenType = wkbFlatten(poGeom->getGeometryType());
-            if( eFlattenType == wkbPolygon || eFlattenType == wkbLineString )
-                poGeom = OGRGeometryFactory::forceTo(poGeom, OGR_GT_GetCollection(poGeom->getGeometryType()));
-
             poGeom->assignSpatialReference( poSRS );
             poFeature->SetGeometryDirectly( poGeom );
         }

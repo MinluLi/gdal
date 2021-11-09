@@ -4,7 +4,7 @@ include ../../../GDALmake.opt
 
 OBJ =	ogrgtmdriver.o ogrgtmdatasource.o ogrgtmlayer.o gtm.o gtmwaypointlayer.o gtmtracklayer.o
 
-CPPFLAGS	:=-iquote .. -iquote ../..  $(CPPFLAGS)
+CPPFLAGS	:=-I.. -I../..  $(CPPFLAGS)
 
 default:	$(O_OBJ:.o=.$(OBJ_EXT))
 

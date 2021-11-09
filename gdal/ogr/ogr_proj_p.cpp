@@ -69,18 +69,11 @@ static unsigned g_auxDbPathsGenerationCounter = 0;
 static std::mutex g_oSearchPathMutex;
 static CPLStringList g_aosSearchpaths;
 static CPLStringList g_aosAuxDbPaths;
-#if PROJ_VERSION_MAJOR >= 7
-static int g_projNetworkEnabled = -1;
-static unsigned g_projNetworkEnabledGenerationCounter = 0;
-#endif
 
 struct OSRPJContextHolder
 {
     unsigned searchPathGenerationCounter = 0;
     unsigned auxDbPathsGenerationCounter = 0;
-#if PROJ_VERSION_MAJOR >= 7
-    unsigned projNetworkEnabledGenerationCounter = 0;
-#endif
     PJ_CONTEXT* context = nullptr;
     OSRProjTLSCache oCache{};
 #if !defined(_WIN32)
@@ -234,15 +227,6 @@ PJ_CONTEXT* OSRGetProjTLSContext()
             proj_context_set_database_path(l_projContext.context, oMainPath.c_str(),
                                            g_aosAuxDbPaths.List(), nullptr);
         }
-#if PROJ_VERSION_MAJOR >= 7
-        if( l_projContext.projNetworkEnabledGenerationCounter !=
-                                        g_projNetworkEnabledGenerationCounter )
-        {
-            l_projContext.projNetworkEnabledGenerationCounter =
-                                        g_projNetworkEnabledGenerationCounter;
-            proj_context_set_enable_network(l_projContext.context, g_projNetworkEnabled);
-        }
-#endif
     }
     return l_projContext.context;
 }
@@ -270,13 +254,16 @@ void OSRProjTLSCache::clear()
 
 PJ* OSRProjTLSCache::GetPJForEPSGCode(int nCode, bool bUseNonDeprecated, bool bAddTOWGS84)
 {
-    std::shared_ptr<PJ> cached;
-    const EPSGCacheKey key(nCode, bUseNonDeprecated, bAddTOWGS84);
-    if( m_oCacheEPSG.tryGet(key, cached) )
+    try
     {
+        const EPSGCacheKey key(nCode, bUseNonDeprecated, bAddTOWGS84);
+        const auto& cached = m_oCacheEPSG.get(key);
         return proj_clone(OSRGetProjTLSContext(), cached.get());
     }
-    return nullptr;
+    catch( const lru11::KeyNotFound& )
+    {
+        return nullptr;
+    }
 }
 
 void OSRProjTLSCache::CachePJForEPSGCode(int nCode, bool bUseNonDeprecated, bool bAddTOWGS84, PJ* pj)
@@ -288,12 +275,15 @@ void OSRProjTLSCache::CachePJForEPSGCode(int nCode, bool bUseNonDeprecated, bool
 
 PJ* OSRProjTLSCache::GetPJForWKT(const std::string& wkt)
 {
-    std::shared_ptr<PJ> cached;
-    if( m_oCacheWKT.tryGet(wkt, cached) )
+    try
     {
+        const auto& cached = m_oCacheWKT.get(wkt);
         return proj_clone(OSRGetProjTLSContext(), cached.get());
     }
-    return nullptr;
+    catch( const lru11::KeyNotFound& )
+    {
+        return nullptr;
+    }
 }
 
 void OSRProjTLSCache::CachePJForWKT(const std::string& wkt, PJ* pj)
@@ -318,7 +308,7 @@ void OSRCleanupTLSContext()
 /************************************************************************/
 
 /** \brief Set the search path(s) for PROJ resource files.
- *
+ * 
  * @param papszPaths NULL terminated list of directory paths.
  * @since GDAL 3.0
  */
@@ -361,7 +351,7 @@ char** OSRGetPROJSearchPaths()
 /************************************************************************/
 
 /** \brief Set list of PROJ auxiliary database filenames.
- *
+ * 
  * @param papszAux NULL-terminated list of auxiliary database filenames, or NULL
  * @since GDAL 3.3
  *
@@ -379,7 +369,7 @@ void OSRSetPROJAuxDbPaths( const char* const * papszAux )
 /************************************************************************/
 
 /** \brief Get PROJ auxiliary database filenames.
- *
+ * 
  * @return NULL terminated list of PROJ auxiliary database filenames. To be freed with CSLDestroy()
  * @since GDAL 3.3.0
  *
@@ -391,63 +381,6 @@ char** OSRGetPROJAuxDbPaths( void )
     //Unfortunately, there is no getter for auxiliary database list at PROJ.
     //So, return our copy for now.
     return CSLDuplicate(g_aosAuxDbPaths.List());
-}
-
-/************************************************************************/
-/*                       OSRSetPROJEnableNetwork()                      */
-/************************************************************************/
-
-/** \brief Enable or disable PROJ networking capabilities.
- *
- * @param enabled Set to TRUE to enable networking capabilities.
- * @since GDAL 3.4 and PROJ 7
- *
- * @see OSRGetPROJEnableNetwork, proj_context_set_enable_network
- */
-void OSRSetPROJEnableNetwork( int enabled )
-{
-#if PROJ_VERSION_MAJOR >= 7
-    std::lock_guard<std::mutex> oLock(g_oSearchPathMutex);
-    if( g_projNetworkEnabled != enabled )
-    {
-        g_projNetworkEnabled = enabled;
-        g_projNetworkEnabledGenerationCounter ++;
-    }
-#else
-    if( enabled )
-    {
-        CPLError(CE_Failure, CPLE_NotSupported,
-                 "OSRSetPROJEnableNetwork() requires PROJ >= 7");
-    }
-#endif
-}
-
-/************************************************************************/
-/*                        OSRGetPROJEnableNetwork()                     */
-/************************************************************************/
-
-/** \brief Get whether PROJ networking capabilities are enabled.
- *
- * @return TRUE if PROJ networking capabilities are enabled.
- * @since GDAL 3.4 and PROJ 7
- *
- * @see OSRSetPROJEnableNetwork, proj_context_is_network_enabled
- */
-int OSRGetPROJEnableNetwork( void )
-{
-#if PROJ_VERSION_MAJOR >= 7
-    std::lock_guard<std::mutex> oLock(g_oSearchPathMutex);
-    if( g_projNetworkEnabled < 0 )
-    {
-        g_oSearchPathMutex.unlock();
-        const int ret = proj_context_is_network_enabled(OSRGetProjTLSContext());
-        g_oSearchPathMutex.lock();
-        g_projNetworkEnabled = ret;
-    }
-    return g_projNetworkEnabled;
-#else
-    return FALSE;
-#endif
 }
 
 /************************************************************************/

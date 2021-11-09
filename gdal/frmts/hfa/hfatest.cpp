@@ -43,6 +43,21 @@ static void Usage()
 }
 
 /************************************************************************/
+/* Stub for HFAPCSStructToWKT, defined in hfadataset.cpp but used by    */
+/* hfaopen.cpp                                                          */
+/************************************************************************/
+#ifndef WIN32
+char *
+HFAPCSStructToWKT( const Eprj_Datum *,
+                   const Eprj_ProParameters *,
+                   const Eprj_MapInfo *,
+                   HFAEntry * )
+{
+    return nullptr;
+}
+#endif
+
+/************************************************************************/
 /*                                main()                                */
 /************************************************************************/
 
@@ -225,6 +240,10 @@ int main( int argc, char ** argv )
 
     VSICleanupFileManager();
     CPLCleanupTLS();
+
+#ifdef DBMALLOC
+    malloc_dump(1);
+#endif
 
     exit( 0 );
 }

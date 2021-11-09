@@ -93,6 +93,10 @@ class OGRProjCT;
 // type to be inserted in the cache (shared_ptr), and we need to be able to
 // alter the content of the value to release() the unique_ptr value when we
 // find a value in it.
+// In a future improvement (notably to help for the multi-threaded warping),
+// we could let the cached value in the cache and clone it, but for now clone,
+// just instantiates a new OGRProjCT from scratch. The clone method should be
+// improved to do things similar to GetInverse().
 typedef std::string CTCacheKey;
 typedef std::shared_ptr<std::unique_ptr<OGRProjCT>> CTCacheValue;
 static lru11::Cache<CTCacheKey, CTCacheValue>* g_poCTCache = nullptr;
@@ -524,71 +528,15 @@ int OCTCoordinateTransformationOptionsSetBallparkAllowed(
 //! @cond Doxygen_Suppress
 class OGRProjCT : public OGRCoordinateTransformation
 {
-    class PjPtr
-    {
-        PJ* m_pj = nullptr;
-        void reset()
-        {
-            if( m_pj )
-            {
-                proj_assign_context(m_pj, OSRGetProjTLSContext());
-                proj_destroy(m_pj);
-            }
-        }
-    public:
-        PjPtr() : m_pj(nullptr){}
-        explicit PjPtr(PJ* pjIn) : m_pj(pjIn){}
-        ~PjPtr()
-        {
-            reset();
-        }
-        PjPtr(const PjPtr& other) :
-            m_pj((other.m_pj != nullptr) ?
-                 (proj_clone(OSRGetProjTLSContext(), other.m_pj)) :
-                 (nullptr))
-        {}
-        PjPtr(PjPtr&& other) :
-            m_pj(other.m_pj)
-        {
-            other.m_pj = nullptr;
-        }
-        PjPtr& operator=(const PjPtr& other)
-        {
-            if(this != &other)
-            {
-                reset();
-                m_pj = (other.m_pj != nullptr) ?
-                       (proj_clone(OSRGetProjTLSContext(), other.m_pj)) :
-                       (nullptr);
-            }
-            return *this;
-        }
-        PjPtr& operator=(PJ* pjIn)
-        {
-            if(m_pj != pjIn)
-            {
-                reset();
-                m_pj = pjIn;
-            }
-            return *this;
-        }
-        operator PJ* () { return m_pj; }
-        operator const PJ* () const{ return m_pj; }
-    };
-
     OGRSpatialReference *poSRSSource = nullptr;
     bool        bSourceLatLong = false;
     bool        bSourceWrap = false;
     double      dfSourceWrapLong = 0.0;
-    bool        bSourceIsDynamicCRS = false;
-    double      dfSourceCoordinateEpoch = 0.0;
 
     OGRSpatialReference *poSRSTarget = nullptr;
     bool        bTargetLatLong = false;
     bool        bTargetWrap = false;
     double      dfTargetWrapLong = 0.0;
-    bool        bTargetIsDynamicCRS = false;
-    double      dfTargetCoordinateEpoch = 0.0;
 
     bool        bWebMercatorToWGS84LongLat = false;
 
@@ -596,7 +544,7 @@ class OGRProjCT : public OGRCoordinateTransformation
 
     double      dfThreshold = 0.0;
 
-    PjPtr       m_pj{};
+    PJ*         m_pj = nullptr;
     bool        m_bReversePj = false;
 
     bool        m_bEmitErrors = true;
@@ -618,13 +566,14 @@ class OGRProjCT : public OGRCoordinateTransformation
     bool        ListCoordinateOperations(const char* pszSrcSRS,
                                          const char* pszTargetSRS,
                                          const OGRCoordinateTransformationOptions& options );
+
     struct Transformation
     {
         double minx = 0.0;
         double miny = 0.0;
         double maxx = 0.0;
         double maxy = 0.0;
-        PjPtr  pj{};
+        PJ* pj = nullptr;
         CPLString osName{};
         CPLString osProjString{};
         double accuracy = 0.0;
@@ -637,6 +586,26 @@ class OGRProjCT : public OGRCoordinateTransformation
             minx(minxIn), miny(minyIn), maxx(maxxIn), maxy(maxyIn),
             pj(pjIn), osName(osNameIn), osProjString(osProjStringIn),
             accuracy(accuracyIn) {}
+
+        Transformation(const Transformation&) = delete;
+        Transformation(Transformation&& other):
+            minx(other.minx), miny(other.miny), maxx(other.maxx), maxy(other.maxy),
+            pj(other.pj), osName(std::move(other.osName)),
+            osProjString(std::move(other.osProjString)),
+            accuracy(other.accuracy)
+        {
+            other.pj = nullptr;
+        }
+        Transformation& operator=(const Transformation&) = delete;
+
+        ~Transformation()
+        {
+            if( pj )
+            {
+                proj_assign_context(pj, OSRGetProjTLSContext());
+                proj_destroy(pj);
+            }
+        }
     };
     std::vector<Transformation> m_oTransformations{};
     int m_iCurTransformation = -1;
@@ -644,26 +613,16 @@ class OGRProjCT : public OGRCoordinateTransformation
 
     void ComputeThreshold();
 
-    OGRProjCT(const OGRProjCT& other);
+    OGRProjCT(const OGRProjCT& other)
+    {
+        Initialize(other.poSRSSource, other.poSRSTarget, other.m_options);
+    }
     OGRProjCT& operator= (const OGRProjCT& ) = delete;
 
     static CTCacheKey MakeCacheKey(const OGRSpatialReference* poSRS1,
                            const OGRSpatialReference* poSRS2,
                            const OGRCoordinateTransformationOptions& options);
-    bool ContainsNorthPole(
-        const double xmin,
-        const double ymin,
-        const double xmax,
-        const double ymax,
-        bool lon_lat_order
-    );
-    bool ContainsSouthPole(
-        const double xmin,
-        const double ymin,
-        const double xmax,
-        const double ymax,
-        bool lon_lat_order
-    );
+
 public:
     OGRProjCT();
     ~OGRProjCT() override;
@@ -683,21 +642,13 @@ public:
                              double *x, double *y, double *z, double *t,
                              int *panErrorCodes ) override;
 
-    int TransformBounds( const double xmin,
-                         const double ymin,
-                         const double xmax,
-                         const double ymax,
-                         double* out_xmin,
-                         double* out_ymin,
-                         double* out_xmax,
-                         double* out_ymax,
-                         const int densify_pts ) override;
-
     bool GetEmitErrors() const override { return m_bEmitErrors; }
     void SetEmitErrors( bool bEmitErrors ) override
         { m_bEmitErrors = bEmitErrors; }
 
-    OGRCoordinateTransformation* Clone() const override;
+    OGRCoordinateTransformation* Clone() const override {
+        return new OGRProjCT(*this);
+    }
 
     OGRCoordinateTransformation* GetInverse() const override;
 
@@ -958,106 +909,12 @@ OCTNewCoordinateTransformationEx(
     OGRCoordinateTransformationOptionsH hOptions)
 
 {
+    OGRCoordinateTransformationOptions defaultOptions;
     return reinterpret_cast<OGRCoordinateTransformationH>(
         OGRCreateCoordinateTransformation(
             reinterpret_cast<OGRSpatialReference *>(hSourceSRS),
             reinterpret_cast<OGRSpatialReference *>(hTargetSRS),
-            hOptions ? *hOptions : OGRCoordinateTransformationOptions()));
-}
-
-/************************************************************************/
-/*                              OCTClone()                              */
-/************************************************************************/
-
-/**
- * Clone transformation object.
- *
- * This is the same as the C++ function OGRCreateCoordinateTransformation::Clone
- *
- * @return handle to transformation's clone or NULL on error,
- *         must be freed with OCTDestroyCoordinateTransformation
- *
- * @since GDAL 3.4
- */
-
-OGRCoordinateTransformationH
-OCTClone(OGRCoordinateTransformationH hTransform)
-
-{
-    VALIDATE_POINTER1( hTransform, "OCTClone", nullptr );
-    return OGRCoordinateTransformation::ToHandle(
-        OGRCoordinateTransformation::FromHandle(hTransform)->Clone());
-}
-
-/************************************************************************/
-/*                             OCTGetSourceCS()                         */
-/************************************************************************/
-
-/**
- * Transformation's source coordinate system reference.
- *
- * This is the same as the C++ function OGRCreateCoordinateTransformation::GetSourceCS
- *
- * @return handle to transformation's source coordinate system or NULL if not present.
- *
- * The ownership of the returned CS belongs to the transformation object.
- *
- * @since GDAL 3.4
- */
-
-OGRSpatialReferenceH OCTGetSourceCS(OGRCoordinateTransformationH hTransform)
-
-{
-    VALIDATE_POINTER1( hTransform, "OCTGetSourceCS", nullptr );
-    return OGRSpatialReference::ToHandle(
-        OGRCoordinateTransformation::FromHandle(hTransform)->GetSourceCS());
-}
-
-/************************************************************************/
-/*                             OCTGetTargetCS()                         */
-/************************************************************************/
-
-/**
- * Transformation's target coordinate system reference.
- *
- * This is the same as the C++ function OGRCreateCoordinateTransformation::GetTargetCS
- *
- * @return handle to transformation's target coordinate system or NULL if not present.
- *
- * The ownership of the returned CS belongs to the transformation object.
- *
- * @since GDAL 3.4
- */
-
-OGRSpatialReferenceH OCTGetTargetCS(OGRCoordinateTransformationH hTransform)
-
-{
-    VALIDATE_POINTER1( hTransform, "OCTGetTargetCS", nullptr );
-    return OGRSpatialReference::ToHandle(
-        OGRCoordinateTransformation::FromHandle(hTransform)->GetTargetCS());
-}
-
-/************************************************************************/
-/*                             OCTGetInverse()                          */
-/************************************************************************/
-
-/**
- * Inverse transformation object.
- *
- * This is the same as the C++ function OGRCreateCoordinateTransformation::GetInverse
- *
- * @return handle to inverse transformation or NULL on error,
- *         must be freed with OCTDestroyCoordinateTransformation
- *
- * @since GDAL 3.4
- */
-
-OGRCoordinateTransformationH CPL_DLL OCTGetInverse(OGRCoordinateTransformationH hTransform)
-
-{
-    VALIDATE_POINTER1( hTransform, "OCTGetInverse", nullptr );
-    return OGRCoordinateTransformation::ToHandle(
-        OGRCoordinateTransformation::FromHandle(hTransform)->GetInverse());
+            hOptions ? *hOptions : defaultOptions));
 }
 
 /************************************************************************/
@@ -1066,34 +923,6 @@ OGRCoordinateTransformationH CPL_DLL OCTGetInverse(OGRCoordinateTransformationH 
 
 //! @cond Doxygen_Suppress
 OGRProjCT::OGRProjCT()
-{
-}
-
-/************************************************************************/
-/*                  OGRProjCT(const OGRProjCT& other)                   */
-/************************************************************************/
-
-//! @cond Doxygen_Suppress
-OGRProjCT::OGRProjCT(const OGRProjCT& other) :
-    poSRSSource((other.poSRSSource != nullptr) ? (other.poSRSSource->Clone()) : (nullptr)),
-    bSourceLatLong(other.bSourceLatLong),
-    bSourceWrap(other.bSourceWrap),
-    dfSourceWrapLong(other.dfSourceWrapLong),
-    poSRSTarget((other.poSRSTarget != nullptr) ? (other.poSRSTarget->Clone()) : (nullptr)),
-    bTargetLatLong(other.bTargetLatLong),
-    bTargetWrap(other.bTargetWrap),
-    dfTargetWrapLong(other.dfTargetWrapLong),
-    bWebMercatorToWGS84LongLat(other.bWebMercatorToWGS84LongLat),
-    nErrorCount(other.nErrorCount),
-    dfThreshold(other.dfThreshold),
-    m_pj(other.m_pj),
-    m_bReversePj(other.m_bReversePj),
-    m_bEmitErrors(other.m_bEmitErrors),
-    bNoTransform(other.bNoTransform),
-    m_eStrategy(other.m_eStrategy),
-    m_oTransformations(other.m_oTransformations),
-    m_iCurTransformation(other.m_iCurTransformation),
-    m_options(other.m_options)
 {
 }
 
@@ -1112,6 +941,12 @@ OGRProjCT::~OGRProjCT()
     if( poSRSTarget != nullptr )
     {
         poSRSTarget->Release();
+    }
+
+    if( m_pj )
+    {
+        proj_assign_context(m_pj, OSRGetProjTLSContext());
+        proj_destroy(m_pj);
     }
 }
 
@@ -1173,26 +1008,9 @@ int OGRProjCT::Initialize( const OGRSpatialReference * poSourceIn,
     }
 
     if( poSRSSource )
-    {
         bSourceLatLong = CPL_TO_BOOL(poSRSSource->IsGeographic());
-        bSourceIsDynamicCRS = poSRSSource->IsDynamic();
-        dfSourceCoordinateEpoch = poSRSSource->GetCoordinateEpoch();
-    }
     if( poSRSTarget )
-    {
         bTargetLatLong = CPL_TO_BOOL(poSRSTarget->IsGeographic());
-        bTargetIsDynamicCRS = poSRSTarget->IsDynamic();
-        dfTargetCoordinateEpoch = poSRSTarget->GetCoordinateEpoch();
-    }
-
-    if( bSourceIsDynamicCRS && bTargetIsDynamicCRS &&
-        dfSourceCoordinateEpoch > 0 && dfTargetCoordinateEpoch > 0 &&
-        dfSourceCoordinateEpoch != dfTargetCoordinateEpoch )
-    {
-        CPLError(CE_Warning, CPLE_AppDefined,
-                 "Coordinate transformation between different epochs are "
-                 "not currently supported");
-    }
 
 /* -------------------------------------------------------------------- */
 /*      Setup source and target translations to radians for lat/long    */
@@ -1432,8 +1250,7 @@ int OGRProjCT::Initialize( const OGRSpatialReference * poSourceIn,
                 OGRSpatialReference oTmpSRS;
                 oTmpSRS.SetFromUserInput(osAuthCode);
                 oTmpSRS.SetDataAxisToSRSAxisMapping(poSRS->GetDataAxisToSRSAxisMapping());
-                const char* const apszOptionsIsSame[] = { "CRITERION=EQUIVALENT", nullptr };
-                if( oTmpSRS.IsSame(poSRS, apszOptionsIsSame) )
+                if( oTmpSRS.IsSame(poSRS) )
                 {
                     if( CanUseAuthorityDef(poSRS, &oTmpSRS, pszAuth) )
                     {
@@ -1536,9 +1353,8 @@ int OGRProjCT::Initialize( const OGRSpatialReference * poSourceIn,
     if( options.d->osCoordOperation.empty() && poSRSSource && poSRSTarget )
     {
         // Determine if we can skip the transformation completely.
-        const char* const apszOptionsIsSame[] = { "CRITERION=EQUIVALENT", nullptr };
         bNoTransform = !bSourceWrap && !bTargetWrap &&
-                       CPL_TO_BOOL(poSRSSource->IsSame(poSRSTarget, apszOptionsIsSame));
+                       CPL_TO_BOOL(poSRSSource->IsSame(poSRSTarget));
     }
 
     return TRUE;
@@ -1626,12 +1442,7 @@ bool OGRProjCT::ListCoordinateOperations(const char* pszSrcSRS,
     proj_operation_factory_context_set_spatial_criterion(
         ctx, operation_ctx, PROJ_SPATIAL_CRITERION_PARTIAL_INTERSECTION);
     proj_operation_factory_context_set_grid_availability_use(
-        ctx, operation_ctx,
-#if PROJ_VERSION_MAJOR >= 7
-        proj_context_is_network_enabled(ctx) ?
-            PROJ_GRID_AVAILABILITY_KNOWN_AVAILABLE:
-#endif
-            PROJ_GRID_AVAILABILITY_DISCARD_OPERATION_IF_MISSING_GRID);
+        ctx, operation_ctx, PROJ_GRID_AVAILABILITY_DISCARD_OPERATION_IF_MISSING_GRID);
 
     if( options.d->bHasAreaOfInterest )
     {
@@ -1721,27 +1532,16 @@ bool OGRProjCT::ListCoordinateOperations(const char* pszSrcSRS,
 #if PROJ_VERSION_MAJOR > 7 || (PROJ_VERSION_MAJOR == 7 && PROJ_VERSION_MINOR >= 2)
         if( datum == nullptr )
         {
-            datum = proj_crs_get_datum_forced(ctx, geodetic_crs);
+            datum = proj_crs_get_datum_ensemble(ctx, geodetic_crs);
         }
 #endif
         if( datum )
         {
-            auto ellps = proj_get_ellipsoid(ctx, datum);
-            proj_destroy(datum);
-            double semi_major_metre = 0;
-            double inv_flattening = 0;
-            proj_ellipsoid_get_parameters(ctx, ellps, &semi_major_metre,
-                                          nullptr, nullptr, &inv_flattening);
             auto cs = proj_create_ellipsoidal_2D_cs(
                 ctx, PJ_ELLPS2D_LONGITUDE_LATITUDE, nullptr, 0);
-            // It is critical to set the prime meridian to 0
-            auto temp = proj_create_geographic_crs(
-                ctx, "unnamed crs", "unnamed datum",
-                proj_get_name(ellps),
-                semi_major_metre, inv_flattening,
-                "Reference prime meridian", 0, nullptr, 0,
-                cs);
-            proj_destroy(ellps);
+            auto temp = proj_create_geographic_crs_from_datum(
+                ctx,"unnamed", datum, cs);
+            proj_destroy(datum);
             proj_destroy(cs);
             proj_destroy(geodetic_crs);
             geodetic_crs = temp;
@@ -1789,7 +1589,7 @@ bool OGRProjCT::ListCoordinateOperations(const char* pszSrcSRS,
         return false;
     }
 
-    const auto addTransformation = [this, &pjGeogToSrc, &ctx](PJ* op,
+    const auto addTransformation = [=](PJ* op,
                                        double west_lon, double south_lat,
                                        double east_lon, double north_lat) {
         double minx = -std::numeric_limits<double>::max();
@@ -2257,36 +2057,13 @@ int OGRProjCT::TransformWithErrorCodes(
         bTransformDone = true;
     }
 
-    // Determine the default coordinate epoch, if not provided in the point to
-    // transform.
-    // For time-dependent transformations, PROJ can currently only do
-    // staticCRS -> dynamicCRS or dynamicCRS -> staticCRS transformations, and
-    // in either case, the coordinate epoch of the dynamicCRS must be provided
-    // as the input time.
-    double dfDefaultTime = HUGE_VAL;
-    if( bSourceIsDynamicCRS && dfSourceCoordinateEpoch > 0 &&
-        !bTargetIsDynamicCRS &&
-        CPLTestBool(CPLGetConfigOption("OGR_CT_USE_SRS_COORDINATE_EPOCH", "YES")) )
-    {
-        dfDefaultTime = dfSourceCoordinateEpoch;
-        CPLDebug("OGR_CT", "Using coordinate epoch %f from source CRS",
-                 dfDefaultTime);
-    }
-    else if (bTargetIsDynamicCRS && dfTargetCoordinateEpoch > 0 &&
-             !bSourceIsDynamicCRS &&
-             CPLTestBool(CPLGetConfigOption("OGR_CT_USE_SRS_COORDINATE_EPOCH", "YES")) )
-    {
-        dfDefaultTime = dfTargetCoordinateEpoch;
-        CPLDebug("OGR_CT", "Using coordinate epoch %f from target CRS",
-                 dfDefaultTime);
-    }
-
 /* -------------------------------------------------------------------- */
 /*      Select dynamically the best transformation for the data, if     */
 /*      needed.                                                         */
 /* -------------------------------------------------------------------- */
+
     auto ctx = OSRGetProjTLSContext();
-    PJ* pj = m_pj;
+    auto pj = m_pj;
     if( !bTransformDone && !pj )
     {
         double avgX = 0.0;
@@ -2315,7 +2092,7 @@ int OGRProjCT::TransformWithErrorCodes(
         coord.xyzt.x = avgX;
         coord.xyzt.y = avgY;
         coord.xyzt.z = z ? z[0] : 0;
-        coord.xyzt.t = t ? t[0] : dfDefaultTime;
+        coord.xyzt.t = t ? t[0] : HUGE_VAL;
 
         // We may need several attempts. For example the point at
         // lon=-111.5 lat=45.26 falls into the bounding box of the Canadian
@@ -2351,7 +2128,7 @@ int OGRProjCT::TransformWithErrorCodes(
             {
                 break;
             }
-            auto& transf = m_oTransformations[iBestTransf];
+            const auto& transf = m_oTransformations[iBestTransf];
             pj = transf.pj;
             proj_assign_context( pj, ctx );
             if( iBestTransf != m_iCurTransformation )
@@ -2383,7 +2160,7 @@ int OGRProjCT::TransformWithErrorCodes(
             // use the first operation that does not require grids.
             for( int i = 0; i < nOperations; i++ )
             {
-                auto& transf = m_oTransformations[i];
+                const auto& transf = m_oTransformations[i];
                 if( proj_coordoperation_get_grid_used_count(ctx, transf.pj) == 0 )
                 {
                     pj = transf.pj;
@@ -2451,7 +2228,7 @@ int OGRProjCT::TransformWithErrorCodes(
             coord.xyzt.x = x[i];
             coord.xyzt.y = y[i];
             coord.xyzt.z = z ? z[i] : 0;
-            coord.xyzt.t = t ? t[i] : dfDefaultTime;
+            coord.xyzt.t = t ? t[i] : HUGE_VAL;
             proj_errno_reset(pj);
             coord = proj_trans(pj, m_bReversePj ? PJ_INV : PJ_FWD, coord);
             x[i] = coord.xyzt.x;
@@ -2461,28 +2238,7 @@ int OGRProjCT::TransformWithErrorCodes(
             if( t )
                 t[i] = coord.xyzt.t;
             int err = 0;
-            if( std::isnan(coord.xyzt.x) )
-            {
-                // This shouldn't normally happen if PROJ projections behave
-                // correctly, but e.g inverse laea before PROJ 8.1.1 could
-                // do that for points out of domain.
-                // See https://github.com/OSGeo/PROJ/pull/2800
-                x[i] = HUGE_VAL;
-                y[i] = HUGE_VAL;
-                err = PROJ_ERR_COORD_TRANSFM_OUTSIDE_PROJECTION_DOMAIN;
-                static bool bHasWarned = false;
-                if( !bHasWarned )
-                {
-#ifdef DEBUG
-                    CPLError(CE_Warning, CPLE_AppDefined,
-                             "PROJ returned a NaN value. It should be fixed");
-#else
-                    CPLDebug("OGR_CT", "PROJ returned a NaN value. It should be fixed");
-#endif
-                    bHasWarned = true;
-                }
-            }
-            else if( coord.xyzt.x == HUGE_VAL )
+            if( coord.xyzt.x == HUGE_VAL )
             {
                 err = proj_errno(pj);
                 // PROJ should normally emit an error, but in case it does not
@@ -2643,485 +2399,6 @@ int OGRProjCT::TransformWithErrorCodes(
     return TRUE;
 }
 
-
-/************************************************************************/
-/*                      TransformBounds()                       */
-/************************************************************************/
-
-// ---------------------------------------------------------------------------
-static double simple_min(const double* data, const int arr_len) {
-    double min_value = data[0];
-    for( int iii = 1; iii < arr_len; iii++ ) {
-        if (data[iii] < min_value)
-            min_value = data[iii];
-    }
-    return min_value;
-}
-
-
-// ---------------------------------------------------------------------------
-static double simple_max(const double* data, const int arr_len) {
-    double max_value = data[0];
-    for( int iii = 1; iii < arr_len; iii++ ) {
-        if ((data[iii] > max_value || max_value == HUGE_VAL) && data[iii] != HUGE_VAL)
-            max_value = data[iii];
-    }
-    return max_value;
- }
-
-
-// ---------------------------------------------------------------------------
-static int _find_previous_index(const int iii, const double* data, const int arr_len) {
-    // find index of nearest valid previous value if exists
-    int prev_iii = iii - 1;
-    if (prev_iii == -1)  // handle wraparound
-        prev_iii = arr_len - 1;
-    while (data[prev_iii] == HUGE_VAL && prev_iii != iii) {
-        prev_iii --;
-        if (prev_iii == -1)  // handle wraparound
-            prev_iii = arr_len - 1;
-    }
-    return prev_iii;
-}
-
-
-// ---------------------------------------------------------------------------
-/******************************************************************************
-Handles the case when longitude values cross the antimeridian
-when calculating the minimum.
-Note: The data array must be in a linear ring.
-Note: This requires a densified ring with at least 2 additional
-        points per edge to correctly handle global extents.
-If only 1 additional point:
-    |        |
-    |RL--x0--|RL--
-    |        |
--180    180|-180
-If they are evenly spaced and it crosses the antimeridian:
-x0 - L = 180
-R - x0 = -180
-For example:
-Let R = -179.9, x0 = 0.1, L = -179.89
-x0 - L = 0.1 - -179.9 = 180
-R - x0 = -179.89 - 0.1 ~= -180
-This is the same in the case when it didn't cross the antimeridian.
-If you have 2 additional points:
-    |            |
-    |RL--x0--x1--|RL--
-    |            |
--180        180|-180
-If they are evenly spaced and it crosses the antimeridian:
-x0 - L = 120
-x1 - x0 = 120
-R - x1 = -240
-For example:
-Let R = -179.9, x0 = -59.9, x1 = 60.1 L = -179.89
-x0 - L = 59.9 - -179.9 = 120
-x1 - x0 = 60.1 - 59.9 = 120
-R - x1 = -179.89 - 60.1 ~= -240
-However, if they are evenly spaced and it didn't cross the antimeridian:
-x0 - L = 120
-x1 - x0 = 120
-R - x1 = 120
-From this, we have a delta that is guaranteed to be significantly
-large enough to tell the difference reguarless of the direction
-the antimeridian was crossed.
-However, even though the spacing was even in the source projection, it isn't
-guaranteed in the target geographic projection. So, instead of 240, 200 is used
-as it significantly larger than 120 to be sure that the antimeridian was crossed
-but smalller than 240 to account for possible irregularities in distances
-when re-projecting. Also, 200 ensures latitudes are ignored for axis order handling.
-******************************************************************************/
-static double antimeridian_min(const double* data, const int arr_len) {
-    double positive_min = HUGE_VAL;
-    double min_value = HUGE_VAL;
-    int crossed_meridian_count = 0;
-    bool positive_meridian = false;
-
-    for( int iii = 0; iii < arr_len; iii++ ) {
-        if (data[iii] == HUGE_VAL)
-            continue;
-        int prev_iii = _find_previous_index(iii, data, arr_len);
-        // check if crossed meridian
-        double delta = data[prev_iii] - data[iii];
-        // 180 -> -180
-        if (delta >= 200 && delta != HUGE_VAL) {
-            if (crossed_meridian_count == 0)
-                positive_min = min_value;
-            crossed_meridian_count ++;
-            positive_meridian = false;
-        // -180 -> 180
-        } else if (delta <= -200 && delta != HUGE_VAL) {
-            if (crossed_meridian_count == 0)
-                positive_min = data[iii];
-            crossed_meridian_count ++;
-            positive_meridian = true;
-        }
-        // positive meridian side min
-        if (positive_meridian && data[iii] < positive_min)
-            positive_min = data[iii];
-        // track general min value
-        if (data[iii] < min_value)
-            min_value = data[iii];
-    }
-
-    if (crossed_meridian_count == 2)
-        return positive_min;
-    else if (crossed_meridian_count == 4)
-        // bounds extends beyond -180/180
-        return -180;
-    return min_value;
-}
-
-
-// ---------------------------------------------------------------------------
-// Handles the case when longitude values cross the antimeridian
-// when calculating the minimum.
-// Note: The data array must be in a linear ring.
-// Note: This requires a densified ring with at least 2 additional
-//       points per edge to correctly handle global extents.
-// See antimeridian_min docstring for reasoning.
-static double antimeridian_max(const double* data, const int arr_len) {
-    double negative_max = -HUGE_VAL;
-    double max_value = -HUGE_VAL;
-    bool negative_meridian = false;
-    int crossed_meridian_count = 0;
-
-    for( int iii = 0; iii < arr_len; iii++ ) {
-        if (data[iii] == HUGE_VAL)
-            continue;
-        int prev_iii = _find_previous_index(iii, data, arr_len);
-        // check if crossed meridian
-        double delta = data[prev_iii] - data[iii];
-        // 180 -> -180
-        if (delta >= 200 && delta != HUGE_VAL) {
-            if (crossed_meridian_count == 0)
-                negative_max = data[iii];
-            crossed_meridian_count ++;
-            negative_meridian = true;
-        // -180 -> 180
-        } else if (delta <= -200 && delta != HUGE_VAL){
-            if (crossed_meridian_count == 0)
-                negative_max = max_value;
-            negative_meridian = false;
-            crossed_meridian_count++;
-        }
-        // negative meridian side max
-        if (negative_meridian
-            && (data[iii] > negative_max || negative_max == HUGE_VAL)
-            && data[iii] != HUGE_VAL
-        )
-            negative_max = data[iii];
-        // track general max value
-        if ((data[iii] > max_value || max_value == HUGE_VAL) && data[iii] != HUGE_VAL)
-            max_value = data[iii];
-    }
-    if (crossed_meridian_count == 2)
-        return negative_max;
-    else if (crossed_meridian_count == 4)
-        // bounds extends beyond -180/180
-        return 180;
-    return max_value;
-}
-
-
-// ---------------------------------------------------------------------------
-// Check if the original projected bounds contains
-// the north pole.
-// This assumes that the destination CRS is geographic.
-bool OGRProjCT::ContainsNorthPole(
-    const double xmin,
-    const double ymin,
-    const double xmax,
-    const double ymax,
-    bool lon_lat_order
-) {
-    double pole_y = 90;
-    double pole_x = 0;
-    if (!lon_lat_order) {
-        pole_y = 0;
-        pole_x = 90;
-    }
-    auto inverseCT = GetInverse();
-    if (!inverseCT)
-        return false;
-    inverseCT->TransformWithErrorCodes(
-        1,
-        &pole_x,
-        &pole_y,
-        nullptr,
-        nullptr,
-        nullptr
-    );
-    delete inverseCT;
-    if (xmin < pole_x && pole_x < xmax && ymax > pole_y && pole_y > ymin)
-        return true;
-    return false;
-}
-
-
-// ---------------------------------------------------------------------------
-// Check if the original projected bounds contains
-// the south pole.
-// This assumes that the destination CRS is geographic.
-bool OGRProjCT::ContainsSouthPole(
-    const double xmin,
-    const double ymin,
-    const double xmax,
-    const double ymax,
-    bool lon_lat_order
-) {
-    double pole_y = -90;
-    double pole_x = 0;
-    if (!lon_lat_order) {
-        pole_y = 0;
-        pole_x = -90;
-    }
-    auto inverseCT = GetInverse();
-    if (!inverseCT)
-        return false;
-    inverseCT->TransformWithErrorCodes(
-        1,
-        &pole_x,
-        &pole_y,
-        nullptr,
-        nullptr,
-        nullptr
-    );
-    delete inverseCT;
-    if (xmin < pole_x && pole_x < xmax && ymax > pole_y && pole_y > ymin)
-        return true;
-    return false;
-}
-
-
-int OGRProjCT::TransformBounds(
-    const double xmin,
-    const double ymin,
-    const double xmax,
-    const double ymax,
-    double* out_xmin,
-    double* out_ymin,
-    double* out_xmax,
-    double* out_ymax,
-    const int densify_pts
-) {
-
-    if ( bNoTransform ) {
-        *out_xmin = xmin;
-        *out_ymin = ymin;
-        *out_xmax = xmax;
-        *out_ymax = ymax;
-        return true;
-    }
-
-    *out_xmin = HUGE_VAL;
-    *out_ymin = HUGE_VAL;
-    *out_xmax = HUGE_VAL;
-    *out_ymax = HUGE_VAL;
-
-    if (densify_pts < 0 || densify_pts > 10000) {
-        CPLError(CE_Failure, CPLE_AppDefined,
-        "densify_pts must be between 0-10000.");
-        return false;
-    }
-    if (!poSRSSource) {
-        CPLError(CE_Failure, CPLE_AppDefined,
-        "missing source SRS.");
-        return false;
-    }
-    if (!poSRSTarget) {
-        CPLError(CE_Failure, CPLE_AppDefined,
-        "missing target SRS.");
-        return false;
-    }
-
-    bool degree_input = false;
-    bool degree_output = false;
-    bool input_lon_lat_order = false;
-    bool output_lon_lat_order = false;
-
-    if( bSourceLatLong )
-    {
-        degree_input = fabs(poSRSSource->GetAngularUnits(nullptr) -
-                            CPLAtof(SRS_UA_DEGREE_CONV)) < 1e-8;
-        OGRAxisOrientation source_orientation;
-        const auto& mapping = poSRSSource->GetDataAxisToSRSAxisMapping();
-        int axis_index = 0;
-        if( mapping[0] != 1 && mapping[0] != -1 )
-            axis_index = 1;
-        poSRSSource->GetAxis(nullptr, axis_index, &source_orientation);
-        if( source_orientation == OAO_East )
-            input_lon_lat_order = true;
-    }
-    if( bTargetLatLong )
-    {
-        degree_output = fabs(poSRSTarget->GetAngularUnits(nullptr) -
-                            CPLAtof(SRS_UA_DEGREE_CONV)) < 1e-8;
-        OGRAxisOrientation target_orientation;
-        const auto& mapping = poSRSTarget->GetDataAxisToSRSAxisMapping();
-        int axis_index = 0;
-        if( mapping[0] != 1 && mapping[0] != -1 )
-            axis_index = 1;
-        poSRSTarget->GetAxis(nullptr, axis_index, &target_orientation);
-        if( target_orientation == OAO_East )
-            output_lon_lat_order = true;
-    }
-
-    if (degree_output && densify_pts < 2) {
-        CPLError(CE_Failure, CPLE_AppDefined,
-        "densify_pts must be at least 2 if the output is geograpic.");
-        return false;
-    }
-
-    int side_pts = densify_pts + 1;  // add one because we are densifying
-    const int boundary_len = side_pts * 4;
-    std::vector<double> x_boundary_array;
-    std::vector<double> y_boundary_array;
-    try
-    {
-        x_boundary_array.resize(boundary_len);
-        y_boundary_array.resize(boundary_len);
-    }
-    catch( const std::exception & e ) // memory allocation failure
-    {
-        CPLError(CE_Failure, CPLE_AppDefined, "%s", e.what());
-        return false;
-    }
-    double delta_x = 0;
-    double delta_y = 0;
-    bool north_pole_in_bounds = false;
-    bool south_pole_in_bounds = false;
-    if (degree_output) {
-        north_pole_in_bounds = ContainsNorthPole(
-            xmin,
-            ymin,
-            xmax,
-            ymax,
-            output_lon_lat_order
-        );
-        south_pole_in_bounds = ContainsSouthPole(
-            xmin,
-            ymin,
-            xmax,
-            ymax,
-            output_lon_lat_order
-        );
-    }
-
-    if (degree_input && xmax < xmin) {
-        if (!input_lon_lat_order) {
-            CPLError(CE_Failure, CPLE_AppDefined, "latitude max < latitude min.");
-            return false;
-        }
-        // handle antimeridian
-        delta_x = (xmax - xmin + 360.0) / side_pts;
-    } else {
-        delta_x = (xmax - xmin) / side_pts;
-    }
-    if (degree_input && ymax < ymin) {
-        if (input_lon_lat_order) {
-            CPLError(CE_Failure, CPLE_AppDefined, "latitude max < latitude min.");
-            return false;
-        }
-        // handle antimeridian
-        delta_y = (ymax - ymin + 360.0) / side_pts;
-    } else {
-        delta_y = (ymax - ymin) / side_pts;
-    }
-
-
-    // build densified bounding box
-    // Note: must be a linear ring for antimeridian logic
-    for( int iii = 0; iii < side_pts; iii++ )
-    {
-        // xmin boundary
-        y_boundary_array[iii] = ymax - iii * delta_y;
-        x_boundary_array[iii] = xmin;
-        // ymin boundary
-        y_boundary_array[iii + side_pts] = ymin;
-        x_boundary_array[iii + side_pts] = xmin + iii * delta_x;
-        // xmax boundary
-        y_boundary_array[iii + side_pts * 2] = ymin + iii * delta_y;
-        x_boundary_array[iii + side_pts * 2] = xmax;
-        // ymax boundary
-        y_boundary_array[iii + side_pts * 3] = ymax;
-        x_boundary_array[iii + side_pts * 3] = xmax - iii * delta_x;
-    }
-
-    TransformWithErrorCodes(
-        boundary_len,
-        &x_boundary_array[0],
-        &y_boundary_array[0],
-        nullptr,
-        nullptr,
-        nullptr
-    );
-
-    if (!degree_output) {
-        *out_xmin = simple_min(&x_boundary_array[0], boundary_len);
-        *out_xmax = simple_max(&x_boundary_array[0], boundary_len);
-        *out_ymin = simple_min(&y_boundary_array[0], boundary_len);
-        *out_ymax = simple_max(&y_boundary_array[0], boundary_len);
-    } else if (north_pole_in_bounds && output_lon_lat_order) {
-        *out_xmin = -180;
-        *out_ymin = simple_min(&y_boundary_array[0], boundary_len);
-        *out_xmax = 180;
-        *out_ymax = 90;
-    } else if (north_pole_in_bounds) {
-        *out_xmin = simple_min(&x_boundary_array[0], boundary_len);
-        *out_ymin = -180;
-        *out_xmax = 90;
-        *out_ymax = 180;
-    } else if (south_pole_in_bounds && output_lon_lat_order) {
-        *out_xmin = -180;
-        *out_ymin = -90;
-        *out_xmax = 180;
-        *out_ymax = simple_max(&y_boundary_array[0], boundary_len);
-    } else if (south_pole_in_bounds) {
-        *out_xmin = -90;
-        *out_ymin = -180;
-        *out_xmax = simple_max(&x_boundary_array[0], boundary_len);
-        *out_ymax = 180;
-    } else if (output_lon_lat_order) {
-        *out_xmin = antimeridian_min(&x_boundary_array[0], boundary_len);
-        *out_xmax = antimeridian_max(&x_boundary_array[0], boundary_len);
-        *out_ymin = simple_min(&y_boundary_array[0], boundary_len);
-        *out_ymax = simple_max(&y_boundary_array[0], boundary_len);
-    } else {
-        *out_xmin = simple_min(&x_boundary_array[0], boundary_len);
-        *out_xmax = simple_max(&x_boundary_array[0], boundary_len);
-        *out_ymin = antimeridian_min(&y_boundary_array[0], boundary_len);
-        *out_ymax = antimeridian_max(&y_boundary_array[0], boundary_len);
-    }
-    return true;
-}
-
-
-/************************************************************************/
-/*                               Clone()                                */
-/************************************************************************/
-
-OGRCoordinateTransformation* OGRProjCT::Clone() const
-{
-     std::unique_ptr<OGRProjCT> poNewCT(new OGRProjCT(*this));
-#if (PROJ_VERSION_MAJOR * 10000 + PROJ_VERSION_MINOR * 100 + PROJ_VERSION_PATCH) < 80001
-    // See https://github.com/OSGeo/PROJ/pull/2582
-    // This may fail before PROJ 8.0.1 if the m_pj object is a "meta"
-    // operation being a set of real operations
-    bool bCloneDone = ((m_pj == nullptr) == (poNewCT->m_pj == nullptr));
-    if(!bCloneDone)
-    {
-        poNewCT.reset(new OGRProjCT());
-        if(!poNewCT->Initialize(poSRSSource, poSRSTarget, m_options))
-        {
-            return nullptr;
-        }
-    }
-#endif //PROJ_VERSION
-    return poNewCT.release();
-}
-
 /************************************************************************/
 /*                            GetInverse()                              */
 /************************************************************************/
@@ -3157,16 +2434,12 @@ OGRCoordinateTransformation* OGRProjCT::GetInverse() const
     poNewCT->bSourceLatLong = bTargetLatLong;
     poNewCT->bSourceWrap = bTargetWrap;
     poNewCT->dfSourceWrapLong = dfTargetWrapLong;
-    poNewCT->bSourceIsDynamicCRS = bTargetIsDynamicCRS;
-    poNewCT->dfSourceCoordinateEpoch = dfTargetCoordinateEpoch;
 
     if( poSRSSource )
         poNewCT->poSRSTarget = poSRSSource->Clone();
     poNewCT->bTargetLatLong = bSourceLatLong;
     poNewCT->bTargetWrap = bSourceWrap;
     poNewCT->dfTargetWrapLong = dfSourceWrapLong;
-    poNewCT->bTargetIsDynamicCRS = bSourceIsDynamicCRS;
-    poNewCT->dfTargetCoordinateEpoch = dfSourceCoordinateEpoch;
 
     poNewCT->ComputeThreshold();
 
@@ -3375,61 +2648,6 @@ int OCTTransform4DWithErrorCodes( OGRCoordinateTransformationH hTransform,
 
     return OGRCoordinateTransformation::FromHandle(hTransform)->
         TransformWithErrorCodes( nCount, x, y, z, t, panErrorCodes );
-}
-
-
-/************************************************************************/
-/*                           OCTTransformBounds()                           */
-/************************************************************************/
-/** \brief Transform boundary.
- * 
- * Transform boundary densifying the edges to account for nonlinear
- * transformations along these edges and extracting the outermost bounds.
- *
- * If the destination CRS is geographic, the first axis is longitude,
- * and xmax < xmin then the bounds crossed the antimeridian.
- * In this scenario there are two polygons, one on each side of the antimeridian.
- * The first polygon should be constructed with (xmin, ymin, 180, ymax)
- * and the second with (-180, ymin, xmax, ymax).
- *
- * If the destination CRS is geographic, the first axis is latitude,
- * and ymax < ymin then the bounds crossed the antimeridian.
- * In this scenario there are two polygons, one on each side of the antimeridian.
- * The first polygon should be constructed with (ymin, xmin, ymax, 180)
- * and the second with (ymin, -180, ymax, xmax).
- *
- * @param hTransform Transformation object
- * @param xmin Minimum bounding coordinate of the first axis in source CRS.
- * @param ymin Minimum bounding coordinate of the second axis in source CRS.
- * @param xmax Maximum bounding coordinate of the first axis in source CRS.
- * @param ymax Maximum bounding coordinate of the second axis in source CRS.
- * @param out_xmin Minimum bounding coordinate of the first axis in target CRS
- * @param out_ymin Minimum bounding coordinate of the second axis in target CRS.
- * @param out_xmax Maximum bounding coordinate of the first axis in target CRS.
- * @param out_ymax Maximum bounding coordinate of the second axis in target CRS.
- * @param densify_pts Recommended to use 21. This is the number of points
- *     to use to densify the bounding polygon in the transformation.
- * @return TRUE if successful. FALSE if failures encountered.
- * @since 3.4
- */
-int CPL_STDCALL OCTTransformBounds( OGRCoordinateTransformationH hTransform,
-                                    const double xmin,
-                                    const double ymin,
-                                    const double xmax,
-                                    const double ymax,
-                                    double* out_xmin,
-                                    double* out_ymin,
-                                    double* out_xmax,
-                                    double* out_ymax,
-                                    int densify_pts )
-
-{
-    VALIDATE_POINTER1( hTransform, "TransformBounds", FALSE );
-
-    return OGRProjCT::FromHandle(hTransform)->
-        TransformBounds( 
-            xmin, ymin, xmax, ymax, out_xmin, out_ymin, out_xmax, out_ymax, densify_pts
-        );
 }
 
 /************************************************************************/

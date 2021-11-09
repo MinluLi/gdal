@@ -528,6 +528,8 @@ StringGeometryMap* CollectGeometries(   OGRLayer* poSrcLayer,
 
     StringGeometryMMap poGeometriesMap;
 
+    OGRFeature  *poFeature;
+
     poSrcLayer->ResetReading();
 
     int iField;
@@ -536,8 +538,13 @@ StringGeometryMap* CollectGeometries(   OGRLayer* poSrcLayer,
 /*      include values for which the selected fields is NULL.           */
 /* -------------------------------------------------------------------- */
 
-    for( auto& poFeature: poSrcLayer )
+    while( true )
     {
+
+        poFeature = poSrcLayer->GetNextFeature();
+
+        if( poFeature == NULL )
+            break;
         CPLString poKey("");
 
         for( iField=0; papszFields[iField] != NULL; iField++) {

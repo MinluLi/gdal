@@ -40,7 +40,6 @@
 #include "gdal_utils.h"
 #include "gdalwarper.h"
 #include "mvtutils.h"
-#include "ogrsqlitevfs.h"
 
 #include "zlib.h"
 #include "ogrgeojsonreader.h"
@@ -202,7 +201,7 @@ class MBTilesDataset final: public GDALPamDataset, public GDALGPKGMBTilesLikePse
     protected:
         // Coming from GDALGPKGMBTilesLikePseudoDataset
 
-        virtual CPLErr                  IFlushCacheWithErrCode(bool bAtClosing) override;
+        virtual CPLErr                  IFlushCacheWithErrCode() override;
         virtual int                     IGetRasterCount() override { return nBands; }
         virtual GDALRasterBand*         IGetRasterBand(int nBand) override { return GetRasterBand(nBand); }
         virtual sqlite3                *IGetDB() override { return hDB; }
@@ -552,7 +551,7 @@ char* MBTilesDataset::FindKey(int iPixel, int iLine)
         json_object* poRow;
         char* pszRow = nullptr;
 
-        const int nLines = static_cast<int>(json_object_array_length(poGrid));
+        const auto nLines = json_object_array_length(poGrid);
         if (nLines == 0)
             goto end;
 
@@ -852,7 +851,7 @@ MBTilesDataset::~MBTilesDataset()
     // Need to explicitly clear it before close hDS
     m_apoLayers.clear();
 
-    FlushCache(true);
+    FlushCache();
 
     if (poMainDS == nullptr)
     {
@@ -950,17 +949,17 @@ bool MBTilesDataset::ICanIWriteBlock()
 }
 
 /************************************************************************/
-/*                         IFlushCacheWithErrCode()                     */
+/*                         IFlushCacheWithErrCode()                            */
 /************************************************************************/
 
-CPLErr MBTilesDataset::IFlushCacheWithErrCode(bool bAtClosing)
+CPLErr MBTilesDataset::IFlushCacheWithErrCode()
 
 {
     if( m_bInFlushCache )
         return CE_None;
     m_bInFlushCache = true;
     // Short circuit GDALPamDataset to avoid serialization to .aux.xml
-    GDALDataset::FlushCache(bAtClosing);
+    GDALDataset::FlushCache();
 
     CPLErr eErr = FlushTiles();
 
@@ -1913,8 +1912,8 @@ void MBTilesDataset::InitVector(double dfMinX, double dfMinY,
         {
             auto pszJson = OGR_F_GetFieldAsString(hFeat, 0);
             oDoc.GetRoot().Add( "json", pszJson );
-            CPL_IGNORE_RET_VAL(oJsonDoc.LoadMemory(
-                    reinterpret_cast<const GByte*>(pszJson)));
+            oJsonDoc.LoadMemory(
+                    reinterpret_cast<const GByte*>(pszJson));
             OGR_F_Destroy(hFeat);
         }
         OGR_DS_ReleaseResultSet(hDS, hSQLLyr);
@@ -2450,7 +2449,6 @@ int MBTilesGetBandCountAndTileSize(
         VSICurlUninstallReadCbk(fpCURLOGR);
 
         /* Did the spy intercept something interesting ? */
-        // cppcheck-suppress knownConditionTrueFalse
         if (nBands != -1)
         {
             CPLErrorReset();
@@ -3446,7 +3444,7 @@ CPLErr MBTilesDataset::IBuildOverviews(
     if( nOverviews == 0 )
     {
         for(int i=0;i<m_nOverviewCount;i++)
-            m_papoOverviewDS[i]->FlushCache(false);
+            m_papoOverviewDS[i]->FlushCache();
         char* pszSQL = sqlite3_mprintf("DELETE FROM 'tiles' WHERE zoom_level < %d",
                                        m_nZoomLevel);
         char* pszErrMsg = nullptr;
@@ -3491,7 +3489,7 @@ CPLErr MBTilesDataset::IBuildOverviews(
         return CE_Failure;
     }
 
-    FlushCache(false);
+    FlushCache();
     for(int i=0;i<nOverviews;i++)
     {
         if( panOverviewList[i] < 2 )

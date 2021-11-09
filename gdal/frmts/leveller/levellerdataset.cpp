@@ -657,7 +657,7 @@ LevellerDataset::LevellerDataset() :
 
 LevellerDataset::~LevellerDataset()
 {
-    FlushCache(true);
+    FlushCache();
 
     CPLFree(m_pszProjection);
     CPLFree(m_pszFilename);

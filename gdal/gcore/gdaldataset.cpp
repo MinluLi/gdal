@@ -224,9 +224,9 @@ GIntBig GDALGetResponsiblePIDForCurrentThread()
 /**
  * \class GDALDataset "gdal_priv.h"
  *
- * A dataset encapsulating one or more raster bands.  Details are further
- * discussed in the <a href="https://gdal.org/user/raster_data_model.html">GDAL
- * Raster Data Model</a>.
+ * A dataset encapsulating one or more raster bands.  Details are
+ * further discussed in the <a href="gdal_datamodel.html#GDALDataset">GDAL
+ * Data Model</a>.
  *
  * Use GDALOpen() or GDALOpenShared() to create a GDALDataset for a named file,
  * or GDALDriver::Create() or GDALDriver::CreateCopy() to create a new
@@ -286,19 +286,7 @@ GDALDataset::~GDALDataset()
     }
 
     if( bSuppressOnClose )
-    {
-        if( poDriver == nullptr ||
-            // Someone issuing Create("foo.tif") on a
-            // memory driver doesn't expect files with those names to be deleted
-            // on a file system...
-            // This is somewhat messy. Ideally there should be a way for the
-            // driver to overload the default behavior
-            (!EQUAL(poDriver->GetDescription(), "MEM") &&
-             !EQUAL(poDriver->GetDescription(), "Memory")) )
-        {
-            VSIUnlink(GetDescription());
-        }
-    }
+        VSIUnlink(GetDescription());
 
 /* -------------------------------------------------------------------- */
 /*      Remove dataset from the "open" dataset list.                    */
@@ -428,11 +416,9 @@ void GDALDataset::AddToDatasetOpenList()
  * by FlushCache() is written in the file.
  *
  * This method is the same as the C function GDALFlushCache().
- *
- * @param bAtClosing Whether this is called from a GDALDataset destructor
  */
 
-void GDALDataset::FlushCache(bool bAtClosing)
+void GDALDataset::FlushCache()
 
 {
     // This sometimes happens if a dataset is destroyed before completely
@@ -443,7 +429,7 @@ void GDALDataset::FlushCache(bool bAtClosing)
         for( int i = 0; i < nBands; ++i )
         {
             if( papoBands[i] != nullptr )
-                papoBands[i]->FlushCache(bAtClosing);
+                papoBands[i]->FlushCache();
         }
     }
 
@@ -479,7 +465,7 @@ void CPL_STDCALL GDALFlushCache( GDALDatasetH hDS )
 {
     VALIDATE_POINTER0(hDS, "GDALFlushCache");
 
-    GDALDataset::FromHandle(hDS)->FlushCache(false);
+    GDALDataset::FromHandle(hDS)->FlushCache();
 }
 
 /************************************************************************/
@@ -494,13 +480,13 @@ void CPL_STDCALL GDALFlushCache( GDALDatasetH hDS )
 /************************************************************************/
 
 //! @cond Doxygen_Suppress
-void GDALDataset::BlockBasedFlushCache(bool bAtClosing)
+void GDALDataset::BlockBasedFlushCache()
 
 {
     GDALRasterBand *poBand1 = GetRasterBand(1);
-    if( poBand1 == nullptr || (bSuppressOnClose && bAtClosing) )
+    if( poBand1 == nullptr )
     {
-        GDALDataset::FlushCache(bAtClosing);
+        GDALDataset::FlushCache();
         return;
     }
 
@@ -519,7 +505,7 @@ void GDALDataset::BlockBasedFlushCache(bool bAtClosing)
         poBand->GetBlockSize(&nThisBlockXSize, &nThisBlockYSize);
         if( nThisBlockXSize != nBlockXSize && nThisBlockYSize != nBlockYSize )
         {
-            GDALDataset::FlushCache(bAtClosing);
+            GDALDataset::FlushCache();
             return;
         }
     }
@@ -1505,36 +1491,6 @@ void GDALDataset::MarkAsShared()
 }
 
 /************************************************************************/
-/*                            MarkAsShared()                            */
-/************************************************************************/
-
-/** Set that the dataset must be deleted on close. */
-void  GDALDataset::MarkSuppressOnClose()
-{
-    bSuppressOnClose = true;
-}
-
-/************************************************************************/
-/*                        CleanupPostFileClosing()                      */
-/************************************************************************/
-
-/** This method should be called by driver implementations in their destructor,
- * after having closed all files, but before having freed resources that
- * are needed for their GetFileList() implementation.
- * This is used to implement MarkSuppressOnClose behavior.
- */
-void GDALDataset::CleanupPostFileClosing()
-{
-    if( bSuppressOnClose )
-    {
-        char** papszFileList = GetFileList();
-        for( int i = 0; papszFileList && papszFileList[i]; ++i )
-            VSIUnlink(papszFileList[i]);
-        CSLDestroy(papszFileList);
-    }
-}
-
-/************************************************************************/
 /*                            GetGCPCount()                             */
 /************************************************************************/
 
@@ -2501,14 +2457,6 @@ CPLErr GDALDataset::RasterIO( GDALRWFlag eRWFlag,
     if( psExtraArg == nullptr )
     {
         INIT_RASTERIO_EXTRA_ARG(sExtraArg);
-
-        // 4 below inits are not strictly needed but make Coverity Scan
-        // happy
-        sExtraArg.dfXOff = nXOff;
-        sExtraArg.dfYOff = nYOff;
-        sExtraArg.dfXSize = nXSize;
-        sExtraArg.dfYSize = nYSize;
-
         psExtraArg = &sExtraArg;
     }
     else if( psExtraArg->nVersion != RASTERIO_EXTRA_ARG_CURRENT_VERSION )
@@ -2902,11 +2850,12 @@ GDALDatasetAdviseRead( GDALDatasetH hDS,
 }
 
 /************************************************************************/
-/*                         GDALAntiRecursionStruct                      */
+/*                         AntiRecursionStruct                          */
 /************************************************************************/
 
+namespace {
 // Prevent infinite recursion.
-struct GDALAntiRecursionStruct
+struct AntiRecursionStruct
 {
     struct DatasetContext
     {
@@ -2934,19 +2883,19 @@ struct GDALAntiRecursionStruct
 
     std::set<DatasetContext, DatasetContextCompare> aosDatasetNamesWithFlags{};
     int nRecLevel = 0;
-    std::map<std::string, int> m_oMapDepth{};
 };
+} // namespace
 
 #ifdef WIN32
 // Currently thread_local and C++ objects don't work well with DLL on Windows
 static void FreeAntiRecursion( void* pData )
 {
-    delete static_cast<GDALAntiRecursionStruct*>(pData);
+    delete static_cast<AntiRecursionStruct*>(pData);
 }
 
-static GDALAntiRecursionStruct& GetAntiRecursion()
+static AntiRecursionStruct& GetAntiRecursion()
 {
-    static GDALAntiRecursionStruct dummy;
+    static AntiRecursionStruct dummy;
     int bMemoryErrorOccurred = false;
     void* pData = CPLGetTLSEx(CTLS_GDALOPEN_ANTIRECURSION, &bMemoryErrorOccurred);
     if( bMemoryErrorOccurred )
@@ -2955,7 +2904,7 @@ static GDALAntiRecursionStruct& GetAntiRecursion()
     }
     if( pData == nullptr)
     {
-        auto pAntiRecursion = new GDALAntiRecursionStruct();
+        auto pAntiRecursion = new AntiRecursionStruct();
         CPLSetTLSWithFreeFuncEx( CTLS_GDALOPEN_ANTIRECURSION,
                                  pAntiRecursion,
                                  FreeAntiRecursion, &bMemoryErrorOccurred );
@@ -2966,40 +2915,15 @@ static GDALAntiRecursionStruct& GetAntiRecursion()
         }
         return *pAntiRecursion;
     }
-    return *static_cast<GDALAntiRecursionStruct*>(pData);
+    return *static_cast<AntiRecursionStruct*>(pData);
 }
 #else
-static thread_local GDALAntiRecursionStruct g_tls_antiRecursion;
-static GDALAntiRecursionStruct& GetAntiRecursion()
+static thread_local AntiRecursionStruct g_tls_antiRecursion;
+static AntiRecursionStruct& GetAntiRecursion()
 {
     return g_tls_antiRecursion;
 }
 #endif
-
-//! @cond Doxygen_Suppress
-GDALAntiRecursionGuard::GDALAntiRecursionGuard(const std::string& osIdentifier):
-    m_psAntiRecursionStruct(&GetAntiRecursion()),
-    m_osIdentifier(osIdentifier),
-    m_nDepth(++ m_psAntiRecursionStruct->m_oMapDepth[m_osIdentifier])
-{
-    CPLAssert(!osIdentifier.empty());
-}
-
-GDALAntiRecursionGuard::GDALAntiRecursionGuard(const GDALAntiRecursionGuard& other, const std::string& osIdentifier):
-    m_psAntiRecursionStruct(other.m_psAntiRecursionStruct),
-    m_osIdentifier(osIdentifier.empty() ? osIdentifier : other.m_osIdentifier + osIdentifier),
-    m_nDepth(m_osIdentifier.empty() ? 0 : ++ m_psAntiRecursionStruct->m_oMapDepth[m_osIdentifier])
-{
-}
-
-GDALAntiRecursionGuard::~GDALAntiRecursionGuard()
-{
-    if( !m_osIdentifier.empty() )
-    {
-        -- m_psAntiRecursionStruct->m_oMapDepth[m_osIdentifier];
-    }
-}
-//! @endcond
 
 /************************************************************************/
 /*                            GetFileList()                             */
@@ -3029,13 +2953,6 @@ char **GDALDataset::GetFileList()
     CPLString osMainFilename = GetDescription();
     VSIStatBufL sStat;
 
-    GDALAntiRecursionStruct& sAntiRecursion = GetAntiRecursion();
-    const GDALAntiRecursionStruct::DatasetContext datasetCtxt(
-        osMainFilename, 0, 0);
-    auto& aosDatasetList = sAntiRecursion.aosDatasetNamesWithFlags;
-    if( aosDatasetList.find(datasetCtxt) != aosDatasetList.end() )
-        return nullptr;
-
 /* -------------------------------------------------------------------- */
 /*      Is the main filename even a real filesystem object?             */
 /* -------------------------------------------------------------------- */
@@ -3050,6 +2967,7 @@ char **GDALDataset::GetFileList()
     if( bMainFileReal )
         papszList = CSLAddString(papszList, osMainFilename);
 
+    AntiRecursionStruct& sAntiRecursion = GetAntiRecursion();
     if( sAntiRecursion.nRecLevel == 100 )
     {
         CPLError(CE_Failure, CPLE_AppDefined,
@@ -3063,11 +2981,9 @@ char **GDALDataset::GetFileList()
 /* -------------------------------------------------------------------- */
     if(oOvManager.IsInitialized() && oOvManager.poODS != nullptr)
     {
-        auto iter = aosDatasetList.insert(datasetCtxt).first;
         char **papszOvrList = oOvManager.poODS->GetFileList();
         papszList = CSLInsertStrings(papszList, -1, papszOvrList);
         CSLDestroy(papszOvrList);
-        aosDatasetList.erase(iter);
     }
 
 /* -------------------------------------------------------------------- */
@@ -3075,7 +2991,6 @@ char **GDALDataset::GetFileList()
 /* -------------------------------------------------------------------- */
     if( oOvManager.HaveMaskFile() )
     {
-        auto iter = aosDatasetList.insert(datasetCtxt).first;
         char **papszMskList = oOvManager.poMaskDS->GetFileList();
         char **papszIter = papszMskList;
         while( papszIter && *papszIter )
@@ -3085,7 +3000,6 @@ char **GDALDataset::GetFileList()
             ++papszIter;
         }
         CSLDestroy(papszMskList);
-        aosDatasetList.erase(iter);
     }
 
     --sAntiRecursion.nRecLevel;
@@ -3287,15 +3201,9 @@ GDALOpen( const char * pszFilename, GDALAccess eAccess )
  * @param nOpenFlags a combination of GDAL_OF_ flags that may be combined
  * through logical or operator.
  * <ul>
- * <li>Driver kind:
- *   <ul>
- *     <li>GDAL_OF_RASTER for raster drivers,</li>
- *     <li>GDAL_OF_MULTIDIM_RASTER for multidimensional raster drivers,</li>
- *     <li>GDAL_OF_VECTOR for vector drivers,</li>
- *     <li>GDAL_OF_GNM for Geographic Network Model drivers.</li>
- *    </ul>
- *    GDAL_OF_RASTER and GDAL_OF_MULTIDIM_RASTER are generally mutually exclusive.
- *    If none of the value is specified, GDAL_OF_RASTER | GDAL_OF_VECTOR | GDAL_OF_GNM is implied.</li>
+ * <li>Driver kind: GDAL_OF_RASTER for raster drivers, GDAL_OF_VECTOR for vector
+ *     drivers, GDAL_OF_GNM for Geographic Network Model drivers.
+ *     If none of the value is specified, all kinds are implied.</li>
  * <li>Access mode: GDAL_OF_READONLY (exclusive)or GDAL_OF_UPDATE.</li>
  * <li>Shared mode: GDAL_OF_SHARED. If set, it allows the sharing of GDALDataset
  * handles for a dataset with other callers that have set GDAL_OF_SHARED.
@@ -3399,7 +3307,7 @@ GDALDatasetH CPL_STDCALL GDALOpenEx( const char *pszFilename,
                            const_cast<char **>(papszSiblingFiles));
     oOpenInfo.papszAllowedDrivers = papszAllowedDrivers;
 
-    GDALAntiRecursionStruct& sAntiRecursion = GetAntiRecursion();
+    AntiRecursionStruct& sAntiRecursion = GetAntiRecursion();
     if( sAntiRecursion.nRecLevel == 100 )
     {
         CPLError(CE_Failure, CPLE_AppDefined,
@@ -3407,7 +3315,7 @@ GDALDatasetH CPL_STDCALL GDALOpenEx( const char *pszFilename,
         return nullptr;
     }
 
-    auto dsCtxt = GDALAntiRecursionStruct::DatasetContext(
+    auto dsCtxt = AntiRecursionStruct::DatasetContext(
         std::string(pszFilename), nOpenFlags, CSLCount(papszAllowedDrivers));
     if( sAntiRecursion.aosDatasetNamesWithFlags.find(dsCtxt) !=
                 sAntiRecursion.aosDatasetNamesWithFlags.end() )
@@ -4486,34 +4394,6 @@ OGRLayerH GDALDatasetGetLayerByName( GDALDatasetH hDS, const char *pszName )
 #endif
 
     return hLayer;
-}
-
-/************************************************************************/
-/*                        GDALDatasetIsLayerPrivate()                   */
-/************************************************************************/
-
-/**
- \brief Returns true if the layer at the specified index is deemed a private or
- system table, or an internal detail only.
-
- This function is the same as the C++ method GDALDataset::IsLayerPrivate()
-
- @since GDAL 3.4
-
- @param hDS the dataset handle.
- @param iLayer a layer number between 0 and GetLayerCount()-1.
-
- @return true if the layer is a private or system table.
-*/
-
-int GDALDatasetIsLayerPrivate( GDALDatasetH hDS, int iLayer )
-
-{
-    VALIDATE_POINTER1(hDS, "GDALDatasetIsLayerPrivate", false);
-
-    const bool res = GDALDataset::FromHandle(hDS)->IsLayerPrivate(iLayer);
-
-    return res ? 1 : 0;
 }
 
 /************************************************************************/
@@ -6951,26 +6831,6 @@ int GDALDataset::GetLayerCount() { return 0; }
 OGRLayer *GDALDataset::GetLayer(CPL_UNUSED int iLayer) { return nullptr; }
 
 /************************************************************************/
-/*                                IsLayerPrivate()                      */
-/************************************************************************/
-
-/**
- \fn GDALDataset::IsLayerPrivate(int)
- \brief Returns true if the layer at the specified index is deemed a private or
- system table, or an internal detail only.
-
- This method is the same as the C function GDALDatasetIsLayerPrivate().
-
- @param iLayer a layer number between 0 and GetLayerCount()-1.
-
- @return true if the layer is a private or system table.
-
- @since GDAL 3.4
-*/
-
-bool GDALDataset::IsLayerPrivate(CPL_UNUSED int iLayer) const { return false; }
-
-/************************************************************************/
 /*                           ResetReading()                             */
 /************************************************************************/
 
@@ -8414,9 +8274,6 @@ bool GDALDataset::GetRawBinaryLayout(RawBinaryLayout& sLayout)
 
 void GDALDataset::ClearStatistics()
 {
-    auto poRootGroup = GetRootGroup();
-    if( poRootGroup )
-        poRootGroup->ClearStatistics();
 }
 
 /************************************************************************/

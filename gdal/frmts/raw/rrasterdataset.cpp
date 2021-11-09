@@ -323,7 +323,7 @@ CPLErr RRASTERRasterBand::SetNoDataValue(double dfNoData)
 /*                             GetMinMax()                              */
 /************************************************************************/
 
-template<class T>
+template<class T> 
 static void GetMinMax(const T* buffer, int nBufXSize, int nBufYSize,
                       GSpacing nPixelSpace, GSpacing nLineSpace,
                       double dfNoDataValue,
@@ -489,7 +489,7 @@ RRASTERDataset::~RRASTERDataset()
     if( m_fpImage != nullptr )
     {
         InitImageIfNeeded();
-        FlushCache(true);
+        FlushCache();
         VSIFCloseL(m_fpImage);
     }
     if( m_bHeaderDirty )
@@ -561,7 +561,7 @@ void RRASTERDataset::RewriteHeader()
     if( !m_osProjection.empty() )
     {
         OGRSpatialReference oSRS;
-        oSRS.SetFromUserInput(m_osProjection, OGRSpatialReference::SET_FROM_USER_INPUT_LIMITATIONS_get());
+        oSRS.SetFromUserInput(m_osProjection);
         char* pszProj4 = nullptr;
         oSRS.exportToProj4(&pszProj4);
         if( pszProj4 )
@@ -1322,14 +1322,13 @@ GDALDataset *RRASTERDataset::Open( GDALOpenInfo * poOpenInfo )
                 }
             }
 
-            // cppcheck-suppress knownConditionTrueFalse
             if( !bIsCompatibleOfCT )
             {
                 poDS->m_poRAT.reset(new GDALDefaultRasterAttributeTable());
                 for( int i = 0; i < aosRatNames.size(); i++ )
                 {
                     poDS->m_poRAT->CreateColumn(
-                        aosRatNames[i],
+                        aosRatNames[i], 
                         EQUAL(aosRatTypes[i], "integer") ?  GFT_Integer :
                         EQUAL(aosRatTypes[i], "numeric") ?  GFT_Real :
                                                             GFT_String,
@@ -1538,7 +1537,7 @@ GDALDataset *RRASTERDataset::CreateCopy( const char * pszFilename,
     CSLDestroy(papszAdjustedOptions);
 
     if( poOutDS != nullptr )
-        poOutDS->FlushCache(false);
+        poOutDS->FlushCache();
 
     return poOutDS;
 }

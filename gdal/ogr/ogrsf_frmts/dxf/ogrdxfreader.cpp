@@ -134,6 +134,9 @@ int OGRDXFReader::ReadValueRaw( char *pszValueBuf, int nValueBufSize )
     if( nSrcBufferBytes - iSrcBufferOffset < 512 )
         LoadDiskChunk();
 
+    if( nValueBufSize > 512 )
+        nValueBufSize = 512;
+
 /* -------------------------------------------------------------------- */
 /*      Capture the value code, and skip past it.                       */
 /* -------------------------------------------------------------------- */
@@ -167,7 +170,6 @@ int OGRDXFReader::ReadValueRaw( char *pszValueBuf, int nValueBufSize )
 /*      Capture the value string.                                       */
 /* -------------------------------------------------------------------- */
     int iEOL = iSrcBufferOffset;
-    CPLString osValue;
 
     nLineNumber ++;
 
@@ -177,66 +179,13 @@ int OGRDXFReader::ReadValueRaw( char *pszValueBuf, int nValueBufSize )
            && achSrcBuffer[iEOL] != '\0' )
         iEOL++;
 
-    bool bLongLine = false;
-    while( achSrcBuffer[iEOL] == '\0' )
+    if( achSrcBuffer[iEOL] == '\0' )
+        return -1;
+
+    if( (iEOL - iSrcBufferOffset) > nValueBufSize-1 )
     {
-        // The line is longer than the buffer. Let's copy what we have so
-        // far into our string, and read more
-        const auto nValueLength = osValue.length();
-
-        if( nValueLength + iEOL - iSrcBufferOffset > 1048576 )
-        {
-            CPLError( CE_Failure, CPLE_AppDefined,
-                      "Line %d is too long", nLineNumber );
-            return -1;
-        }
-
-        osValue.resize( nValueLength + iEOL - iSrcBufferOffset, '\0' );
-        std::copy( achSrcBuffer + iSrcBufferOffset,
-            achSrcBuffer + iEOL,
-            osValue.begin() + nValueLength );
-
-        iSrcBufferOffset = iEOL;
-        LoadDiskChunk();
-        iEOL = iSrcBufferOffset;
-        bLongLine = true;
-
-        // Proceed to newline again
-        while( achSrcBuffer[iEOL] != '\n'
-               && achSrcBuffer[iEOL] != '\r'
-               && achSrcBuffer[iEOL] != '\0' )
-            iEOL++;
-
-        // If nothing was read, we have prematurely reached the end of the file
-        if( iEOL == iSrcBufferOffset )
-            return -1;
-    }
-
-    size_t nValueBufLen = 0;
-
-    // If this was an extremely long line, copy from osValue into the buffer
-    if( !osValue.empty() )
-    {
-        strncpy( pszValueBuf, osValue.c_str(), nValueBufSize - 1 );
-        pszValueBuf[nValueBufSize - 1] = '\0';
-
-        nValueBufLen = strlen(pszValueBuf);
-
-        if( static_cast<int>( osValue.length() ) > nValueBufSize - 1 )
-        {
-            CPLDebug( "DXF", "Long line truncated to %d characters.\n%s...",
-                      nValueBufSize - 1,
-                      pszValueBuf );
-        }
-    }
-
-    // Copy the last (normally, the only) section of this line into the buffer
-    if( (iEOL - iSrcBufferOffset) >
-        nValueBufSize - static_cast<int>(nValueBufLen) - 1 )
-    {
-        strncpy( pszValueBuf + nValueBufLen,
-                 achSrcBuffer + iSrcBufferOffset,
-                 nValueBufSize - static_cast<int>(nValueBufLen) - 1 );
+        strncpy( pszValueBuf, achSrcBuffer + iSrcBufferOffset,
+                 nValueBufSize-1 );
         pszValueBuf[nValueBufSize-1] = '\0';
 
         CPLDebug( "DXF", "Long line truncated to %d characters.\n%s...",
@@ -245,10 +194,9 @@ int OGRDXFReader::ReadValueRaw( char *pszValueBuf, int nValueBufSize )
     }
     else
     {
-        strncpy( pszValueBuf + nValueBufLen,
-                 achSrcBuffer + iSrcBufferOffset,
+        strncpy( pszValueBuf, achSrcBuffer + iSrcBufferOffset,
                  iEOL - iSrcBufferOffset );
-        pszValueBuf[nValueBufLen + iEOL - iSrcBufferOffset] = '\0';
+        pszValueBuf[iEOL - iSrcBufferOffset] = '\0';
     }
 
     iSrcBufferOffset = iEOL;
@@ -265,13 +213,7 @@ int OGRDXFReader::ReadValueRaw( char *pszValueBuf, int nValueBufSize )
 /* -------------------------------------------------------------------- */
 /*      Record how big this value was, so it can be unread safely.      */
 /* -------------------------------------------------------------------- */
-    if( bLongLine )
-        nLastValueSize = 0;
-    else
-    {
-        nLastValueSize = iSrcBufferOffset - iStartSrcBufferOffset;
-        CPLAssert( nLastValueSize > 0 );
-    }
+    nLastValueSize = iSrcBufferOffset - iStartSrcBufferOffset;
 
     return nValueCode;
 }
@@ -302,12 +244,6 @@ int OGRDXFReader::ReadValue( char *pszValueBuf, int nValueBufSize )
 void OGRDXFReader::UnreadValue()
 
 {
-    if( nLastValueSize == 0 )
-    {
-        CPLError(CE_Failure, CPLE_AppDefined,
-                 "Cannot UnreadValue(), likely due to a previous long line");
-        return;
-    }
     CPLAssert( iSrcBufferOffset >= nLastValueSize );
     CPLAssert( nLastValueSize > 0 );
 

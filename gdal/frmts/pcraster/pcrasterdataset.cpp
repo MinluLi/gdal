@@ -334,7 +334,7 @@ PCRasterDataset::PCRasterDataset( MAP* mapIn, GDALAccess eAccessIn ) :
 */
 PCRasterDataset::~PCRasterDataset()
 {
-    FlushCache(true);
+    FlushCache();
     Mclose(d_map);
 }
 

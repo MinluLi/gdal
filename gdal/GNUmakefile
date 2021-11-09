@@ -35,13 +35,10 @@ LIBGDAL-$(HAVE_LD_SHARED)	+=	$(GDAL_SLIB)
 # override if we are using libtool
 LIBGDAL-$(HAVE_LIBTOOL)	:= $(LIBGDAL)
 
-default:	configure lib-target apps-target swig-target gdal.pc
+default:	lib-target apps-target swig-target gdal.pc
 ifeq ($(PDF_PLUGIN),yes)
 	(cd frmts/pdf; $(MAKE) plugin)
 endif
-
-configure: configure.ac
-	./autogen.sh
 
 lib-target:	check-lib;
 
@@ -134,7 +131,6 @@ swig-modules:	apps-target
 
 clean:	lclean
 	(cd port; $(MAKE) clean)
-	(cd generated_headers; $(MAKE) clean)
 	(cd ogr; $(MAKE) clean)
 	(cd gnm; $(MAKE) clean)
 	(cd gcore; $(MAKE) clean)
@@ -157,7 +153,7 @@ lclean:
 distclean:	dist-clean
 
 dist-clean:	clean
-	rm -f GDALmake.opt generated_headers/cpl_config.h config.cache config.status
+	rm -f GDALmake.opt port/cpl_config.h config.cache config.status
 	rm -f libtool
 	rm -rf autom4te.cache
 
@@ -201,7 +197,6 @@ install-static-lib: static-lib gdal.pc
 	$(INSTALL_DIR) $(DESTDIR)$(INST_INCLUDE)
 	(cd port; $(MAKE) install)
 	(cd gcore; $(MAKE) install)
-	(cd generated_headers; $(MAKE) install)
 	(cd frmts; $(MAKE) install)
 	(cd alg; $(MAKE) install)
 	(cd ogr; $(MAKE) install)
@@ -230,7 +225,6 @@ ifeq ($(MACOSX_FRAMEWORK),yes)
 endif
 	(cd port; $(MAKE) install)
 	(cd gcore; $(MAKE) install)
-	(cd generated_headers; $(MAKE) install)
 	(cd frmts; $(MAKE) install)
 	(cd alg; $(MAKE) install)
 	(cd ogr; $(MAKE) install)

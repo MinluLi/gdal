@@ -182,7 +182,18 @@ int OGROCIDataSource::Open( const char * pszNewName,
 /*      Try to establish connection.                                    */
 /* -------------------------------------------------------------------- */
 
-    poSession = OGRGetOCISession( pszUserid, pszPassword, pszDatabase );
+    if( EQUAL(pszDatabase, "") &&
+        EQUAL(pszPassword, "") &&
+        EQUAL(pszUserid, "") )
+    {
+        /* Use username/password OS Authentication and ORACLE_SID database */
+
+        poSession = OGRGetOCISession( "/", "", "" );
+    }
+    else
+    {
+        poSession = OGRGetOCISession( pszUserid, pszPassword, pszDatabase );
+    }
 
     if( poSession == nullptr )
     {
@@ -507,13 +518,11 @@ OGROCIDataSource::ICreateLayer( const char * pszLayerName,
 /*      away?                                                           */
 /* -------------------------------------------------------------------- */
     int iLayer;
-    bool bIsNewLayer = TRUE;
 
     if( CPLFetchBool( papszOptions, "TRUNCATE", false ) )
     {
         CPLDebug( "OCI", "Calling TruncateLayer for %s", pszLayerName );
         TruncateLayer( pszSafeLayerName );
-        bIsNewLayer = false;  // Oracle table already exists
     }
     else
     {
@@ -623,7 +632,7 @@ OGROCIDataSource::ICreateLayer( const char * pszLayerName,
     if( pszLoaderFile == nullptr )
         poLayer = new OGROCITableLayer( this, pszSafeLayerName, eType,
                                         EQUAL(szSRSId,"NULL") ? -1 : atoi(szSRSId),
-                                        TRUE, bIsNewLayer);
+                                        TRUE, TRUE );
     else
         poLayer =
             new OGROCILoaderLayer( this, pszSafeLayerName,

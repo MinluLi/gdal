@@ -44,7 +44,8 @@
 
 #include "osm_parser.h"
 
-#include "ogrsqlitevfs.h"
+#define DO_NOT_INCLUDE_SQLITE_CLASSES
+#include "ogr_sqlite.h"
 
 class ConstCharComp
 {

@@ -338,10 +338,9 @@ JPIPKAKRasterBand::IRasterIO( GDALRWFlag eRWFlag,
 /* -------------------------------------------------------------------- */
 /*      We need various criteria to skip out to block based methods.    */
 /* -------------------------------------------------------------------- */
-    int anBand[1] = { nBand };
     if( poBaseDS->TestUseBlockIO( nXOff, nYOff, nXSize, nYSize,
                                   nBufXSize, nBufYSize,
-                                  eBufType, 1, &anBand[0] ) )
+                                  eBufType, 1, &nBand ) )
         return GDALPamRasterBand::IRasterIO(
             eRWFlag, nXOff, nYOff, nXSize, nYSize,
             pData, nBufXSize, nBufYSize, eBufType,
@@ -353,7 +352,7 @@ JPIPKAKRasterBand::IRasterIO( GDALRWFlag eRWFlag,
     GDALAsyncReader* ario =
         poBaseDS->BeginAsyncReader(nXOff, nYOff, nXSize, nYSize,
                                    pData, nBufXSize, nBufYSize, eBufType,
-                                   1, &anBand[0],
+                                   1, &nBand,
                                    static_cast<int>(nPixelSpace),
                                    static_cast<int>(nLineSpace), 0, nullptr);
 
@@ -407,6 +406,9 @@ JPIPKAKDataset::~JPIPKAKDataset()
     CSLDestroy(papszOptions);
 
     Deinitialize();
+
+    CPLFree(pszProjection);
+    pszProjection = nullptr;
 
     CPLFree(pszPath);
 
@@ -782,7 +784,7 @@ int JPIPKAKDataset::Initialize(const char* pszDatasetName, int bReinitializing )
         // parse gml first, followed by geojp2 as a fallback
         if (oJP2Geo.ParseGMLCoverageDesc() || oJP2Geo.ParseJP2GeoTIFF())
         {
-            m_oSRS = oJP2Geo.m_oSRS;
+            pszProjection = CPLStrdup(oJP2Geo.pszProjection);
             bGeoTransformValid = TRUE;
 
             memcpy(adfGeoTransform, oJP2Geo.adfGeoTransform,
@@ -1080,16 +1082,16 @@ int JPIPKAKDataset::ReadFromInput(GByte* pabyData, int nLen, int &bError )
 }
 
 /************************************************************************/
-/*                          GetSpatialRef()                             */
+/*                          GetProjectionRef()                          */
 /************************************************************************/
 
-const OGRSpatialReference *JPIPKAKDataset::GetSpatialRef() const
+const char *JPIPKAKDataset::_GetProjectionRef()
 
 {
-    if( !m_oSRS.IsEmpty() )
-        return &m_oSRS;
+    if( pszProjection && *pszProjection )
+        return pszProjection;
     else
-        return GDALPamDataset::GetSpatialRef();
+        return GDALPamDataset::_GetProjectionRef();
 }
 
 /************************************************************************/
@@ -1120,16 +1122,16 @@ int JPIPKAKDataset::GetGCPCount()
 }
 
 /************************************************************************/
-/*                           GetGCPSpatialRef()                         */
+/*                          GetGCPProjection()                          */
 /************************************************************************/
 
-const OGRSpatialReference *JPIPKAKDataset::GetGCPSpatialRef() const
+const char *JPIPKAKDataset::_GetGCPProjection()
 
 {
-    if( nGCPCount > 0 && !m_oSRS.IsEmpty() )
-        return &m_oSRS;
+    if( nGCPCount > 0 )
+        return pszProjection;
     else
-        return nullptr;
+        return "";
 }
 
 /************************************************************************/
@@ -1208,7 +1210,7 @@ JPIPKAKDataset::TestUseBlockIO( CPL_UNUSED int nXOff, CPL_UNUSED int nYOff,
                                 int nXSize, int nYSize,
                                 int nBufXSize, int nBufYSize,
                                 CPL_UNUSED GDALDataType eDataType,
-                                int nBandCount, const int *panBandList ) const
+                                int nBandCount, int *panBandList ) const
 
 {
 /* -------------------------------------------------------------------- */

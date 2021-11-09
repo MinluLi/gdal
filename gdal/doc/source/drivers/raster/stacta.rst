@@ -30,8 +30,6 @@ STACTA datasets/subdatasets can be accessed with one of the following syntaxes:
 
 * ``STACTA:"filename.json":my_asset:my_tms``: specify an asset and tiling scheme of a local/remote file
 
-The root of the JSON file must be of type ``Feature``.
-
 Open options
 ------------
 
@@ -58,8 +56,3 @@ Driver capabilities
 -------------------
 
 .. supports_virtualio::
-
-See Also
---------
-
--  :ref:`raster.stacit` documentation page.

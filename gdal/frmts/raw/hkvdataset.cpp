@@ -316,7 +316,7 @@ HKVDataset::HKVDataset() :
 HKVDataset::~HKVDataset()
 
 {
-    FlushCache(true);
+    FlushCache();
     if( bGeorefChanged )
     {
         const char *pszFilename = CPLFormFilename(pszPath, "georef", nullptr );
@@ -1845,7 +1845,7 @@ HKVDataset::CreateCopy( const char * pszFilename,
     {
         RawRasterBand *poDstBand = reinterpret_cast<RawRasterBand *>(
             poDS->GetRasterBand( iBand+1 ) );
-        poDstBand->FlushCache(false);
+        poDstBand->FlushCache();
     }
 
     if( !pfnProgress( 1.0, nullptr, pProgressData ) )

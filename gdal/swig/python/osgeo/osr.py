@@ -442,21 +442,6 @@ class SpatialReference(_object):
         return _osr.SpatialReference_IsVertical(self, *args)
 
 
-    def IsDynamic(self, *args):
-        """IsDynamic(SpatialReference self) -> bool"""
-        return _osr.SpatialReference_IsDynamic(self, *args)
-
-
-    def GetCoordinateEpoch(self, *args):
-        """GetCoordinateEpoch(SpatialReference self) -> double"""
-        return _osr.SpatialReference_GetCoordinateEpoch(self, *args)
-
-
-    def SetCoordinateEpoch(self, *args):
-        """SetCoordinateEpoch(SpatialReference self, double coordinateEpoch)"""
-        return _osr.SpatialReference_SetCoordinateEpoch(self, *args)
-
-
     def EPSGTreatsAsLatLong(self, *args):
         """EPSGTreatsAsLatLong(SpatialReference self) -> int"""
         return _osr.SpatialReference_EPSGTreatsAsLatLong(self, *args)
@@ -1159,11 +1144,6 @@ class CoordinateTransformation(_object):
         """TransformPoints(CoordinateTransformation self, int nCount)"""
         return _osr.CoordinateTransformation_TransformPoints(self, *args)
 
-
-    def TransformBounds(self, *args):
-        """TransformBounds(CoordinateTransformation self, double minx, double miny, double maxx, double maxy, int densify_pts)"""
-        return _osr.CoordinateTransformation_TransformBounds(self, *args)
-
 CoordinateTransformation_swigregister = _osr.CoordinateTransformation_swigregister
 CoordinateTransformation_swigregister(CoordinateTransformation)
 
@@ -1311,14 +1291,6 @@ def GetPROJVersionMinor(*args):
 def GetPROJVersionMicro(*args):
     """GetPROJVersionMicro() -> int"""
     return _osr.GetPROJVersionMicro(*args)
-
-def GetPROJEnableNetwork(*args):
-    """GetPROJEnableNetwork() -> bool"""
-    return _osr.GetPROJEnableNetwork(*args)
-
-def SetPROJEnableNetwork(*args):
-    """SetPROJEnableNetwork(bool enabled)"""
-    return _osr.SetPROJEnableNetwork(*args)
 
 def SetPROJAuxDbPath(*args):
     """SetPROJAuxDbPath(char const * utf8_path)"""

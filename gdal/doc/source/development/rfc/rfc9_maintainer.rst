@@ -8,7 +8,7 @@ Author: Frank Warmerdam
 
 Contact: warmerdam@pobox.com
 
-Status: Approved, but superseded per :ref:`rfc-83`
+Status: Approved
 
 Purpose
 -------

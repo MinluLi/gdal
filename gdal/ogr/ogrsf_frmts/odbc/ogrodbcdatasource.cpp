@@ -40,6 +40,7 @@ OGRODBCDataSource::OGRODBCDataSource() :
     papoLayers(nullptr),
     nLayers(0),
     pszName(nullptr),
+    bDSUpdate(FALSE),
     nKnownSRID(0),
     panSRID(nullptr),
     papoSRS(nullptr)
@@ -102,13 +103,8 @@ static int CheckDSNStringTemplate(const char* pszStr)
 /*                              OpenMDB()                               */
 /************************************************************************/
 
-int OGRODBCDataSource::OpenMDB( GDALOpenInfo* poOpenInfo )
+int OGRODBCDataSource::OpenMDB( const char * pszNewName, int bUpdate )
 {
-#ifndef WIN32
-    // Try to register MDB Tools driver
-    CPLODBCDriverInstaller::InstallMdbToolsDriver();
-#endif /* ndef WIN32 */
-
     const char* pszOptionName = "PGEO_DRIVER_TEMPLATE";
     const char* pszDSNStringTemplate = CPLGetConfigOption( pszOptionName, nullptr );
     if( pszDSNStringTemplate == nullptr )
@@ -127,7 +123,6 @@ int OGRODBCDataSource::OpenMDB( GDALOpenInfo* poOpenInfo )
         return FALSE;
     }
 
-    const char * pszNewName = poOpenInfo->pszFilename;
     if ( !oSession.ConnectToMsAccess( pszNewName, pszDSNStringTemplate ) )
     {
         return FALSE;
@@ -135,9 +130,55 @@ int OGRODBCDataSource::OpenMDB( GDALOpenInfo* poOpenInfo )
 
     pszName = CPLStrdup( pszNewName );
 
-    // Collate a list of all tables in the data source
+    bDSUpdate = bUpdate;
+
+/* -------------------------------------------------------------------- */
+/*      Check if it is a PGeo MDB.                                      */
+/* -------------------------------------------------------------------- */
+    {
+        CPLODBCStatement oStmt( &oSession );
+
+        oStmt.Append( "SELECT TableName, FieldName, ShapeType, ExtentLeft, ExtentRight, ExtentBottom, ExtentTop, SRID, HasZ FROM GDB_GeomColumns" );
+
+        if( oStmt.ExecuteSQL() )
+        {
+            return FALSE;
+        }
+    }
+
+/* -------------------------------------------------------------------- */
+/*      Check if it is a Geomedia MDB.                                  */
+/* -------------------------------------------------------------------- */
+    {
+        CPLODBCStatement oStmt( &oSession );
+
+        oStmt.Append( "SELECT TableName FROM GAliasTable WHERE TableType = 'INGRFeatures'" );
+
+        if( oStmt.ExecuteSQL() )
+        {
+            return FALSE;
+        }
+    }
+
+/* -------------------------------------------------------------------- */
+/*      Check if it is a Walk MDB.                                      */
+/* -------------------------------------------------------------------- */
+    {
+        CPLODBCStatement oStmt( &oSession );
+
+        oStmt.Append( "SELECT LayerID, LayerName, minE, maxE, minN, maxN, Memo FROM WalkLayers" );
+
+        if( oStmt.ExecuteSQL() )
+        {
+            return FALSE;
+        }
+    }
+
+/* -------------------------------------------------------------------- */
+/*      Return all tables as  non-spatial tables.                       */
+/* -------------------------------------------------------------------- */
     CPLODBCStatement oTableList( &oSession );
-    std::vector< CPLString > aosTableNames;
+
     if( oTableList.GetTables() )
     {
         while( oTableList.Fetch() )
@@ -156,62 +197,27 @@ int OGRODBCDataSource::OpenMDB( GDALOpenInfo* poOpenInfo )
 
                 osLayerName += pszTableName;
 
-                const CPLString osLCTableName(CPLString(osLayerName).tolower());
-                m_aosAllLCTableNames.insert( osLCTableName );
-
-                aosTableNames.emplace_back( osLayerName );
+                OpenTable( osLayerName, nullptr, bUpdate );
             }
         }
+
+        return TRUE;
     }
     else
-    {
         return FALSE;
-    }
-
-/* -------------------------------------------------------------------- */
-/*      Check if it is a PGeo, Geomedia or Walk MDB.                    */
-/* -------------------------------------------------------------------- */
-    for ( const CPLString &osTableName : aosTableNames )
-    {
-        const CPLString osLCTableName(CPLString(osTableName).tolower());
-        if ( osLCTableName == "gdb_geomcolumns" // PGeo
-             || osLCTableName == "galiastable" // Geomedia
-             || osLCTableName == "walklayers" ) // Walk
-            return FALSE;
-    }
-
-    const bool bListAllTables = CPLTestBool(CSLFetchNameValueDef(
-            poOpenInfo->papszOpenOptions, "LIST_ALL_TABLES", "NO"));
-
-/* -------------------------------------------------------------------- */
-/*      Return all tables as non-spatial tables.                       */
-/* -------------------------------------------------------------------- */
-    for ( const CPLString &osTableName : aosTableNames )
-    {
-        const CPLString osLCTableName(CPLString(osTableName).tolower());
-        if ( bListAllTables ||
-            !(osLCTableName.size() >= 4 && osLCTableName.substr(0, 4) == "msys") // MS Access internal tables
-            )
-        {
-            OpenTable( osTableName, nullptr );
-        }
-    }
-
-    return TRUE;
 }
 
 /************************************************************************/
 /*                                Open()                                */
 /************************************************************************/
 
-int OGRODBCDataSource::Open( GDALOpenInfo* poOpenInfo )
+int OGRODBCDataSource::Open( const char * pszNewName, int bUpdate,
+                             CPL_UNUSED int bTestOpen )
 {
     CPLAssert( nLayers == 0 );
 
-    const char * pszNewName = poOpenInfo->pszFilename;
-
     if( !STARTS_WITH_CI(pszNewName, "ODBC:") && IsSupportedMsAccessFileExtension(CPLGetExtension(pszNewName)))
-        return OpenMDB(poOpenInfo);
+        return OpenMDB(pszNewName, bUpdate);
 
 /* -------------------------------------------------------------------- */
 /*      Start parsing dataset name from the end of string, fetching     */
@@ -362,6 +368,8 @@ int OGRODBCDataSource::Open( GDALOpenInfo* poOpenInfo )
 
     pszName = CPLStrdup( pszNewName );
 
+    bDSUpdate = bUpdate;
+
 /* -------------------------------------------------------------------- */
 /*      If no explicit list of tables was given, check for a list in    */
 /*      a geometry_columns table.                                       */
@@ -423,9 +431,9 @@ int OGRODBCDataSource::Open( GDALOpenInfo* poOpenInfo )
          iTable++ )
     {
         if( strlen(papszGeomCol[iTable]) > 0 )
-            OpenTable( papszTables[iTable], papszGeomCol[iTable] );
+            OpenTable( papszTables[iTable], papszGeomCol[iTable], bUpdate );
         else
-            OpenTable( papszTables[iTable], nullptr );
+            OpenTable( papszTables[iTable], nullptr, bUpdate );
     }
 
     CSLDestroy( papszTables );
@@ -509,7 +517,8 @@ int OGRODBCDataSource::Open( GDALOpenInfo* poOpenInfo )
 /************************************************************************/
 
 int OGRODBCDataSource::OpenTable( const char *pszNewName,
-                                  const char *pszGeomCol )
+                                  const char *pszGeomCol,
+                                  CPL_UNUSED int bUpdate )
 {
 /* -------------------------------------------------------------------- */
 /*      Create the layer object.                                        */
@@ -553,54 +562,6 @@ OGRLayer *OGRODBCDataSource::GetLayer( int iLayer )
     else
         return papoLayers[iLayer];
 }
-
-/************************************************************************/
-/*                              GetLayerByName()                        */
-/************************************************************************/
-
-OGRLayer* OGRODBCDataSource::GetLayerByName( const char* pszLayerName )
-{
-  OGRLayer* poLayer = GDALDataset::GetLayerByName(pszLayerName);
-  if( poLayer != nullptr )
-      return poLayer;
-
-  // if table name doesn't exist in database, don't try any further
-  const CPLString osLCTableName(CPLString(pszLayerName).tolower());
-  if ( m_aosAllLCTableNames.find( osLCTableName ) == m_aosAllLCTableNames.end() )
-      return nullptr;
-
-  // try to open the table -- if successful the table will be added to papoLayers
-  // as the last item
-  if ( OpenTable( pszLayerName, nullptr ) )
-      return papoLayers[nLayers-1];
-  else
-      return nullptr;
-}
-
-/************************************************************************/
-/*                    IsPrivateLayerName()                              */
-/************************************************************************/
-
-bool OGRODBCDataSource::IsPrivateLayerName(const CPLString &osName)
-{
-    const CPLString osLCTableName(CPLString(osName).tolower());
-
-    return osLCTableName.size() >= 4 && osLCTableName.substr(0, 4) == "msys"; // MS Access internal tables
-}
-
-/************************************************************************/
-/*                    IsLayerPrivate()                                  */
-/************************************************************************/
-
-bool OGRODBCDataSource::IsLayerPrivate(int iLayer) const
-{
-    if( iLayer < 0 || iLayer >= nLayers )
-        return false;
-
-    const std::string osName( papoLayers[iLayer]->GetName() );
-    return IsPrivateLayerName( osName );
-}
-
 /************************************************************************/
 /*                             ExecuteSQL()                             */
 /************************************************************************/

@@ -906,26 +906,6 @@ GUInt32 CPL_STDCALL CPLGetErrorCounter()
 /*                       CPLDefaultErrorHandler()                       */
 /************************************************************************/
 
-static FILE *fpLog = stderr;
-static bool bLogInit = false;
-
-static FILE* CPLfopenUTF8(const char* pszFilename, const char* pszAccess)
-{
-    FILE* f;
-#ifdef _WIN32
-    wchar_t *pwszFilename =
-        CPLRecodeToWChar( pszFilename, CPL_ENC_UTF8, CPL_ENC_UCS2 );
-    wchar_t *pwszAccess =
-        CPLRecodeToWChar( pszAccess, CPL_ENC_UTF8, CPL_ENC_UCS2 );
-    f = _wfopen(pwszFilename, pwszAccess);
-    VSIFree(pwszFilename);
-    VSIFree(pwszAccess);
-#else
-    f = fopen( pszFilename, pszAccess );
-#endif
-    return f;
-}
-
 /** Default error handler. */
 void CPL_STDCALL CPLDefaultErrorHandler( CPLErr eErrClass, CPLErrorNum nError,
                                          const char * pszErrorMsg )
@@ -933,7 +913,6 @@ void CPL_STDCALL CPLDefaultErrorHandler( CPLErr eErrClass, CPLErrorNum nError,
 {
     static int nCount = 0;
     static int nMaxErrors = -1;
-    static const char* pszErrorSeparator = ":";
 
     if( eErrClass != CE_Debug )
     {
@@ -941,9 +920,6 @@ void CPL_STDCALL CPLDefaultErrorHandler( CPLErr eErrClass, CPLErrorNum nError,
         {
             nMaxErrors =
                 atoi(CPLGetConfigOption( "CPL_MAX_ERROR_REPORTS", "1000" ));
-            // If running GDAL as a CustomBuild Command os MSBuild, "ERROR bla:" is
-            // considered as failing the job. This is rarely the intended behavior
-            pszErrorSeparator = CPLGetConfigOption("CPL_ERROR_SEPARATOR", ":");
         }
 
         nCount++;
@@ -951,17 +927,20 @@ void CPL_STDCALL CPLDefaultErrorHandler( CPLErr eErrClass, CPLErrorNum nError,
             return;
     }
 
+    static FILE *fpLog = stderr;
+
+    static bool bLogInit = false;
     if( !bLogInit )
     {
         bLogInit = true;
 
         fpLog = stderr;
-        const char* pszLog = CPLGetConfigOption( "CPL_LOG", nullptr );
-        if( pszLog != nullptr )
+        if( CPLGetConfigOption( "CPL_LOG", nullptr ) != nullptr )
         {
-            const bool bAppend = CPLGetConfigOption( "CPL_LOG_APPEND", nullptr ) != nullptr;
-            const char* pszAccess = bAppend ? "at" : "wt";
-            fpLog = CPLfopenUTF8( pszLog, pszAccess );
+            const char* pszAccess = "wt";
+            if( CPLGetConfigOption( "CPL_LOG_APPEND", nullptr ) != nullptr )
+                pszAccess = "at";
+            fpLog = fopen( CPLGetConfigOption("CPL_LOG", ""), pszAccess );
             if( fpLog == nullptr )
                 fpLog = stderr;
         }
@@ -972,7 +951,7 @@ void CPL_STDCALL CPLDefaultErrorHandler( CPLErr eErrClass, CPLErrorNum nError,
     else if( eErrClass == CE_Warning )
         fprintf( fpLog, "Warning %d: %s\n", nError, pszErrorMsg );
     else
-        fprintf( fpLog, "ERROR %d%s %s\n", nError, pszErrorSeparator, pszErrorMsg );
+        fprintf( fpLog, "ERROR %d: %s\n", nError, pszErrorMsg );
 
     if( eErrClass != CE_Debug
         && nMaxErrors > 0
@@ -1011,6 +990,9 @@ void CPL_STDCALL CPLLoggingErrorHandler( CPLErr eErrClass, CPLErrorNum nError,
                                          const char * pszErrorMsg )
 
 {
+    static bool bLogInit = false;
+    static FILE *fpLog = stderr;
+
     if( !bLogInit )
     {
         bLogInit = true;
@@ -1031,7 +1013,7 @@ void CPL_STDCALL CPLLoggingErrorHandler( CPLErr eErrClass, CPLErrorNum nError,
             strcpy(pszPath, cpl_log);
 
             int i = 0;
-            while( (fpLog = CPLfopenUTF8( pszPath, "rt" )) != nullptr )
+            while( (fpLog = fopen( pszPath, "rt" )) != nullptr )
             {
                 fclose( fpLog );
 
@@ -1056,7 +1038,7 @@ void CPL_STDCALL CPLLoggingErrorHandler( CPLErr eErrClass, CPLErrorNum nError,
                 }
             }
 
-            fpLog = CPLfopenUTF8( pszPath, "wt" );
+            fpLog = fopen( pszPath, "wt" );
             CPLFree(pszPath);
         }
     }
@@ -1360,12 +1342,6 @@ void CPLCleanupErrorMutex()
     {
         CPLDestroyMutex(hErrorMutex);
         hErrorMutex = nullptr;
-    }
-    if( fpLog != nullptr && fpLog != stderr )
-    {
-        fclose(fpLog);
-        fpLog = nullptr;
-        bLogInit = false;
     }
 }
 

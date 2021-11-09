@@ -151,7 +151,7 @@ class IDADataset final: public RawDataset
     IDADataset();
     ~IDADataset() override;
 
-    void FlushCache(bool bAtClosing) override;
+    void FlushCache() override;
 
     const OGRSpatialReference* GetSpatialRef() const override;
     CPLErr SetSpatialRef(const OGRSpatialReference* poSRS) override;
@@ -391,7 +391,7 @@ IDADataset::IDADataset() :
 IDADataset::~IDADataset()
 
 {
-    IDADataset::FlushCache(true);
+    IDADataset::FlushCache();
 
     if( fpRaw != nullptr )
     {
@@ -471,10 +471,10 @@ void IDADataset::ProcessGeoref()
 /*                             FlushCache()                             */
 /************************************************************************/
 
-void IDADataset::FlushCache(bool bAtClosing)
+void IDADataset::FlushCache()
 
 {
-    RawDataset::FlushCache(bAtClosing);
+    RawDataset::FlushCache();
 
     if( bHeaderDirty )
     {

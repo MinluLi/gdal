@@ -570,11 +570,6 @@ char **GDALLoadRPBFile( const char* soFilePath )
 
         if( pszRPBVal == nullptr )
         {
-            if (strcmp(apszRPBMap[i], RPC_ERR_RAND) == 0 ||
-                strcmp(apszRPBMap[i], RPC_ERR_BIAS) == 0)
-            {
-                continue;
-            }
             CPLError( CE_Failure, CPLE_AppDefined,
                       "%s file found, but missing %s field (and possibly others).",
                       soFilePath, apszRPBMap[i+1] );
@@ -1157,34 +1152,7 @@ CPLErr GDALWriteIMDFile( const char *pszFilename, char **papszMD )
             bOK &= VSIFPrintfL( fp, "%s = ", osKeyItem.c_str() ) > 0;
 
         if( pszValue[0] != '(' )
-        {
-            const bool bHasSingleQuote = strchr(pszValue, '\'') != nullptr;
-            const bool bHasDoubleQuote = strchr(pszValue, '"') != nullptr;
-            if( strchr(pszValue, ' ') != nullptr ||
-                strchr(pszValue, ';') != nullptr ||
-                strchr(pszValue, '\t') != nullptr ||
-                bHasSingleQuote ||
-                (bHasDoubleQuote && !(pszValue[0] == '"' && pszValue[strlen(pszValue)-1] == '"')) )
-            {
-                if( !bHasDoubleQuote )
-                    bOK &= VSIFPrintfL( fp, "\"%s\";\n", pszValue ) > 0;
-                else if( !bHasSingleQuote )
-                    bOK &= VSIFPrintfL( fp, "'%s';\n", pszValue ) > 0;
-                else
-                {
-                    // There does not seem to have a way to escape double-quotes
-                    // in a double-quoted string (or single-quote in a single-quoted
-                    // string), so we are going to convert double-quotes as
-                    // two single-quotes...
-                    const std::string osVal = CPLString(pszValue).replaceAll('"', "''");
-                    bOK &= VSIFPrintfL( fp, "\"%s\";\n", osVal.c_str() ) > 0;
-                }
-            }
-            else
-            {
-                bOK &= VSIFPrintfL( fp, "%s;\n", pszValue ) > 0;
-            }
-        }
+            bOK &= VSIFPrintfL( fp, "%s;\n", pszValue ) > 0;
         else
             GDALWriteIMDMultiLine( fp, pszValue );
     }

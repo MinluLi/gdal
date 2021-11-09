@@ -178,45 +178,51 @@ char **OGRCSVReadParseLineL( VSILFILE *fp, char chDelimiter,
         return CSVSplitLine(pszLine, chDelimiter, bKeepLeadingAndClosingQuotes,
                             bMergeDelimiter);
 
-    try
+    // We must now count the quotes in our working string, and as
+    // long as it is odd, keep adding new lines.
+    char *pszWorkLine = CPLStrdup(pszLine);
+
+    int i = 0;
+    int nCount = 0;
+    size_t nWorkLineLength = strlen(pszWorkLine);
+
+    while( true )
     {
-        // We must now count the quotes in our working string, and as
-        // long as it is odd, keep adding new lines.
-        std::string osWorkLine(pszLine);
-
-        size_t i = 0;
-        int nCount = 0;
-
-        while( true )
+        for( ; pszWorkLine[i] != '\0'; i++ )
         {
-            for( ; i < osWorkLine.size(); i++ )
-            {
-                if( osWorkLine[i] == '\"' )
-                    nCount++;
-            }
-
-            if( nCount % 2 == 0 )
-                break;
-
-            pszLine = CPLReadLineL(fp);
-            if( pszLine == nullptr )
-                break;
-
-            osWorkLine.append("\n");
-            osWorkLine.append(pszLine);
+            if( pszWorkLine[i] == '\"' )
+                nCount++;
         }
 
-        char **papszReturn =
-            CSVSplitLine(osWorkLine.c_str(), chDelimiter, bKeepLeadingAndClosingQuotes,
-                         bMergeDelimiter);
+        if( nCount % 2 == 0 )
+            break;
 
-        return papszReturn;
+        pszLine = CPLReadLineL(fp);
+        if( pszLine == nullptr )
+            break;
+
+        const size_t nLineLen = strlen(pszLine);
+
+        char *pszWorkLineTmp = static_cast<char *>(
+            VSI_REALLOC_VERBOSE(pszWorkLine, nWorkLineLength + nLineLen + 2));
+        if( pszWorkLineTmp == nullptr )
+            break;
+        pszWorkLine = pszWorkLineTmp;
+
+        // The '\n' gets lost in CPLReadLine().
+        strcat(pszWorkLine + nWorkLineLength, "\n");
+        strcat(pszWorkLine + nWorkLineLength, pszLine);
+
+        nWorkLineLength += nLineLen + 1;
     }
-    catch( const std::exception& e )
-    {
-        CPLError(CE_Failure, CPLE_OutOfMemory, "%s", e.what());
-        return nullptr;
-    }
+
+    char **papszReturn =
+        CSVSplitLine(pszWorkLine, chDelimiter, bKeepLeadingAndClosingQuotes,
+                     bMergeDelimiter);
+
+    CPLFree(pszWorkLine);
+
+    return papszReturn;
 }
 
 /************************************************************************/
@@ -445,19 +451,6 @@ void OGRCSVLayer::BuildFeatureDefn( const char *pszNfdcGeomField,
     if( !bNew )
         ResetReading();
 
-    const int nMaxFieldCount = atoi(
-        CPLGetConfigOption("OGR_CSV_MAX_FIELD_COUNT", "2000"));
-    if( nFieldCount > nMaxFieldCount )
-    {
-        CPLError(CE_Warning, CPLE_AppDefined,
-                 "%d columns detected. Limiting to %d. "
-                 "Set OGR_CSV_MAX_FIELD_COUNT configuration option "
-                 "to allow more fields.",
-                 nFieldCount,
-                 nMaxFieldCount);
-        nFieldCount = nMaxFieldCount;
-    }
-
     nCSVFieldCount = nFieldCount;
 
     panGeomFieldIndex = static_cast<int *>(CPLCalloc(nFieldCount, sizeof(int)));
@@ -573,8 +566,6 @@ void OGRCSVLayer::BuildFeatureDefn( const char *pszNfdcGeomField,
     constexpr int knMAX_GEOM_COLUMNS = 100;
     bool bWarnedMaxGeomFields = false;
 
-    const int nFieldTypesCount = CSLCount(papszFieldTypes);
-
     for( int iField = 0; !bIsEurostatTSV && iField < nFieldCount; iField++ )
     {
         char *pszFieldName = nullptr;
@@ -612,7 +603,7 @@ void OGRCSVLayer::BuildFeatureDefn( const char *pszNfdcGeomField,
         }
 
         OGRFieldDefn oField(pszFieldName, OFTString);
-        if( papszFieldTypes != nullptr && iField < nFieldTypesCount )
+        if( papszFieldTypes != nullptr && iField < CSLCount(papszFieldTypes) )
         {
             if( EQUAL(papszFieldTypes[iField], "WKT") )
             {
@@ -971,7 +962,7 @@ void OGRCSVLayer::BuildFeatureDefn( const char *pszNfdcGeomField,
             {
                 OGRSpatialReference *poSRS = new OGRSpatialReference();
                 poSRS->SetAxisMappingStrategy(OAMS_TRADITIONAL_GIS_ORDER);
-                if( poSRS->SetFromUserInput((const char *)pabyRet, OGRSpatialReference::SET_FROM_USER_INPUT_LIMITATIONS_get()) ==
+                if( poSRS->SetFromUserInput((const char *)pabyRet) ==
                     OGRERR_NONE )
                 {
                     poFeatureDefn->GetGeomFieldDefn(0)->SetSpatialRef(poSRS);

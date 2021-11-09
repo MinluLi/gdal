@@ -486,49 +486,29 @@ GMLFeatureClass *GMLParseFeatureType(CPLXMLNode *psSchemaNode,
                                 strlen(psIter->pszName)) == 0)
                     {
                         OGRwkbGeometryType eType = psIter->eType;
-                        std::string osSRSName;
 
                         // Look if there's a comment restricting to subclasses.
-                        const CPLXMLNode* psIter2 = psAttrDef->psNext;
-                        while( psIter2 != nullptr )
+                        if( psAttrDef->psNext != nullptr &&
+                            psAttrDef->psNext->eType == CXT_Comment )
                         {
-                            if( psIter2->eType == CXT_Comment )
-                            {
-                                if( strstr(psIter2->pszValue,
-                                           "restricted to Polygon") )
-                                    eType = wkbPolygon;
-                                else if( strstr(psIter2->pszValue,
-                                                "restricted to LineString") )
-                                    eType = wkbLineString;
-                                else if( strstr(psIter2->pszValue,
-                                                "restricted to MultiPolygon") )
-                                    eType = wkbMultiPolygon;
-                                else if( strstr(psIter2->pszValue,
-                                                "restricted to MultiLineString") )
-                                    eType = wkbMultiLineString;
-                                else
-                                {
-                                    const char* pszSRSName = strstr(psIter2->pszValue, "srsName=\"");
-                                    if( pszSRSName )
-                                    {
-                                        osSRSName = pszSRSName + strlen("srsName=\"");
-                                        const auto nPos = osSRSName.find('"');
-                                        if( nPos != std::string::npos )
-                                            osSRSName.resize(nPos);
-                                        else
-                                            osSRSName.clear();
-                                    }
-                                }
-                            }
-
-                            psIter2 = psIter2->psNext;
+                            if( strstr(psAttrDef->psNext->pszValue,
+                                       "restricted to Polygon") )
+                                eType = wkbPolygon;
+                            else if( strstr(psAttrDef->psNext->pszValue,
+                                            "restricted to LineString") )
+                                eType = wkbLineString;
+                            else if( strstr(psAttrDef->psNext->pszValue,
+                                            "restricted to MultiPolygon") )
+                                eType = wkbMultiPolygon;
+                            else if( strstr(psAttrDef->psNext->pszValue,
+                                            "restricted to MultiLineString") )
+                                eType = wkbMultiLineString;
                         }
 
                         GMLGeometryPropertyDefn* poDefn =
                             new GMLGeometryPropertyDefn(
                                 pszElementName, pszElementName, eType,
                                 nAttributeIndex, bNullable);
-                        poDefn->SetSRSName(osSRSName);
 
                         if( poClass->AddGeometryProperty(poDefn) < 0 )
                             delete poDefn;

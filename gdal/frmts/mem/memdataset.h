@@ -61,7 +61,7 @@ class CPL_DLL MEMDataset CPL_NON_FINAL: public GDALDataset
     int         bGeoTransformSet;
     double      adfGeoTransform[6];
 
-    OGRSpatialReference m_oSRS{};
+    char        *pszProjection;
 
     int          m_nGCPCount;
     GDAL_GCP    *m_pasGCPs;
@@ -83,8 +83,14 @@ class CPL_DLL MEMDataset CPL_NON_FINAL: public GDALDataset
                  MEMDataset();
     virtual      ~MEMDataset();
 
-    const OGRSpatialReference* GetSpatialRef() const override;
-    CPLErr SetSpatialRef(const OGRSpatialReference* poSRS) override;
+    const char *_GetProjectionRef(void) override;
+    CPLErr _SetProjection( const char * ) override;
+    const OGRSpatialReference* GetSpatialRef() const override {
+        return GetSpatialRefFromOldGetProjectionRef();
+    }
+    CPLErr SetSpatialRef(const OGRSpatialReference* poSRS) override {
+        return OldSetProjectionFromSetSpatialRef(poSRS);
+    }
 
     virtual CPLErr GetGeoTransform( double * ) override;
     virtual CPLErr SetGeoTransform( double * ) override;

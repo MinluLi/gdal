@@ -205,13 +205,10 @@ void CPL_DLL GDALRegister_TGA(void);
 void CPL_DLL GDALRegister_OGCAPI(void);
 void CPL_DLL GDALRegister_STACTA(void);
 
-void CPL_DLL GDALRegister_Zarr(void);
-void CPL_DLL GDALRegister_STACIT(void);
-
 void CPL_DLL GDALRegister_TFATMBTiles(void);
 void CPL_DLL GDALRegister_CNSDTF(void);
 void CPL_DLL GDALRegister_NSDTF(void);
-
+//void CPL_DLL GDALRegister_IIQ(void);
 
 CPL_C_END
 

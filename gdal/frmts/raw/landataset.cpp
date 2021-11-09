@@ -335,7 +335,7 @@ LANDataset::LANDataset() :
 LANDataset::~LANDataset()
 
 {
-    FlushCache(true);
+    FlushCache();
 
     if( fpImage != nullptr )
     {

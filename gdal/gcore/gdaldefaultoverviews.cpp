@@ -91,7 +91,7 @@ int GDALDefaultOverviews::CloseDependentDatasets()
     if( poODS != nullptr )
     {
         bHasDroppedRef = true;
-        poODS->FlushCache(true);
+        poODS->FlushCache();
         GDALClose( poODS );
         poODS = nullptr;
     }
@@ -101,7 +101,7 @@ int GDALDefaultOverviews::CloseDependentDatasets()
         if( bOwnMaskDS )
         {
             bHasDroppedRef = true;
-            poMaskDS->FlushCache(true);
+            poMaskDS->FlushCache();
             GDALClose( poMaskDS );
         }
         poMaskDS = nullptr;
@@ -533,7 +533,7 @@ CPLErr GDALDefaultOverviews::CleanOverviews()
     GDALClose( poODS );
     poODS = nullptr;
 
-    CPLErr eErr = poOvrDriver != nullptr ?
+    const CPLErr eErr = poOvrDriver != nullptr ?
         poOvrDriver->Delete( osOvrFilename ) : CE_None;
 
     // Reset the saved overview filename.
@@ -549,15 +549,6 @@ CPLErr GDALDefaultOverviews::CleanOverviews()
     else
     {
         osOvrFilename = "";
-    }
-
-    if( HaveMaskFile() && poMaskDS )
-    {
-        const CPLErr eErr2 = poMaskDS->BuildOverviews(
-                            nullptr, 0, nullptr, 0, nullptr,
-                            nullptr, nullptr);
-        if( eErr2 != CE_None )
-            return eErr2;
     }
 
     return eErr;
@@ -1185,27 +1176,25 @@ int GDALDefaultOverviews::HaveMaskFile( char ** papszSiblingFiles,
     if( poBaseDS != nullptr && poBaseDS->oOvManager.HaveMaskFile() )
     {
         GDALRasterBand * const poBaseBand = poBaseDS->GetRasterBand(1);
-        GDALDataset* poMaskDSTemp = nullptr;
-        if( poBaseBand != nullptr )
-        {
-            GDALRasterBand * poBaseMask = poBaseBand->GetMaskBand();
-            if( poBaseMask != nullptr )
-            {
-                const int nOverviewCount = poBaseMask->GetOverviewCount();
-                for( int iOver = 0; iOver < nOverviewCount; iOver++ )
-                {
-                    GDALRasterBand * const poOverBand =
-                        poBaseMask->GetOverview( iOver );
-                    if( poOverBand == nullptr )
-                        continue;
+        GDALRasterBand * poBaseMask = poBaseBand != nullptr ?
+            poBaseBand->GetMaskBand() : nullptr;
 
-                    if( poOverBand->GetXSize() == poDS->GetRasterXSize()
-                        && poOverBand->GetYSize() == poDS->GetRasterYSize() )
-                    {
-                        poMaskDSTemp = poOverBand->GetDataset();
-                        break;
-                    }
-                }
+        const int nOverviewCount = poBaseMask != nullptr ?
+            poBaseMask->GetOverviewCount() : 0;
+
+        GDALDataset* poMaskDSTemp = nullptr;
+        for( int iOver = 0; iOver < nOverviewCount; iOver++ )
+        {
+            GDALRasterBand * const poOverBand =
+                poBaseMask->GetOverview( iOver );
+            if( poOverBand == nullptr )
+                continue;
+
+            if( poOverBand->GetXSize() == poDS->GetRasterXSize()
+                && poOverBand->GetYSize() == poDS->GetRasterYSize() )
+            {
+                poMaskDSTemp = poOverBand->GetDataset();
+                break;
             }
         }
 

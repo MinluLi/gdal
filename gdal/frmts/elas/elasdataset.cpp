@@ -142,7 +142,7 @@ class ELASDataset final: public GDALPamDataset
                                 int nXSize, int nYSize, int nBands,
                                 GDALDataType eType, char ** papszParamList );
 
-    void FlushCache(bool bAtClosing) override;
+    void FlushCache() override;
 };
 
 /************************************************************************/
@@ -274,7 +274,7 @@ ELASDataset::ELASDataset() :
 ELASDataset::~ELASDataset()
 
 {
-    ELASDataset::FlushCache(true);
+    ELASDataset::FlushCache();
 
     if( fp != nullptr )
     {
@@ -288,10 +288,10 @@ ELASDataset::~ELASDataset()
 /*      We also write out the header, if it is modified.                */
 /************************************************************************/
 
-void ELASDataset::FlushCache(bool bAtClosing)
+void ELASDataset::FlushCache()
 
 {
-    GDALDataset::FlushCache(bAtClosing);
+    GDALDataset::FlushCache();
 
     if( bHeaderModified )
     {

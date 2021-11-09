@@ -367,10 +367,6 @@ void GDALDatasetPool::_CloseDatasetIfZeroRefCount( const char* pszFileName,
                                      GDALAccess /* eAccess */,
                                      const char* pszOwner )
 {
-    // May fix https://github.com/OSGeo/gdal/issues/4318
-    if( bInDestruction )
-        return;
-
     GDALProxyPoolCacheEntry* cur = firstEntry;
     GIntBig responsiblePID = GDALGetResponsiblePIDForCurrentThread();
 
@@ -390,18 +386,16 @@ void GDALDatasetPool::_CloseDatasetIfZeroRefCount( const char* pszFileName,
             /* dataset */
             GDALSetResponsiblePIDForCurrentThread(cur->responsiblePID);
 
-            GDALDataset* poDS = cur->poDS;
+            refCountOfDisableRefCount ++;
+            GDALClose(cur->poDS);
+            refCountOfDisableRefCount --;
+
+            GDALSetResponsiblePIDForCurrentThread(responsiblePID);
 
             cur->poDS = nullptr;
             cur->pszFileName[0] = '\0';
             CPLFree(cur->pszOwner);
             cur->pszOwner = nullptr;
-
-            refCountOfDisableRefCount ++;
-            GDALClose(poDS);
-            refCountOfDisableRefCount --;
-
-            GDALSetResponsiblePIDForCurrentThread(responsiblePID);
             break;
         }
 
@@ -657,73 +651,13 @@ GDALProxyPoolDataset::GDALProxyPoolDataset(const char* pszSourceDatasetDescripti
         m_poSRS->importFromWkt(pszProjectionRefIn);
         m_bHasSrcSRS = true;
     }
-}
 
-/* Constructor where the parameters (raster size, etc.) are obtained
- * by opening the underlying dataset.
- */
-GDALProxyPoolDataset::GDALProxyPoolDataset( const char* pszSourceDatasetDescription,
-                                            GDALAccess eAccessIn,
-                                            int bSharedIn,
-                                            const char* pszOwner ):
-    responsiblePID(GDALGetResponsiblePIDForCurrentThread())
-{
-    GDALDatasetPool::Ref();
-
-    SetDescription(pszSourceDatasetDescription);
-
-    eAccess = eAccessIn;
-
-    bShared = CPL_TO_BOOL(bSharedIn);
-    m_pszOwner = pszOwner ? CPLStrdup(pszOwner) : nullptr;
-
-}
-
-/************************************************************************/
-/*                              Create()                                */
-/************************************************************************/
-
-/* Instantiate a GDALProxyPoolDataset where the parameters (raster size, etc.)
- * are obtained by opening the underlying dataset.
- * Its bands are also instantiated.
- */
-GDALProxyPoolDataset* GDALProxyPoolDataset::Create( const char* pszSourceDatasetDescription,
-                                                    CSLConstList papszOpenOptions,
-                                                    GDALAccess eAccess,
-                                                    int bShared,
-                                                    const char* pszOwner )
-{
-    std::unique_ptr<GDALProxyPoolDataset> poSelf(
-        new GDALProxyPoolDataset(pszSourceDatasetDescription, eAccess, bShared, pszOwner));
-    poSelf->SetOpenOptions(papszOpenOptions);
-    GDALDataset* poUnderlyingDS = poSelf->RefUnderlyingDataset();
-    if( !poUnderlyingDS )
-        return nullptr;
-    poSelf->nRasterXSize = poUnderlyingDS->GetRasterXSize();
-    poSelf->nRasterYSize = poUnderlyingDS->GetRasterYSize();
-    if( poUnderlyingDS->GetGeoTransform(poSelf->adfGeoTransform) == CE_None )
-        poSelf->bHasSrcGeoTransform = true;
-    const auto poSRS = poUnderlyingDS->GetSpatialRef();
-    if( poSRS )
-    {
-        poSelf->m_poSRS = poSRS->Clone();
-        poSelf->m_bHasSrcSRS = true;
-    }
-    for( int i = 1; i <= poUnderlyingDS->GetRasterCount(); ++i )
-    {
-        auto poSrcBand = poUnderlyingDS->GetRasterBand(i);
-        if( !poSrcBand )
-        {
-            poSelf->UnrefUnderlyingDataset(poUnderlyingDS);
-            return nullptr;
-        }
-        int nSrcBlockXSize, nSrcBlockYSize;
-        poSrcBand->GetBlockSize(&nSrcBlockXSize, &nSrcBlockYSize);
-        poSelf->AddSrcBandDescription(poSrcBand->GetRasterDataType(),
-                                      nSrcBlockXSize, nSrcBlockYSize);
-    }
-    poSelf->UnrefUnderlyingDataset(poUnderlyingDS);
-    return poSelf.release();
+    pszGCPProjection = nullptr;
+    nGCPCount = 0;
+    pasGCPList = nullptr;
+    metadataSet = nullptr;
+    metadataItemSet = nullptr;
+    cacheEntry = nullptr;
 }
 
 /************************************************************************/
@@ -765,7 +699,7 @@ GDALProxyPoolDataset::~GDALProxyPoolDataset()
 /*                        SetOpenOptions()                              */
 /************************************************************************/
 
-void GDALProxyPoolDataset::SetOpenOptions(CSLConstList papszOpenOptionsIn)
+void GDALProxyPoolDataset::SetOpenOptions(char** papszOpenOptionsIn)
 {
     CPLAssert(papszOpenOptions == nullptr);
     papszOpenOptions = CSLDuplicate(papszOpenOptionsIn);
@@ -845,12 +779,12 @@ void GDALProxyPoolDataset::UnrefUnderlyingDataset(
 /*                         FlushCache()                                 */
 /************************************************************************/
 
-void  GDALProxyPoolDataset::FlushCache(bool bAtClosing)
+void  GDALProxyPoolDataset::FlushCache()
 {
     GDALDataset* poUnderlyingDataset = RefUnderlyingDataset(false);
     if (poUnderlyingDataset)
     {
-        poUnderlyingDataset->FlushCache(bAtClosing);
+        poUnderlyingDataset->FlushCache();
         UnrefUnderlyingDataset(poUnderlyingDataset);
     }
 }
@@ -1173,26 +1107,6 @@ GDALProxyPoolRasterBand::~GDALProxyPoolRasterBand()
 }
 
 /************************************************************************/
-/*                AddSrcMaskBandDescriptionFromUnderlying()             */
-/************************************************************************/
-
-void GDALProxyPoolRasterBand::AddSrcMaskBandDescriptionFromUnderlying()
-{
-    if( poProxyMaskBand != nullptr )
-        return;
-    GDALRasterBand* poUnderlyingBand = RefUnderlyingRasterBand();
-    if( poUnderlyingBand == nullptr )
-        return;
-    auto poSrcMaskBand = poUnderlyingBand->GetMaskBand();
-    int nSrcBlockXSize, nSrcBlockYSize;
-    poSrcMaskBand->GetBlockSize(&nSrcBlockXSize, &nSrcBlockYSize);
-    poProxyMaskBand = new GDALProxyPoolMaskBand(cpl::down_cast<GDALProxyPoolDataset*>(poDS),
-                                                this, poSrcMaskBand->GetRasterDataType(),
-                                                nSrcBlockXSize, nSrcBlockYSize);
-    UnrefUnderlyingRasterBand(poUnderlyingBand);
-}
-
-/************************************************************************/
 /*                 AddSrcMaskBandDescription()                          */
 /************************************************************************/
 
@@ -1258,12 +1172,12 @@ void GDALProxyPoolRasterBand::UnrefUnderlyingRasterBand(GDALRasterBand* poUnderl
 /*                             FlushCache()                             */
 /************************************************************************/
 
-CPLErr GDALProxyPoolRasterBand::FlushCache(bool bAtClosing)
+CPLErr GDALProxyPoolRasterBand::FlushCache()
 {
     GDALRasterBand* poUnderlyingRasterBand = RefUnderlyingRasterBand(false);
     if (poUnderlyingRasterBand)
     {
-        CPLErr eErr = poUnderlyingRasterBand->FlushCache(bAtClosing);
+        CPLErr eErr = poUnderlyingRasterBand->FlushCache();
         UnrefUnderlyingRasterBand(poUnderlyingRasterBand);
         return eErr;
     }

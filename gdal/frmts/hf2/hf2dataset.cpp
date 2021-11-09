@@ -287,7 +287,7 @@ HF2Dataset::HF2Dataset() :
 HF2Dataset::~HF2Dataset()
 
 {
-    FlushCache(true);
+    FlushCache();
     CPLFree(pszWKT);
     CPLFree(panBlockOffset);
     if (fp)

@@ -2032,8 +2032,8 @@ int OGRPGLayer::ReadResultDefinition(PGresult *hInitialResultIn)
                  nTypeOID == poDS->GetGeometryOID()  ||
                  nTypeOID == poDS->GetGeographyOID()  )
         {
-            auto poGeomFieldDefn =
-                cpl::make_unique<OGRPGGeomFieldDefn>(this, oField.GetNameRef());
+            OGRPGGeomFieldDefn* poGeomFieldDefn =
+                new OGRPGGeomFieldDefn(this, oField.GetNameRef());
             if( iGeomFuncPrefix >= 0 &&
                 oField.GetNameRef()[strlen(
                     apszKnownGeomFuncPrefixes[iGeomFuncPrefix])] == '_' )
@@ -2048,17 +2048,17 @@ int OGRPGLayer::ReadResultDefinition(PGresult *hInitialResultIn)
             }
             else
                 poGeomFieldDefn->ePostgisType = GEOM_TYPE_GEOMETRY;
-            poFeatureDefn->AddGeomFieldDefn(std::move(poGeomFieldDefn));
+            poFeatureDefn->AddGeomFieldDefn(poGeomFieldDefn, FALSE);
             continue;
         }
         else if( EQUAL(oField.GetNameRef(),"WKB_GEOMETRY") )
         {
             if( nTypeOID == OIDOID )
                 bWkbAsOid = TRUE;
-            auto poGeomFieldDefn =
-                cpl::make_unique<OGRPGGeomFieldDefn>(this, oField.GetNameRef());
+            OGRPGGeomFieldDefn* poGeomFieldDefn =
+                new OGRPGGeomFieldDefn(this, oField.GetNameRef());
             poGeomFieldDefn->ePostgisType = GEOM_TYPE_WKB;
-            poFeatureDefn->AddGeomFieldDefn(std::move(poGeomFieldDefn));
+            poFeatureDefn->AddGeomFieldDefn(poGeomFieldDefn, FALSE);
             continue;
         }
 

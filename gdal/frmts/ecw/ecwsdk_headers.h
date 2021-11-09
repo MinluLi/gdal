@@ -66,7 +66,6 @@
 
 #if ECWSDK_VERSION < 40
 
-#include <NCSJPCFileIOStream.h>
 #if !defined(NO_COMPRESS) && !defined(HAVE_COMPRESS)
 #  define HAVE_COMPRESS
 #endif

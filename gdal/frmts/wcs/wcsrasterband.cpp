@@ -118,7 +118,7 @@ WCSRasterBand::WCSRasterBand( WCSDataset *poDSIn, int nBandIn,
 WCSRasterBand::~WCSRasterBand()
 
 {
-    FlushCache(true);
+    FlushCache();
 
     if( nOverviewCount > 0 )
     {

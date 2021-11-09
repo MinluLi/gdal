@@ -139,19 +139,12 @@ MAIN_START(argc, argv)
 /* -------------------------------------------------------------------- */
     GDALDatasetH hInDS = nullptr;
     GDALDatasetH hOutDS = nullptr;
-    bool bCloseRetDS = false;
 
     if( strcmp(psOptionsForBinary->pszOutFile,
                psOptionsForBinary->pszInFile) == 0 )
-    {
-        hInDS = GDALOpen(psOptionsForBinary->pszInFile, GA_Update);
-        hOutDS = hInDS;
-    }
+        hInDS = hOutDS = GDALOpen(psOptionsForBinary->pszInFile, GA_Update);
     else
-    {
         hInDS = GDALOpen(psOptionsForBinary->pszInFile, GA_ReadOnly);
-        bCloseRetDS = true;
-    }
 
     if( hInDS == nullptr )
         exit(1);
@@ -166,8 +159,8 @@ MAIN_START(argc, argv)
     const int nRetCode = hRetDS ? 0 : 1;
 
     GDALClose(hInDS);
-    if( bCloseRetDS )
-        GDALClose(hRetDS);
+    if( hRetDS != hInDS )
+        GDALClose(hOutDS);
     GDALNearblackOptionsFree(psOptions);
     GDALNearblackOptionsForBinaryFree(psOptionsForBinary);
 

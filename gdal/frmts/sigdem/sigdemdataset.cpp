@@ -148,7 +148,7 @@ SIGDEMDataset::SIGDEMDataset(const SIGDEMHeader& sHeaderIn) :
 }
 
 SIGDEMDataset::~SIGDEMDataset() {
-    FlushCache(true);
+    FlushCache();
 
     if (fpImage != nullptr) {
         if (VSIFCloseL(fpImage) != 0) {
@@ -578,6 +578,6 @@ CPLErr SIGDEMRasterBand::IWriteBlock(
 }
 
 SIGDEMRasterBand::~SIGDEMRasterBand() {
-    SIGDEMRasterBand::FlushCache(true);
+    SIGDEMRasterBand::FlushCache();
     VSIFree(pBlockBuffer);
 }

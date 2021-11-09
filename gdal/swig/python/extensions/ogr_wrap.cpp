@@ -3327,10 +3327,7 @@ void DontUseExceptions() {
     }
     char* pszNewValue = CPLStrdup(pszValue + strlen(MODULE_NAME) + 1);
     if( pszNewValue[0] == ' ' && pszNewValue[1] == '\0' )
-    {
-        CPLFree(pszNewValue);
         pszNewValue = NULL;
-    }
     CPLSetConfigOption("__chain_python_error_handlers", pszNewValue);
     CPLFree(pszNewValue);
     bUseExceptions = 0;
@@ -3392,10 +3389,9 @@ static PyObject* GDALPythonObjectFromCStr(const char *pszStr)
   {
     if (*pszIter > 127)
     {
-        PyObject* pyObj = PyUnicode_DecodeUTF8(pszStr, strlen(pszStr), "strict");
-        if (pyObj != NULL && !PyErr_Occurred())
+        PyObject* pyObj = PyUnicode_DecodeUTF8(pszStr, strlen(pszStr), "ignore");
+        if (pyObj != NULL)
             return pyObj;
-        PyErr_Clear();
         return PyBytes_FromString(pszStr);
     }
     pszIter ++;
@@ -3431,29 +3427,9 @@ static char* GDALPythonObjectToCStr(PyObject* pyObject, int* pbToFree)
       *pbToFree = 1;
       return pszNewStr;
   }
-  else if( PyBytes_Check(pyObject) )
-  {
-      char* ret = PyBytes_AsString(pyObject);
-
-      // Check if there are \0 bytes inside the string
-      const Py_ssize_t size = PyBytes_Size(pyObject);
-      for( Py_ssize_t i = 0; i < size; i++ )
-      {
-          if( ret[i] == 0 )
-          {
-              CPLError(CE_Failure, CPLE_AppDefined,
-                       "bytes object cast as string contains a zero-byte.");
-              return NULL;
-          }
-      }
-
-      return ret;
-  }
   else
   {
-      CPLError(CE_Failure, CPLE_AppDefined,
-               "Passed object is neither of type string nor bytes");
-      return NULL;
+      return PyBytes_AsString(pyObject);
   }
 }
 
@@ -3695,25 +3671,6 @@ SWIGINTERN char const *GDALMajorObjectShadow_GetMetadataItem(GDALMajorObjectShad
 SWIGINTERN CPLErr GDALMajorObjectShadow_SetMetadataItem(GDALMajorObjectShadow *self,char const *pszName,char const *pszValue,char const *pszDomain=""){
     return GDALSetMetadataItem( self, pszName, pszValue, pszDomain);
   }
-
-int GetGEOSVersionMajor() {
-    int num;
-    OGRGetGEOSVersion(&num, NULL, NULL);
-    return num;
-}
-
-int GetGEOSVersionMinor() {
-    int num;
-    OGRGetGEOSVersion(NULL, &num, NULL);
-    return num;
-}
-
-int GetGEOSVersionMicro() {
-    int num;
-    OGRGetGEOSVersion(NULL, NULL, &num);
-    return num;
-}
-
 SWIGINTERN OGRStyleTableShadow *new_OGRStyleTableShadow(){
         return (OGRStyleTableShadow*) OGR_STBL_Create();
    }
@@ -4479,7 +4436,7 @@ SWIGINTERN char **OGRFeatureShadow_GetFieldAsStringList(OGRFeatureShadow *self,i
   }
 SWIGINTERN OGRErr OGRFeatureShadow_GetFieldAsBinary__SWIG_0(OGRFeatureShadow *self,int id,int *nLen,char **pBuf){
     GByte* pabyBlob = OGR_F_GetFieldAsBinary(self, id, nLen);
-    *pBuf = (char*)VSIMalloc(*nLen);
+    *pBuf = (char*)malloc(*nLen);
     memcpy(*pBuf, pabyBlob, *nLen);
     return 0;
   }
@@ -4493,7 +4450,7 @@ SWIGINTERN OGRErr OGRFeatureShadow_GetFieldAsBinary__SWIG_1(OGRFeatureShadow *se
       else
       {
         GByte* pabyBlob = OGR_F_GetFieldAsBinary(self, id, nLen);
-        *pBuf = (char*)VSIMalloc(*nLen);
+        *pBuf = (char*)malloc(*nLen);
         memcpy(*pBuf, pabyBlob, *nLen);
         return 0;
       }
@@ -5518,8 +5475,8 @@ SWIGINTERN OGRGeometryShadow *OGRGeometryShadow_GetBoundary(OGRGeometryShadow *s
 SWIGINTERN OGRGeometryShadow *OGRGeometryShadow_ConvexHull(OGRGeometryShadow *self){
     return (OGRGeometryShadow*) OGR_G_ConvexHull(self);
   }
-SWIGINTERN OGRGeometryShadow *OGRGeometryShadow_MakeValid(OGRGeometryShadow *self,char **options=NULL){
-    return (OGRGeometryShadow*) OGR_G_MakeValidEx(self, options);
+SWIGINTERN OGRGeometryShadow *OGRGeometryShadow_MakeValid(OGRGeometryShadow *self){
+    return (OGRGeometryShadow*) OGR_G_MakeValid(self);
   }
 SWIGINTERN OGRGeometryShadow *OGRGeometryShadow_Normalize(OGRGeometryShadow *self){
     return (OGRGeometryShadow*) OGR_G_Normalize(self);
@@ -6399,22 +6356,13 @@ SWIGINTERN PyObject *_wrap_MajorObject_SetMetadata__SWIG_0(PyObject *SWIGUNUSEDP
             SWIG_fail;
           }
           
-          PyObject* vStr;
-          if( PyBytes_Check(v) )
+          PyObject* vStr = PyObject_Str(v);
+          if( PyErr_Occurred() )
           {
-            vStr = v;
-            Py_INCREF(vStr);
-          }
-          else
-          {
-            vStr = PyObject_Str(v);
-            if( PyErr_Occurred() )
-            {
-              Py_DECREF(it);
-              Py_DECREF(kStr);
-              Py_DECREF(item_list);
-              SWIG_fail;
-            }
+            Py_DECREF(it);
+            Py_DECREF(kStr);
+            Py_DECREF(item_list);
+            SWIG_fail;
           }
           
           int bFreeK, bFreeV;
@@ -6783,99 +6731,6 @@ SWIGINTERN PyObject *MajorObject_swigregister(PyObject *SWIGUNUSEDPARM(self), Py
   SWIG_TypeNewClientData(SWIGTYPE_p_GDALMajorObjectShadow, SWIG_NewClientData(obj));
   return SWIG_Py_Void();
 }
-
-SWIGINTERN PyObject *_wrap_GetGEOSVersionMajor(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0; int bLocalUseExceptionsCode = bUseExceptions;
-  int result;
-  
-  if (!PyArg_ParseTuple(args,(char *)":GetGEOSVersionMajor")) SWIG_fail;
-  {
-    if ( bUseExceptions ) {
-      ClearErrorState();
-    }
-    {
-      SWIG_PYTHON_THREAD_BEGIN_ALLOW;
-      result = (int)GetGEOSVersionMajor();
-      SWIG_PYTHON_THREAD_END_ALLOW;
-    }
-#ifndef SED_HACKS
-    if ( bUseExceptions ) {
-      CPLErr eclass = CPLGetLastErrorType();
-      if ( eclass == CE_Failure || eclass == CE_Fatal ) {
-        SWIG_exception( SWIG_RuntimeError, CPLGetLastErrorMsg() );
-      }
-    }
-#endif
-  }
-  resultobj = SWIG_From_int(static_cast< int >(result));
-  if ( ReturnSame(bLocalUseExceptionsCode) ) { CPLErr eclass = CPLGetLastErrorType(); if ( eclass == CE_Failure || eclass == CE_Fatal ) { Py_XDECREF(resultobj); SWIG_Error( SWIG_RuntimeError, CPLGetLastErrorMsg() ); return NULL; } }
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_GetGEOSVersionMinor(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0; int bLocalUseExceptionsCode = bUseExceptions;
-  int result;
-  
-  if (!PyArg_ParseTuple(args,(char *)":GetGEOSVersionMinor")) SWIG_fail;
-  {
-    if ( bUseExceptions ) {
-      ClearErrorState();
-    }
-    {
-      SWIG_PYTHON_THREAD_BEGIN_ALLOW;
-      result = (int)GetGEOSVersionMinor();
-      SWIG_PYTHON_THREAD_END_ALLOW;
-    }
-#ifndef SED_HACKS
-    if ( bUseExceptions ) {
-      CPLErr eclass = CPLGetLastErrorType();
-      if ( eclass == CE_Failure || eclass == CE_Fatal ) {
-        SWIG_exception( SWIG_RuntimeError, CPLGetLastErrorMsg() );
-      }
-    }
-#endif
-  }
-  resultobj = SWIG_From_int(static_cast< int >(result));
-  if ( ReturnSame(bLocalUseExceptionsCode) ) { CPLErr eclass = CPLGetLastErrorType(); if ( eclass == CE_Failure || eclass == CE_Fatal ) { Py_XDECREF(resultobj); SWIG_Error( SWIG_RuntimeError, CPLGetLastErrorMsg() ); return NULL; } }
-  return resultobj;
-fail:
-  return NULL;
-}
-
-
-SWIGINTERN PyObject *_wrap_GetGEOSVersionMicro(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
-  PyObject *resultobj = 0; int bLocalUseExceptionsCode = bUseExceptions;
-  int result;
-  
-  if (!PyArg_ParseTuple(args,(char *)":GetGEOSVersionMicro")) SWIG_fail;
-  {
-    if ( bUseExceptions ) {
-      ClearErrorState();
-    }
-    {
-      SWIG_PYTHON_THREAD_BEGIN_ALLOW;
-      result = (int)GetGEOSVersionMicro();
-      SWIG_PYTHON_THREAD_END_ALLOW;
-    }
-#ifndef SED_HACKS
-    if ( bUseExceptions ) {
-      CPLErr eclass = CPLGetLastErrorType();
-      if ( eclass == CE_Failure || eclass == CE_Fatal ) {
-        SWIG_exception( SWIG_RuntimeError, CPLGetLastErrorMsg() );
-      }
-    }
-#endif
-  }
-  resultobj = SWIG_From_int(static_cast< int >(result));
-  if ( ReturnSame(bLocalUseExceptionsCode) ) { CPLErr eclass = CPLGetLastErrorType(); if ( eclass == CE_Failure || eclass == CE_Fatal ) { Py_XDECREF(resultobj); SWIG_Error( SWIG_RuntimeError, CPLGetLastErrorMsg() ); return NULL; } }
-  return resultobj;
-fail:
-  return NULL;
-}
-
 
 SWIGINTERN PyObject *_wrap_new_StyleTable(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0; int bLocalUseExceptionsCode = bUseExceptions;
@@ -21868,14 +21723,7 @@ SWIGINTERN PyObject *_wrap_CreateGeometryFromWkb(PyObject *SWIGUNUSEDPARM(self),
     if (PyUnicode_Check(obj0))
     {
       size_t safeLen = 0;
-      int ret;
-      try {
-        ret = SWIG_AsCharPtrAndSize(obj0, (char**) &arg2, &safeLen, &alloc1);
-      }
-      catch( const std::exception& )
-      {
-        SWIG_exception_fail( SWIG_MemoryError, "out of memory");
-      }
+      int ret = SWIG_AsCharPtrAndSize(obj0, (char**) &arg2, &safeLen, &alloc1);
       if (!SWIG_IsOK(ret)) {
         SWIG_exception( SWIG_RuntimeError, "invalid Unicode string" );
       }
@@ -22691,14 +22539,7 @@ SWIGINTERN PyObject *_wrap_new_Geometry(PyObject *SWIGUNUSEDPARM(self), PyObject
       if (PyUnicode_Check(obj2))
       {
         size_t safeLen = 0;
-        int ret;
-        try {
-          ret = SWIG_AsCharPtrAndSize(obj2, (char**) &arg4, &safeLen, &alloc3);
-        }
-        catch( const std::exception& )
-        {
-          SWIG_exception_fail( SWIG_MemoryError, "out of memory");
-        }
+        int ret = SWIG_AsCharPtrAndSize(obj2, (char**) &arg4, &safeLen, &alloc3);
         if (!SWIG_IsOK(ret)) {
           SWIG_exception( SWIG_RuntimeError, "invalid Unicode string" );
         }
@@ -23009,13 +22850,7 @@ SWIGINTERN PyObject *_wrap_Geometry_ExportToWkb(PyObject *SWIGUNUSEDPARM(self), 
   {
     /* %typemap(argout) (size_t *nLen, char **pBuf ) */
     Py_XDECREF(resultobj);
-    if( *arg3 ) {
-      resultobj = PyByteArray_FromStringAndSize( *arg3, *arg2 );
-    }
-    else {
-      resultobj = Py_None;
-      Py_INCREF(Py_None);
-    }
+    resultobj = PyByteArray_FromStringAndSize( *arg3, *arg2 );
   }
   {
     /* %typemap(freearg) (size_t *nLen, char **pBuf ) */
@@ -23111,13 +22946,7 @@ SWIGINTERN PyObject *_wrap_Geometry_ExportToIsoWkb(PyObject *SWIGUNUSEDPARM(self
   {
     /* %typemap(argout) (size_t *nLen, char **pBuf ) */
     Py_XDECREF(resultobj);
-    if( *arg3 ) {
-      resultobj = PyByteArray_FromStringAndSize( *arg3, *arg2 );
-    }
-    else {
-      resultobj = Py_None;
-      Py_INCREF(Py_None);
-    }
+    resultobj = PyByteArray_FromStringAndSize( *arg3, *arg2 );
   }
   {
     /* %typemap(freearg) (size_t *nLen, char **pBuf ) */
@@ -25391,37 +25220,24 @@ fail:
 SWIGINTERN PyObject *_wrap_Geometry_MakeValid(PyObject *SWIGUNUSEDPARM(self), PyObject *args) {
   PyObject *resultobj = 0; int bLocalUseExceptionsCode = bUseExceptions;
   OGRGeometryShadow *arg1 = (OGRGeometryShadow *) 0 ;
-  char **arg2 = (char **) NULL ;
   void *argp1 = 0 ;
   int res1 = 0 ;
   PyObject * obj0 = 0 ;
-  PyObject * obj1 = 0 ;
   OGRGeometryShadow *result = 0 ;
   
-  if (!PyArg_ParseTuple(args,(char *)"O|O:Geometry_MakeValid",&obj0,&obj1)) SWIG_fail;
+  if (!PyArg_ParseTuple(args,(char *)"O:Geometry_MakeValid",&obj0)) SWIG_fail;
   res1 = SWIG_ConvertPtr(obj0, &argp1,SWIGTYPE_p_OGRGeometryShadow, 0 |  0 );
   if (!SWIG_IsOK(res1)) {
     SWIG_exception_fail(SWIG_ArgError(res1), "in method '" "Geometry_MakeValid" "', argument " "1"" of type '" "OGRGeometryShadow *""'"); 
   }
   arg1 = reinterpret_cast< OGRGeometryShadow * >(argp1);
-  if (obj1) {
-    {
-      /* %typemap(in) char **options */
-      int bErr = FALSE;
-      arg2 = CSLFromPySequence(obj1, &bErr);
-      if( bErr )
-      {
-        SWIG_fail;
-      }
-    }
-  }
   {
     if ( bUseExceptions ) {
       ClearErrorState();
     }
     {
       SWIG_PYTHON_THREAD_BEGIN_ALLOW;
-      result = (OGRGeometryShadow *)OGRGeometryShadow_MakeValid(arg1,arg2);
+      result = (OGRGeometryShadow *)OGRGeometryShadow_MakeValid(arg1);
       SWIG_PYTHON_THREAD_END_ALLOW;
     }
 #ifndef SED_HACKS
@@ -25434,17 +25250,9 @@ SWIGINTERN PyObject *_wrap_Geometry_MakeValid(PyObject *SWIGUNUSEDPARM(self), Py
 #endif
   }
   resultobj = SWIG_NewPointerObj(SWIG_as_voidptr(result), SWIGTYPE_p_OGRGeometryShadow, SWIG_POINTER_OWN |  0 );
-  {
-    /* %typemap(freearg) char **options */
-    CSLDestroy( arg2 );
-  }
   if ( ReturnSame(bLocalUseExceptionsCode) ) { CPLErr eclass = CPLGetLastErrorType(); if ( eclass == CE_Failure || eclass == CE_Fatal ) { Py_XDECREF(resultobj); SWIG_Error( SWIG_RuntimeError, CPLGetLastErrorMsg() ); return NULL; } }
   return resultobj;
 fail:
-  {
-    /* %typemap(freearg) char **options */
-    CSLDestroy( arg2 );
-  }
   return NULL;
 }
 
@@ -30747,9 +30555,6 @@ static PyMethodDef SwigMethods[] = {
 	 { (char *)"MajorObject_GetMetadataItem", _wrap_MajorObject_GetMetadataItem, METH_VARARGS, (char *)"MajorObject_GetMetadataItem(MajorObject self, char const * pszName, char const * pszDomain) -> char const *"},
 	 { (char *)"MajorObject_SetMetadataItem", _wrap_MajorObject_SetMetadataItem, METH_VARARGS, (char *)"MajorObject_SetMetadataItem(MajorObject self, char const * pszName, char const * pszValue, char const * pszDomain) -> CPLErr"},
 	 { (char *)"MajorObject_swigregister", MajorObject_swigregister, METH_VARARGS, NULL},
-	 { (char *)"GetGEOSVersionMajor", _wrap_GetGEOSVersionMajor, METH_VARARGS, (char *)"GetGEOSVersionMajor() -> int"},
-	 { (char *)"GetGEOSVersionMinor", _wrap_GetGEOSVersionMinor, METH_VARARGS, (char *)"GetGEOSVersionMinor() -> int"},
-	 { (char *)"GetGEOSVersionMicro", _wrap_GetGEOSVersionMicro, METH_VARARGS, (char *)"GetGEOSVersionMicro() -> int"},
 	 { (char *)"new_StyleTable", _wrap_new_StyleTable, METH_VARARGS, (char *)"new_StyleTable() -> StyleTable"},
 	 { (char *)"delete_StyleTable", _wrap_delete_StyleTable, METH_VARARGS, (char *)"delete_StyleTable(StyleTable self)"},
 	 { (char *)"StyleTable_AddStyle", _wrap_StyleTable_AddStyle, METH_VARARGS, (char *)"StyleTable_AddStyle(StyleTable self, char const * pszName, char const * pszStyleString) -> int"},
@@ -35379,7 +35184,7 @@ static PyMethodDef SwigMethods[] = {
 		"NULL on failure. \n"
 		""},
 	 { (char *)"Geometry_MakeValid", _wrap_Geometry_MakeValid, METH_VARARGS, (char *)"\n"
-		"Geometry_MakeValid(Geometry self, char ** options=None) -> Geometry\n"
+		"Geometry_MakeValid(Geometry self) -> Geometry\n"
 		"\n"
 		"OGRGeometryH\n"
 		"OGR_G_MakeValid(OGRGeometryH hGeom)\n"
@@ -37544,4 +37349,3 @@ SWIG_init(void) {
 #endif
 }
 
-#define POST_PROCESSING_APPLIED

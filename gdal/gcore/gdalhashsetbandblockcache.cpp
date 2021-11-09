@@ -172,7 +172,7 @@ CPLErr GDALHashSetBandBlockCache::FlushCache()
         {
             CPLErr eErr = CE_None;
 
-            if( m_bWriteDirtyBlocks && eGlobalErr == CE_None && poBlock->GetDirty() )
+            if( eGlobalErr == CE_None && poBlock->GetDirty() )
             {
                 UpdateDirtyBlockFlushingLog();
                 eErr = poBlock->Write();
@@ -228,7 +228,7 @@ CPLErr GDALHashSetBandBlockCache::FlushBlock( int nXBlockOff, int nYBlockOff,
 
     CPLErr eErr = CE_None;
 
-    if( m_bWriteDirtyBlocks && bWriteDirtyBlock && poBlock->GetDirty() )
+    if( bWriteDirtyBlock && poBlock->GetDirty() )
         eErr = poBlock->Write();
 
     delete poBlock;

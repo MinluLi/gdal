@@ -347,9 +347,11 @@ static void ReportOnLayer( OGRLayer * poLayer, int bVerbose )
 /* -------------------------------------------------------------------- */
 /*      Read, and dump features.                                        */
 /* -------------------------------------------------------------------- */
-    for( auto& poFeature: poLayer )
+    OGRFeature  *poFeature = nullptr;
+    while( (poFeature = poLayer->GetNextFeature()) != nullptr )
     {
         poFeature->DumpReadable( nullptr );
+        OGRFeature::DestroyFeature( poFeature );
     }
 }
 

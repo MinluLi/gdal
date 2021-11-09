@@ -98,7 +98,7 @@ public:
 
     CPLErr GetGeoTransform(double *padfTransform) override;
     CPLErr SetGeoTransform(double *padfTransform) override;
-    void FlushCache(bool bAtClosing) override;
+    void FlushCache() override;
 
     const OGRSpatialReference* GetSpatialRef() const override;
     CPLErr SetSpatialRef(const OGRSpatialReference* poSRS) override;
@@ -410,7 +410,7 @@ NWT_GRDDataset::~NWT_GRDDataset() {
     // Make sure any changes to the header etc are written
     // if we are in update mode.
     if (eAccess == GA_Update) {
-        NWT_GRDDataset::FlushCache(true);
+        NWT_GRDDataset::FlushCache();
     }
     pGrd->fp = nullptr;       // this prevents nwtCloseGrid from closing the fp
     nwtCloseGrid(pGrd);
@@ -422,16 +422,16 @@ NWT_GRDDataset::~NWT_GRDDataset() {
 }
 
 /************************************************************************/
-/*                 ~FlushCache(bool bAtClosing)                         */
+/*                            ~FlushCache()                             */
 /************************************************************************/
-void NWT_GRDDataset::FlushCache(bool bAtClosing) {
+void NWT_GRDDataset::FlushCache() {
     // Ensure the header and TAB file are up to date
     if (bUpdateHeader) {
         UpdateHeader();
     }
 
     // Call the parent method
-    GDALPamDataset::FlushCache(bAtClosing);
+    GDALPamDataset::FlushCache();
 }
 
 /************************************************************************/
@@ -968,7 +968,7 @@ GDALDataset *NWT_GRDDataset::Create(const char * pszFilename, int nXSize,
     poDS->SetBand(1, new NWT_GRDRasterBand(poDS, 1, 1));    //z
 
     poDS->oOvManager.Initialize(poDS, pszFilename);
-    poDS->FlushCache(false); // Write the header to disk.
+    poDS->FlushCache(); // Write the header to disk.
 
     return poDS;
 }

@@ -265,7 +265,7 @@ NWT_GRCDataset::~NWT_GRCDataset()
     delete poColorTable;
     CSLDestroy( papszCategories );
 
-    NWT_GRCDataset::FlushCache(true);
+    NWT_GRCDataset::FlushCache();
     pGrd->fp = nullptr;       // this prevents nwtCloseGrid from closing the fp
     nwtCloseGrid( pGrd );
 

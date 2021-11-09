@@ -1021,7 +1021,6 @@ CPLErr GDALRasterBlock::Internalize()
                                 CPLDebug("GDAL", "Evicting dirty block of another dataset");
                                 break;
                             }
-                            poTarget = poTarget->poPrevious;
                         }
                     }
                 }

@@ -154,9 +154,8 @@ class OGRPGFeatureDefn CPL_NON_FINAL: public OGRFeatureDefn
 
         virtual void UnsetLayer()
         {
-            const int nGeomFieldCount = GetGeomFieldCount();
             for(int i=0;i<nGeomFieldCount;i++)
-                cpl::down_cast<OGRPGGeomFieldDefn*>(apoGeomFieldDefn[i].get())->UnsetLayer();
+                cpl::down_cast<OGRPGGeomFieldDefn*>(papoGeomFieldDefn[i])->UnsetLayer();
         }
 
         OGRPGGeomFieldDefn *GetGeomFieldDefn( int i ) override
@@ -332,8 +331,8 @@ class OGRPGTableLayer final: public OGRPGLayer
 
     virtual CPLString   GetFromClauseForGetExtent() override { return pszSqlTableName; }
 
-    OGRErr              RunAddGeometryColumn( const OGRPGGeomFieldDefn *poGeomField );
-    OGRErr              RunCreateSpatialIndex( const OGRPGGeomFieldDefn *poGeomField );
+    OGRErr              RunAddGeometryColumn( OGRPGGeomFieldDefn *poGeomField );
+    OGRErr              RunCreateSpatialIndex( OGRPGGeomFieldDefn *poGeomField );
 
     void                UpdateSequenceIfNeeded();
 
@@ -566,7 +565,7 @@ class OGRPGDataSource final: public OGRDataSource
     OGRLayer            *GetLayer( int ) override;
     OGRLayer            *GetLayerByName(const char * pszName) override;
 
-    virtual void        FlushCache(bool bAtClosing) override;
+    virtual void        FlushCache() override;
 
     virtual OGRLayer    *ICreateLayer( const char *,
                                       OGRSpatialReference * = nullptr,

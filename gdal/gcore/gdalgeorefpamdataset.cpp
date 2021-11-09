@@ -42,6 +42,7 @@
 
 GDALGeorefPamDataset::GDALGeorefPamDataset() :
     bGeoTransformValid(false),
+    pszProjection(nullptr),
     nGCPCount(0),
     pasGCPList(nullptr),
     m_papszRPC(nullptr),
@@ -70,6 +71,8 @@ GDALGeorefPamDataset::GDALGeorefPamDataset() :
 
 GDALGeorefPamDataset::~GDALGeorefPamDataset()
 {
+    CPLFree( pszProjection );
+
     if( nGCPCount > 0 )
     {
         GDALDeinitGCPs( nGCPCount, pasGCPList );
@@ -210,29 +213,29 @@ int GDALGeorefPamDataset::GetGCPCount()
 }
 
 /************************************************************************/
-/*                          GetGCPSpatialRef()                          */
+/*                          GetGCPProjection()                          */
 /*                                                                      */
 /*      By default, we let PAM override the value stored                */
 /*      inside our file, unless GDAL_GEOREF_SOURCES is defined.         */
 /************************************************************************/
 
-const OGRSpatialReference *GDALGeorefPamDataset::GetGCPSpatialRef() const
+const char *GDALGeorefPamDataset::_GetGCPProjection()
 
 {
     const int nPAMIndex = GetPAMGeorefSrcIndex();
     if( nPAMIndex >= 0 &&
-        ((!m_oSRS.IsEmpty() && nPAMIndex < m_nProjectionGeorefSrcIndex) ||
-         m_nProjectionGeorefSrcIndex < 0 || m_oSRS.IsEmpty()) )
+        ((pszProjection != nullptr && nPAMIndex < m_nProjectionGeorefSrcIndex) ||
+         m_nProjectionGeorefSrcIndex < 0 || pszProjection == nullptr) )
     {
-        const OGRSpatialReference* pszPAMGCPSRS = GDALPamDataset::GetGCPSpatialRef();
-        if( pszPAMGCPSRS != nullptr )
-            return pszPAMGCPSRS;
+        const char* pszPAMGCPProjection = GDALPamDataset::_GetGCPProjection();
+        if( pszPAMGCPProjection != nullptr && strlen(pszPAMGCPProjection) > 0 )
+            return pszPAMGCPProjection;
     }
 
-    if( !m_oSRS.IsEmpty() )
-        return &m_oSRS;
+    if( pszProjection != nullptr )
+        return pszProjection;
 
-    return nullptr;
+    return "";
 }
 
 /************************************************************************/
@@ -259,32 +262,32 @@ const GDAL_GCP *GDALGeorefPamDataset::GetGCPs()
 }
 
 /************************************************************************/
-/*                          GetSpatialRef()                             */
+/*                          GetProjectionRef()                          */
 /*                                                                      */
 /*      By default, we let PAM override the value stored                */
 /*      inside our file, unless GDAL_GEOREF_SOURCES is defined.         */
 /************************************************************************/
 
-const OGRSpatialReference *GDALGeorefPamDataset::GetSpatialRef() const
+const char *GDALGeorefPamDataset::_GetProjectionRef()
 
 {
-    if( const_cast<GDALGeorefPamDataset*>(this)->GetGCPCount() > 0 )
-        return nullptr;
+    if( GetGCPCount() > 0 )
+        return "";
 
     const int nPAMIndex = GetPAMGeorefSrcIndex();
     if( nPAMIndex >= 0 &&
-        ((!m_oSRS.IsEmpty() && nPAMIndex < m_nProjectionGeorefSrcIndex) ||
-         m_nProjectionGeorefSrcIndex < 0 || m_oSRS.IsEmpty()) )
+        ((pszProjection != nullptr && nPAMIndex < m_nProjectionGeorefSrcIndex) ||
+         m_nProjectionGeorefSrcIndex < 0 || pszProjection == nullptr) )
     {
-        const OGRSpatialReference* poPAMSRS = GDALPamDataset::GetSpatialRef();
-        if( poPAMSRS != nullptr )
-            return poPAMSRS;
+        const char* pszPAMProjection = GDALPamDataset::_GetProjectionRef();
+        if( pszPAMProjection != nullptr && strlen(pszPAMProjection) > 0 )
+            return pszPAMProjection;
     }
 
-    if( !m_oSRS.IsEmpty() )
-        return &m_oSRS;
+    if( pszProjection != nullptr )
+        return pszProjection;
 
-    return nullptr;
+    return "";
 }
 
 /************************************************************************/
@@ -323,7 +326,7 @@ CPLErr GDALGeorefPamDataset::GetGeoTransform( double * padfTransform )
 /*                                                                      */
 /*      Get priority index of PAM (the lower, the more prioritary)      */
 /************************************************************************/
-int GDALGeorefPamDataset::GetPAMGeorefSrcIndex() const
+int GDALGeorefPamDataset::GetPAMGeorefSrcIndex()
 {
     if( !m_bGotPAMGeorefSrcIndex )
     {

@@ -29,9 +29,9 @@
 
 #include "ogrgeojsonutils.h"
 #include <assert.h>
-#include "cpl_port.h"
-#include "cpl_conv.h"
-#include "ogr_geometry.h"
+#include <cpl_port.h>
+#include <cpl_conv.h>
+#include <ogr_geometry.h>
 #include <json.h> // JSON-C
 
 #include <algorithm>
@@ -481,18 +481,6 @@ bool GeoJSONSeqIsObject( const char* pszText )
 }
 
 /************************************************************************/
-/*                           IsLikelyESRIJSONURL()                      */
-/************************************************************************/
-
-static bool IsLikelyESRIJSONURL(const char* pszURL)
-{
-    // URLs with f=json are strong candidates for ESRI JSON services
-    // except if they have "/items?", in which case they are likely OAPIF
-    return strstr(pszURL, "f=json") != nullptr &&
-          strstr(pszURL, "/items?") == nullptr;
-}
-
-/************************************************************************/
 /*                           GeoJSONGetSourceType()                     */
 /************************************************************************/
 
@@ -517,13 +505,9 @@ GeoJSONSourceType GeoJSONGetSourceType( GDALOpenInfo* poOpenInfo )
              strstr(poOpenInfo->pszFilename, "service=WFS") ||
              strstr(poOpenInfo->pszFilename, "service=wfs")) &&
              !strstr(poOpenInfo->pszFilename, "json") )
-        {
             return eGeoJSONSourceUnknown;
-        }
-        if( IsLikelyESRIJSONURL(poOpenInfo->pszFilename) )
-        {
+        if( strstr(poOpenInfo->pszFilename, "f=json") )
             return eGeoJSONSourceUnknown;
-        }
         srcType = eGeoJSONSourceService;
     }
     else if( STARTS_WITH_CI(poOpenInfo->pszFilename, "GeoJSON:") )
@@ -566,10 +550,8 @@ GeoJSONSourceType ESRIJSONDriverGetSourceType( GDALOpenInfo* poOpenInfo )
              STARTS_WITH(poOpenInfo->pszFilename, "https://") ||
              STARTS_WITH(poOpenInfo->pszFilename, "ftp://") )
     {
-        if( IsLikelyESRIJSONURL(poOpenInfo->pszFilename) )
-        {
+        if( strstr(poOpenInfo->pszFilename, "f=json") != nullptr )
             return eGeoJSONSourceService;
-        }
         return eGeoJSONSourceUnknown;
     }
 
@@ -626,10 +608,8 @@ GeoJSONSourceType TopoJSONDriverGetSourceType( GDALOpenInfo* poOpenInfo )
              STARTS_WITH(poOpenInfo->pszFilename, "https://") ||
              STARTS_WITH(poOpenInfo->pszFilename, "ftp://") )
     {
-        if( IsLikelyESRIJSONURL(poOpenInfo->pszFilename) )
-        {
+        if( strstr(poOpenInfo->pszFilename, "f=json") != nullptr )
             return eGeoJSONSourceUnknown;
-        }
         return eGeoJSONSourceService;
     }
 
@@ -688,10 +668,8 @@ GeoJSONSourceType GeoJSONSeqGetSourceType( GDALOpenInfo* poOpenInfo )
              STARTS_WITH_CI(poOpenInfo->pszFilename, "https://") ||
              STARTS_WITH_CI(poOpenInfo->pszFilename, "ftp://") )
     {
-        if( IsLikelyESRIJSONURL(poOpenInfo->pszFilename) )
-        {
+        if( strstr(poOpenInfo->pszFilename, "f=json") != nullptr )
             return eGeoJSONSourceUnknown;
-        }
         srcType = eGeoJSONSourceService;
     }
     else if( STARTS_WITH_CI(poOpenInfo->pszFilename, "GEOJSONSeq:") )

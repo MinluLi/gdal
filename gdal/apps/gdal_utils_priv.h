@@ -163,9 +163,6 @@ struct GDALMultiDimTranslateOptionsForBinary
     char* pszFormat;
     int   bQuiet;
     int   bUpdate;
-
-    /* Open options. */
-    char** papszOpenOptions;
 };
 
 CPL_C_END

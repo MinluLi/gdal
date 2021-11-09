@@ -81,7 +81,6 @@ struct VSIDIRAz: public VSIDIR
     std::unique_ptr<IVSIS3LikeHandleHelper> poHandleHelper{};
     int nMaxFiles = 0;
     bool bCacheEntries = true;
-    std::string m_osFilterPrefix{};
 
     explicit VSIDIRAz(IVSIS3LikeFSHandler *poFSIn): poFS(poFSIn) {}
 
@@ -128,11 +127,6 @@ bool VSIDIRAz::AnalyseAzureFileList(
     if( psEnumerationResults )
     {
         CPLString osPrefix = CPLGetXMLValue(psEnumerationResults, "Prefix", "");
-        if( osPrefix.endsWith(m_osFilterPrefix) )
-        {
-            osPrefix.resize(osPrefix.size() - m_osFilterPrefix.size());
-        }
-
         CPLXMLNode* psBlobs = CPLGetXMLNode(psEnumerationResults, "Blobs");
         if( psBlobs == nullptr )
         {
@@ -256,7 +250,6 @@ bool VSIDIRAz::AnalyseAzureFileList(
                         prop.bIsDirectory = false;
                         prop.mTime = static_cast<time_t>(entry->nMTime);
                         prop.ETag = ETag;
-                        prop.nMode = entry->nMode;
 
                         CPLString osCachedFilename =
                             osBaseURL + "/" + CPLAWSURLEncode(osPrefix, false) +
@@ -304,7 +297,6 @@ bool VSIDIRAz::AnalyseAzureFileList(
                             prop.bHasComputedFileSize = true;
                             prop.fileSize = 0;
                             prop.mTime = 0;
-                            prop.nMode = entry->nMode;
 
                             CPLString osCachedFilename =
                                 osBaseURL + "/" + CPLAWSURLEncode(osPrefix, false) +
@@ -368,9 +360,7 @@ bool VSIDIRAz::IssueListDir()
         if( nRecurseDepth == 0 )
             poHandleHelper->AddQueryParameter("delimiter", "/");
         if( !osObjectKey.empty() )
-            poHandleHelper->AddQueryParameter("prefix", osObjectKey + "/" + m_osFilterPrefix);
-        else if( !m_osFilterPrefix.empty() )
-            poHandleHelper->AddQueryParameter("prefix", m_osFilterPrefix);
+            poHandleHelper->AddQueryParameter("prefix", osObjectKey + "/");
     }
 
     struct curl_slist* headers =
@@ -554,8 +544,6 @@ class VSIAzureFSHandler final : public IVSIS3LikeFSHandler
                         IVSIS3LikeHandleHelper * /*poS3HandleHelper */,
                         int /* nMaxRetry */,
                         double /* dfRetryDelay */) override { return true; }
-
-    std::string GetStreamingFilename(const std::string& osFilename) const override;
 };
 
 /************************************************************************/
@@ -603,9 +591,6 @@ int VSIAzureFSHandler::Stat( const char *pszFilename, VSIStatBufL *pStatBuf,
     if( !STARTS_WITH_CI(pszFilename, GetFSPrefix()) )
         return -1;
 
-    if( (nFlags & VSI_STAT_CACHE_ONLY) != 0 )
-        return VSICurlFilesystemHandlerBase::Stat(pszFilename, pStatBuf, nFlags);
-
     CPLString osFilename(pszFilename);
 
     if( (osFilename.find('/', GetFSPrefix().size()) == std::string::npos ||
@@ -637,7 +622,7 @@ int VSIAzureFSHandler::Stat( const char *pszFilename, VSIStatBufL *pStatBuf,
     {
         osFilename += "/";
     }
-    return VSICurlFilesystemHandlerBase::Stat(osFilename, pStatBuf, nFlags);
+    return VSICurlFilesystemHandler::Stat(osFilename, pStatBuf, nFlags);
 }
 
 
@@ -655,7 +640,7 @@ char** VSIAzureFSHandler::GetFileMetadata( const char* pszFilename,
     if( pszDomain == nullptr ||
         (!EQUAL(pszDomain, "TAGS") && !EQUAL(pszDomain, "METADATA")) )
     {
-        return VSICurlFilesystemHandlerBase::GetFileMetadata(
+        return VSICurlFilesystemHandler::GetFileMetadata(
                     pszFilename, pszDomain, papszOptions);
     }
 
@@ -957,17 +942,6 @@ bool VSIAzureFSHandler::SetFileMetadata( const char * pszFilename,
 }
 
 /************************************************************************/
-/*                      GetStreamingFilename()                          */
-/************************************************************************/
-
-std::string VSIAzureFSHandler::GetStreamingFilename(const std::string& osFilename) const
-{
-    if( STARTS_WITH(osFilename.c_str(), GetFSPrefix().c_str()) )
-        return "/vsiaz_streaming/" + osFilename.substr(GetFSPrefix().size());
-    return osFilename;
-}
-
-/************************************************************************/
 /*                          VSIAzureWriteHandle                         */
 /************************************************************************/
 
@@ -1142,10 +1116,6 @@ bool VSIAzureWriteHandle::SendInternal(bool bInitOnly, bool bIsLastBlock)
             osContentLength.Printf("Content-Length: %d", m_nBufferOff);
             headers = curl_slist_append(headers, osContentLength.c_str());
             headers = curl_slist_append(headers, "x-ms-blob-type: AppendBlob");
-            CPLString osAppendPos;
-            vsi_l_offset nStartOffset = m_nCurOffset - m_nBufferOff;
-            osAppendPos.Printf("x-ms-blob-condition-appendpos: " CPL_FRMT_GUIB, nStartOffset);
-            headers = curl_slist_append(headers, osAppendPos.c_str());
         }
 
         headers = VSICurlMergeHeaders(headers,
@@ -1268,7 +1238,7 @@ VSIVirtualHandle* VSIAzureFSHandler::Open( const char *pszFilename,
     }
 
     return
-        VSICurlFilesystemHandlerBase::Open(pszFilename, pszAccess, bSetError, papszOptions);
+        VSICurlFilesystemHandler::Open(pszFilename, pszAccess, bSetError, papszOptions);
 }
 
 /************************************************************************/
@@ -1843,12 +1813,10 @@ const char* VSIAzureFSHandler::GetOptions()
         "description='Storage account. To use with AZURE_STORAGE_ACCESS_KEY'/>"
     "  <Option name='AZURE_STORAGE_ACCESS_KEY' type='string' "
         "description='Secret key'/>"
-    "  <Option name='AZURE_NO_SIGN_REQUEST' type='boolean' "
-        "description='Whether to disable signing of requests' default='NO'/>"
     "  <Option name='VSIAZ_CHUNK_SIZE' type='int' "
         "description='Size in MB for chunks of files that are uploaded' "
         "default='4' min='1' max='4'/>" +
-        VSICurlFilesystemHandlerBase::GetOptionsStatic() +
+        VSICurlFilesystemHandler::GetOptionsStatic() +
         "</Options>");
     return osOptions.c_str();
 }
@@ -1928,7 +1896,6 @@ VSIDIR* VSIAzureFSHandler::OpenDir( const char *pszPath,
     dir->nMaxFiles = atoi(CSLFetchNameValueDef(papszOptions, "MAXFILES", "0"));
     dir->bCacheEntries = CPLTestBool(
         CSLFetchNameValueDef(papszOptions, "CACHE_ENTRIES", "YES"));
-    dir->m_osFilterPrefix = CSLFetchNameValueDef(papszOptions, "PREFIX", "");
     if( !dir->IssueListDir() )
     {
         delete dir;

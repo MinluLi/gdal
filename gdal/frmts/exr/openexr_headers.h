@@ -39,7 +39,6 @@
 #include "ImfChannelList.h"
 #include "ImfFloatAttribute.h"
 #include "ImfInputPart.h"
-#include "ImfOutputPart.h"
 #include "ImfMatrixAttribute.h"
 #include "ImfMultiPartInputFile.h"
 #include "ImfMultiPartOutputFile.h"

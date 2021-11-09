@@ -465,7 +465,7 @@ ILWISDataset::ILWISDataset() :
 ILWISDataset::~ILWISDataset()
 
 {
-    ILWISDataset::FlushCache(true);
+    ILWISDataset::FlushCache();
     CPLFree( pszProjection );
 }
 
@@ -843,10 +843,10 @@ GDALDataset *ILWISDataset::Open( GDALOpenInfo * poOpenInfo )
 /*                             FlushCache()                             */
 /************************************************************************/
 
-void ILWISDataset::FlushCache(bool bAtClosing)
+void ILWISDataset::FlushCache()
 
 {
-    GDALDataset::FlushCache(bAtClosing);
+    GDALDataset::FlushCache();
 
     if( bGeoDirty == TRUE )
     {
@@ -1216,7 +1216,7 @@ ILWISDataset::CreateCopy( const char * pszFilename, GDALDataset *poSrcDS,
         CPLFree( pData );
     }
 
-    poDS->FlushCache(false);
+    poDS->FlushCache();
 
     if( !pfnProgress( 1.0, nullptr, pProgressData ) )
     {

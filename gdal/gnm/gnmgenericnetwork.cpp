@@ -1407,11 +1407,11 @@ int GNMGenericNetwork::CloseDependentDatasets()
     return nCount > 0 ? TRUE : FALSE;
 }
 
-void GNMGenericNetwork::FlushCache(bool bAtClosing)
+void GNMGenericNetwork::FlushCache()
 {
     SaveRules();
 
-    GNMNetwork::FlushCache(bAtClosing);
+    GNMNetwork::FlushCache();
 }
 
 //--- C API --------------------------------------------------------------------

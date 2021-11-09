@@ -165,9 +165,8 @@ void OGRDXFLayer::TranslateGenericProperty( OGRDXFFeature *poFeature,
       {
           char szLineBuf[257];
           // Eat the rest of this entity
-          while( (nCode = poDS->ReadValue(szLineBuf,sizeof(szLineBuf))) > 0 )
-          {
-          }
+          while( (nCode = poDS->ReadValue(szLineBuf,sizeof(szLineBuf))) > 0 &&
+              nCode > 0 );
 
           if( nCode < 0 )
           {
@@ -175,8 +174,8 @@ void OGRDXFLayer::TranslateGenericProperty( OGRDXFFeature *poFeature,
               return;
           }
 
-          CPLAssert( nCode == 0 );
-          poDS->UnreadValue();
+          if( nCode == 0 )
+              poDS->UnreadValue();
       }
       break;
 
@@ -458,9 +457,9 @@ CPLString OGRDXFLayer::TextUnescape( const char *pszInput, bool bIsMText )
 OGRDXFFeature *OGRDXFLayer::TranslateMTEXT()
 
 {
-    char szLineBuf[512];
+    char szLineBuf[257];
     int nCode = 0;
-    auto poFeature = cpl::make_unique<OGRDXFFeature>(poFeatureDefn);
+    OGRDXFFeature *poFeature = new OGRDXFFeature( poFeatureDefn );
     double dfX = 0.0;
     double dfY = 0.0;
     double dfZ = 0.0;
@@ -521,13 +520,14 @@ OGRDXFFeature *OGRDXFLayer::TranslateMTEXT()
             break;
 
           default:
-            TranslateGenericProperty( poFeature.get(), nCode, szLineBuf );
+            TranslateGenericProperty( poFeature, nCode, szLineBuf );
             break;
         }
     }
     if( nCode < 0 )
     {
         DXF_LAYER_READER_ERROR();
+        delete poFeature;
         return nullptr;
     }
 
@@ -640,7 +640,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateMTEXT()
 
     poFeature->SetStyleString( osStyle );
 
-    return poFeature.release();
+    return poFeature;
 }
 
 /************************************************************************/
@@ -655,7 +655,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateTEXT( const bool bIsAttribOrAttdef )
 {
     char szLineBuf[257];
     int nCode = 0;
-    auto poFeature = cpl::make_unique<OGRDXFFeature>(poFeatureDefn);
+    OGRDXFFeature *poFeature = new OGRDXFFeature( poFeatureDefn );
 
     double dfX = 0.0;
     double dfY = 0.0;
@@ -756,13 +756,14 @@ OGRDXFFeature *OGRDXFLayer::TranslateTEXT( const bool bIsAttribOrAttdef )
             break;
 
           default:
-            TranslateGenericProperty( poFeature.get(), nCode, szLineBuf );
+            TranslateGenericProperty( poFeature, nCode, szLineBuf );
             break;
         }
     }
     if( nCode < 0 )
     {
         DXF_LAYER_READER_ERROR();
+        delete poFeature;
         return nullptr;
     }
 
@@ -902,7 +903,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateTEXT( const bool bIsAttribOrAttdef )
 
     poFeature->SetStyleString( osStyle );
 
-    return poFeature.release();
+    return poFeature;
 }
 
 /************************************************************************/
@@ -914,7 +915,7 @@ OGRDXFFeature *OGRDXFLayer::TranslatePOINT()
 {
     char szLineBuf[257];
     int nCode = 0;
-    auto poFeature = cpl::make_unique<OGRDXFFeature>(poFeatureDefn);
+    OGRDXFFeature *poFeature = new OGRDXFFeature( poFeatureDefn );
     double dfX = 0.0;
     double dfY = 0.0;
     double dfZ = 0.0;
@@ -938,13 +939,14 @@ OGRDXFFeature *OGRDXFLayer::TranslatePOINT()
             break;
 
           default:
-            TranslateGenericProperty( poFeature.get(), nCode, szLineBuf );
+            TranslateGenericProperty( poFeature, nCode, szLineBuf );
             break;
         }
     }
     if( nCode < 0 )
     {
         DXF_LAYER_READER_ERROR();
+        delete poFeature;
         return nullptr;
     }
 
@@ -960,9 +962,9 @@ OGRDXFFeature *OGRDXFLayer::TranslatePOINT()
     poFeature->SetGeometryDirectly( poGeom );
 
     // Set style pen color
-    PrepareLineStyle( poFeature.get() );
+    PrepareLineStyle( poFeature );
 
-    return poFeature.release();
+    return poFeature;
 }
 
 /************************************************************************/
@@ -974,7 +976,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateLINE()
 {
     char szLineBuf[257];
     int nCode = 0;
-    auto poFeature = cpl::make_unique<OGRDXFFeature>(poFeatureDefn);
+    OGRDXFFeature *poFeature = new OGRDXFFeature( poFeatureDefn );
     double dfX1 = 0.0;
     double dfY1 = 0.0;
     double dfZ1 = 0.0;
@@ -1017,13 +1019,14 @@ OGRDXFFeature *OGRDXFLayer::TranslateLINE()
             break;
 
           default:
-            TranslateGenericProperty( poFeature.get(), nCode, szLineBuf );
+            TranslateGenericProperty( poFeature, nCode, szLineBuf );
             break;
         }
     }
     if( nCode < 0 )
     {
         DXF_LAYER_READER_ERROR();
+        delete poFeature;
         return nullptr;
     }
 
@@ -1033,7 +1036,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateLINE()
 /* -------------------------------------------------------------------- */
 /*      Create geometry                                                 */
 /* -------------------------------------------------------------------- */
-    auto poLS = cpl::make_unique<OGRLineString>();
+    OGRLineString *poLS = new OGRLineString();
     if( bHaveZ )
     {
         poLS->addPoint( dfX1, dfY1, dfZ1 );
@@ -1045,11 +1048,11 @@ OGRDXFFeature *OGRDXFLayer::TranslateLINE()
         poLS->addPoint( dfX2, dfY2 );
     }
 
-    poFeature->SetGeometryDirectly( poLS.release() );
+    poFeature->SetGeometryDirectly( poLS );
 
-    PrepareLineStyle( poFeature.get() );
+    PrepareLineStyle( poFeature );
 
-    return poFeature.release();
+    return poFeature;
 }
 
 /************************************************************************/
@@ -1066,7 +1069,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateLWPOLYLINE()
     int nCode = 0;
     int nPolylineFlag = 0;
 
-    auto poFeature = cpl::make_unique<OGRDXFFeature>(poFeatureDefn);
+    OGRDXFFeature *poFeature = new OGRDXFFeature( poFeatureDefn );
     double dfX = 0.0;
     double dfY = 0.0;
     double dfZ = 0.0;
@@ -1089,6 +1092,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateLWPOLYLINE()
         {
             CPLError( CE_Failure, CPLE_AppDefined,
                       "Too many vertices found in LWPOLYLINE." );
+            delete poFeature;
             return nullptr;
         }
 
@@ -1137,13 +1141,14 @@ OGRDXFFeature *OGRDXFLayer::TranslateLWPOLYLINE()
             break;
 
           default:
-            TranslateGenericProperty( poFeature.get(), nCode, szLineBuf );
+            TranslateGenericProperty( poFeature, nCode, szLineBuf );
             break;
         }
     }
     if( nCode < 0 )
     {
         DXF_LAYER_READER_ERROR();
+        delete poFeature;
         return nullptr;
     }
 
@@ -1155,6 +1160,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateLWPOLYLINE()
 
     if(smoothPolyline.IsEmpty())
     {
+        delete poFeature;
         return nullptr;
     }
 
@@ -1165,13 +1171,13 @@ OGRDXFFeature *OGRDXFLayer::TranslateLWPOLYLINE()
         smoothPolyline.Close();
 
     smoothPolyline.SetUseMaxGapWhenTessellatingArcs( poDS->InlineBlocks() );
-    auto poGeom = std::unique_ptr<OGRGeometry>(smoothPolyline.Tessellate());
-    poFeature->ApplyOCSTransformer( poGeom.get() );
-    poFeature->SetGeometryDirectly( poGeom.release() );
+    OGRGeometry* poGeom = smoothPolyline.Tessellate();
+    poFeature->ApplyOCSTransformer( poGeom );
+    poFeature->SetGeometryDirectly( poGeom );
 
-    PrepareLineStyle( poFeature.get() );
+    PrepareLineStyle( poFeature );
 
-    return poFeature.release();
+    return poFeature;
 }
 
 /************************************************************************/
@@ -1197,7 +1203,7 @@ OGRDXFFeature *OGRDXFLayer::TranslatePOLYLINE()
     char szLineBuf[257];
     int nCode = 0;
     int nPolylineFlag = 0;
-    auto poFeature = cpl::make_unique<OGRDXFFeature>(poFeatureDefn);
+    OGRDXFFeature *poFeature = new OGRDXFFeature( poFeatureDefn );
 
 /* -------------------------------------------------------------------- */
 /*      Collect information from the POLYLINE object itself.            */
@@ -1211,19 +1217,21 @@ OGRDXFFeature *OGRDXFLayer::TranslatePOLYLINE()
             break;
 
           default:
-            TranslateGenericProperty( poFeature.get(), nCode, szLineBuf );
+            TranslateGenericProperty( poFeature, nCode, szLineBuf );
             break;
         }
     }
     if( nCode < 0 )
     {
         DXF_LAYER_READER_ERROR();
+        delete poFeature;
         return nullptr;
     }
 
     if( (nPolylineFlag & 16) != 0 )
     {
         CPLDebug( "DXF", "Polygon mesh not supported." );
+        delete poFeature;
         return nullptr;
     }
 
@@ -1236,12 +1244,13 @@ OGRDXFFeature *OGRDXFLayer::TranslatePOLYLINE()
     double dfBulge = 0.0;
     int nVertexFlag = 0;
     DXFSmoothPolyline   smoothPolyline;
-    unsigned int        vertexIndex71 = 0;
-    unsigned int        vertexIndex72 = 0;
-    unsigned int        vertexIndex73 = 0;
-    unsigned int        vertexIndex74 = 0;
-    std::vector<OGRPoint> aoPoints;
-    auto poPS = cpl::make_unique<OGRPolyhedralSurface>();
+    int                 vertexIndex71 = 0;
+    int                 vertexIndex72 = 0;
+    int                 vertexIndex73 = 0;
+    int                 vertexIndex74 = 0;
+    OGRPoint **papoPoints = nullptr;
+    int nPoints = 0;
+    OGRPolyhedralSurface *poPS = new OGRPolyhedralSurface();
 
     smoothPolyline.setCoordinateDimension(2);
 
@@ -1254,6 +1263,13 @@ OGRDXFFeature *OGRDXFLayer::TranslatePOLYLINE()
             if( nCode < 0 )
             {
                 DXF_LAYER_READER_ERROR();
+                delete poFeature;
+                delete poPS;
+                // delete the list of points
+                for (int i = 0; i < nPoints; i++)
+                    delete papoPoints[i];
+                CPLFree(papoPoints);
+
                 return nullptr;
             }
 
@@ -1311,15 +1327,13 @@ OGRDXFFeature *OGRDXFLayer::TranslatePOLYLINE()
         if (((nVertexFlag & 64) != 0) && ((nVertexFlag & 128) != 0))
         {
             // add the point to the list of points
-            try
-            {
-                aoPoints.emplace_back(dfX, dfY, dfZ);
-            }
-            catch( const std::exception& e )
-            {
-                CPLError(CE_Failure, CPLE_OutOfMemory, "%s", e.what());
-                return nullptr;
-            }
+            OGRPoint *poPoint = new OGRPoint(dfX, dfY, dfZ);
+            OGRPoint** papoNewPoints = (OGRPoint **) VSI_REALLOC_VERBOSE( papoPoints,
+                                                     sizeof(void*) * (nPoints+1) );
+
+            papoPoints = papoNewPoints;
+            papoPoints[nPoints] = poPoint;
+            nPoints++;
         }
 
         // Note - If any index out of vertexIndex71, vertexIndex72, vertexIndex73 or vertexIndex74
@@ -1328,60 +1342,69 @@ OGRDXFFeature *OGRDXFLayer::TranslatePOLYLINE()
         // polyhedral surface; there is no way to specify the visibility of individual edges
         // in a polyhedral surface at present
 
-        if (nVertexFlag == 128)
+        if (nVertexFlag == 128 && papoPoints != nullptr)
         {
             // create a polygon and add it to the Polyhedral Surface
-            auto poLR = cpl::make_unique<OGRLinearRing>();
+            OGRLinearRing *poLR = new OGRLinearRing();
             int iPoint = 0;
             int startPoint = -1;
             poLR->set3D(TRUE);
-            if (vertexIndex71 != 0 && vertexIndex71 <= aoPoints.size())
+            if (vertexIndex71 != 0 && vertexIndex71 <= nPoints)
             {
                 //if (startPoint == -1)
                     startPoint = vertexIndex71-1;
-                poLR->setPoint(iPoint,&aoPoints[vertexIndex71-1]);
+                poLR->setPoint(iPoint,papoPoints[vertexIndex71-1]);
                 iPoint++;
                 vertexIndex71 = 0;
             }
-            if (vertexIndex72 != 0 && vertexIndex72 <= aoPoints.size())
+            if (vertexIndex72 != 0 && vertexIndex72 <= nPoints)
             {
                 if (startPoint == -1)
                     startPoint = vertexIndex72-1;
-                poLR->setPoint(iPoint,&aoPoints[vertexIndex72-1]);
+                poLR->setPoint(iPoint,papoPoints[vertexIndex72-1]);
                 iPoint++;
                 vertexIndex72 = 0;
             }
-            if (vertexIndex73 != 0 && vertexIndex73 <= aoPoints.size())
+            if (vertexIndex73 != 0 && vertexIndex73 <= nPoints)
             {
                 if (startPoint == -1)
                     startPoint = vertexIndex73-1;
-                poLR->setPoint(iPoint,&aoPoints[vertexIndex73-1]);
+                poLR->setPoint(iPoint,papoPoints[vertexIndex73-1]);
                 iPoint++;
                 vertexIndex73 = 0;
             }
-            if (vertexIndex74 != 0 && vertexIndex74 <= aoPoints.size())
+            if (vertexIndex74 != 0 && vertexIndex74 <= nPoints)
             {
                 if (startPoint == -1)
                     startPoint = vertexIndex74-1;
-                poLR->setPoint(iPoint,&aoPoints[vertexIndex74-1]);
+                poLR->setPoint(iPoint,papoPoints[vertexIndex74-1]);
                 iPoint++;
                 vertexIndex74 = 0;
             }
             if( startPoint >= 0 )
             {
                 // complete the ring
-                poLR->setPoint(iPoint,&aoPoints[startPoint]);
+                poLR->setPoint(iPoint,papoPoints[startPoint]);
 
                 OGRPolygon *poPolygon = new OGRPolygon();
-                poPolygon->addRingDirectly(poLR.release());
+                poPolygon->addRing(poLR);
 
                 poPS->addGeometryDirectly(poPolygon);
             }
+
+            // delete the ring to prevent leakage
+            delete poLR;
         }
 
         if( nCode < 0 )
         {
             DXF_LAYER_READER_ERROR();
+            delete poFeature;
+            delete poPS;
+            // delete the list of points
+            for (int i = 0; i < nPoints; i++)
+                delete papoPoints[i];
+            CPLFree(papoPoints);
             return nullptr;
         }
 
@@ -1391,17 +1414,27 @@ OGRDXFFeature *OGRDXFLayer::TranslatePOLYLINE()
         dfBulge = 0.0;
     }
 
+    // delete the list of points
+    for (int i = 0; i < nPoints; i++)
+        delete papoPoints[i];
+    CPLFree(papoPoints);
+
     if(smoothPolyline.IsEmpty())
     {
+        delete poFeature;
+        delete poPS;
         return nullptr;
     }
 
     if (poPS->getNumGeometries() > 0)
     {
-        poFeature->SetGeometryDirectly(poPS.release());
-        PrepareBrushStyle( poFeature.get() );
-        return poFeature.release();
+        poFeature->SetGeometryDirectly((OGRGeometry *)poPS);
+        PrepareBrushStyle( poFeature );
+        return poFeature;
     }
+
+    else
+        delete poPS;
 
     /* -------------------------------------------------------------------- */
     /*      Close polyline if necessary.                                    */
@@ -1416,9 +1449,9 @@ OGRDXFFeature *OGRDXFLayer::TranslatePOLYLINE()
         poFeature->ApplyOCSTransformer( poGeom );
     poFeature->SetGeometryDirectly( poGeom );
 
-    PrepareLineStyle( poFeature.get() );
+    PrepareLineStyle( poFeature );
 
-    return poFeature.release();
+    return poFeature;
 }
 
 /************************************************************************/
@@ -1431,7 +1464,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateMLINE()
     char szLineBuf[257];
     int nCode = 0;
 
-    auto poFeature = cpl::make_unique<OGRDXFFeature>(poFeatureDefn);
+    OGRDXFFeature *poFeature = new OGRDXFFeature( poFeatureDefn );
 
     bool bIsClosed = false;
     int nNumVertices = 0;
@@ -1458,18 +1491,20 @@ OGRDXFFeature *OGRDXFLayer::TranslateMLINE()
                 CPLDebug( "DXF", "Invalid number of MLINE elements (73): %s",
                           szLineBuf );
                 DXF_LAYER_READER_ERROR();
+                delete poFeature;
                 return nullptr;
             }
             break;
 
           default:
-            TranslateGenericProperty( poFeature.get(), nCode, szLineBuf );
+            TranslateGenericProperty( poFeature, nCode, szLineBuf );
             break;
         }
     }
     if( nCode < 0 )
     {
         DXF_LAYER_READER_ERROR();
+        delete poFeature;
         return nullptr;
     }
 
@@ -1481,7 +1516,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateMLINE()
 /*      translate these values into line geometries.                    */
 /* -------------------------------------------------------------------- */
 
-    auto poMLS = cpl::make_unique<OGRMultiLineString>();
+    OGRMultiLineString *poMLS = new OGRMultiLineString();
     std::vector<std::unique_ptr<OGRLineString>> apoCurrentLines( nNumElements );
 
     // For use when bIsClosed is true
@@ -1491,6 +1526,8 @@ OGRDXFFeature *OGRDXFLayer::TranslateMLINE()
     if( poDS->ReadValue( szLineBuf, sizeof(szLineBuf) ) != (code) ) \
     { \
         DXF_LAYER_READER_ERROR(); \
+        delete poFeature; \
+        delete poMLS; \
         return nullptr; \
     }
 
@@ -1583,7 +1620,8 @@ OGRDXFFeature *OGRDXFLayer::TranslateMLINE()
                 else
                 {
                     // The dfCurrent(X,Y,Z) point is the end of a break
-                    apoCurrentLines[iElement] = cpl::make_unique<OGRLineString>();
+                    apoCurrentLines[iElement] =
+                        std::unique_ptr<OGRLineString>( new OGRLineString() );
                     apoCurrentLines[iElement]->addPoint( dfCurrentX,
                         dfCurrentY, dfCurrentZ );
                 }
@@ -1622,11 +1660,11 @@ OGRDXFFeature *OGRDXFLayer::TranslateMLINE()
 
     // Apparently extrusions are ignored for MLINE entities.
     //poFeature->ApplyOCSTransformer( poMLS );
-    poFeature->SetGeometryDirectly( poMLS.release() );
+    poFeature->SetGeometryDirectly( poMLS );
 
-    PrepareLineStyle( poFeature.get() );
+    PrepareLineStyle( poFeature );
 
-    return poFeature.release();
+    return poFeature;
 }
 
 /************************************************************************/
@@ -1638,7 +1676,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateCIRCLE()
 {
     char szLineBuf[257];
     int nCode = 0;
-    auto poFeature = cpl::make_unique<OGRDXFFeature>(poFeatureDefn);
+    OGRDXFFeature *poFeature = new OGRDXFFeature( poFeatureDefn );
     double dfX1 = 0.0;
     double dfY1 = 0.0;
     double dfZ1 = 0.0;
@@ -1675,13 +1713,14 @@ OGRDXFFeature *OGRDXFLayer::TranslateCIRCLE()
             break;
 
           default:
-            TranslateGenericProperty( poFeature.get(), nCode, szLineBuf );
+            TranslateGenericProperty( poFeature, nCode, szLineBuf );
             break;
         }
     }
     if( nCode < 0 )
     {
         DXF_LAYER_READER_ERROR();
+        delete poFeature;
         return nullptr;
     }
 
@@ -1691,11 +1730,11 @@ OGRDXFFeature *OGRDXFLayer::TranslateCIRCLE()
 /* -------------------------------------------------------------------- */
 /*      Create geometry                                                 */
 /* -------------------------------------------------------------------- */
-    auto poCircle = std::unique_ptr<OGRLineString>(
+    OGRLineString *poCircle =
         OGRGeometryFactory::approximateArcAngles( dfX1, dfY1, dfZ1,
                                                   dfRadius, dfRadius, 0.0,
                                                   0.0, 360.0,
-                                                  0.0, poDS->InlineBlocks() )->toLineString());
+                                                  0.0, poDS->InlineBlocks() )->toLineString();
 
     const int nPoints = poCircle->getNumPoints();
 
@@ -1707,7 +1746,9 @@ OGRDXFFeature *OGRDXFLayer::TranslateCIRCLE()
 
         // Add the bottom base as a polygon
         OGRLinearRing *poRing1 = new OGRLinearRing();
-        poRing1->addSubLineString( poCircle.get() );
+        poRing1->addSubLineString( poCircle );
+        delete poCircle;
+        poCircle = nullptr;
 
         OGRPolygon *poBase1 = new OGRPolygon();
         poBase1->addRingDirectly( poRing1 );
@@ -1725,7 +1766,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateCIRCLE()
         poSurface->addGeometryDirectly( poBase2 );
 
         // Add the side of the cylinder as two "semicylindrical" polygons
-        auto poRect = cpl::make_unique<OGRLinearRing>();
+        OGRLinearRing *poRect = new OGRLinearRing();
         OGRPoint oPoint;
 
         for( int iPoint = nPoints / 2; iPoint >= 0; iPoint-- )
@@ -1742,10 +1783,10 @@ OGRDXFFeature *OGRDXFLayer::TranslateCIRCLE()
         poRect->closeRings();
 
         OGRPolygon *poRectPolygon = new OGRPolygon();
-        poRectPolygon->addRingDirectly( poRect.release() );
+        poRectPolygon->addRingDirectly( poRect );
         poSurface->addGeometryDirectly( poRectPolygon );
 
-        poRect = cpl::make_unique<OGRLinearRing>();
+        poRect = new OGRLinearRing();
 
         for( int iPoint = nPoints - 1; iPoint >= nPoints / 2; iPoint-- )
         {
@@ -1761,7 +1802,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateCIRCLE()
         poRect->closeRings();
 
         poRectPolygon = new OGRPolygon();
-        poRectPolygon->addRingDirectly( poRect.release() );
+        poRectPolygon->addRingDirectly( poRect );
         poSurface->addGeometryDirectly( poRectPolygon );
 
         // That's your cylinder, folks
@@ -1773,13 +1814,13 @@ OGRDXFFeature *OGRDXFLayer::TranslateCIRCLE()
         if( !bHaveZ )
             poCircle->flattenTo2D();
 
-        poFeature->ApplyOCSTransformer( poCircle.get() );
-        poFeature->SetGeometryDirectly( poCircle.release() );
+        poFeature->ApplyOCSTransformer( poCircle );
+        poFeature->SetGeometryDirectly( poCircle );
     }
 
-    PrepareLineStyle( poFeature.get() );
+    PrepareLineStyle( poFeature );
 
-    return poFeature.release();
+    return poFeature;
 }
 
 /************************************************************************/
@@ -1791,7 +1832,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateELLIPSE()
 {
     char szLineBuf[257];
     int nCode = 0;
-    auto poFeature = cpl::make_unique<OGRDXFFeature>(poFeatureDefn);
+    OGRDXFFeature *poFeature = new OGRDXFFeature( poFeatureDefn );
     double dfX1 = 0.0;
     double dfY1 = 0.0;
     double dfZ1 = 0.0;
@@ -1851,13 +1892,14 @@ OGRDXFFeature *OGRDXFLayer::TranslateELLIPSE()
             break;
 
           default:
-            TranslateGenericProperty( poFeature.get(), nCode, szLineBuf );
+            TranslateGenericProperty( poFeature, nCode, szLineBuf );
             break;
         }
     }
     if( nCode < 0 )
     {
         DXF_LAYER_READER_ERROR();
+        delete poFeature;
         return nullptr;
     }
 
@@ -1909,29 +1951,29 @@ OGRDXFFeature *OGRDXFLayer::TranslateELLIPSE()
     {
         // Only honor OGR_DXF_MAX_GAP if this geometry isn't at risk of
         // being enlarged or shrunk as part of a block insertion.
-        auto poEllipse = std::unique_ptr<OGRGeometry>(
+        OGRGeometry *poEllipse =
             OGRGeometryFactory::approximateArcAngles( dfX1, dfY1, dfZ1,
                                                     dfPrimaryRadius,
                                                     dfSecondaryRadius,
                                                     dfRotation,
                                                     dfStartAngle, dfEndAngle,
-                                                    0.0, poDS->InlineBlocks() ));
+                                                    0.0, poDS->InlineBlocks() );
 
         if( !bHaveZ )
             poEllipse->flattenTo2D();
 
         if( bApplyOCSTransform == true )
-            poFeature->ApplyOCSTransformer( poEllipse.get() );
-        poFeature->SetGeometryDirectly( poEllipse.release() );
+            poFeature->ApplyOCSTransformer( poEllipse );
+        poFeature->SetGeometryDirectly( poEllipse );
     }
     else
     {
         // TODO: emit error ?
     }
 
-    PrepareLineStyle( poFeature.get() );
+    PrepareLineStyle( poFeature );
 
-    return poFeature.release();
+    return poFeature;
 }
 
 /************************************************************************/
@@ -1943,7 +1985,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateARC()
 {
     char szLineBuf[257];
     int nCode = 0;
-    auto poFeature = cpl::make_unique<OGRDXFFeature>(poFeatureDefn);
+    OGRDXFFeature *poFeature = new OGRDXFFeature( poFeatureDefn );
     double dfX1 = 0.0;
     double dfY1 = 0.0;
     double dfZ1 = 0.0;
@@ -1987,13 +2029,14 @@ OGRDXFFeature *OGRDXFLayer::TranslateARC()
             break;
 
           default:
-            TranslateGenericProperty( poFeature.get(), nCode, szLineBuf );
+            TranslateGenericProperty( poFeature, nCode, szLineBuf );
             break;
         }
     }
     if( nCode < 0 )
     {
         DXF_LAYER_READER_ERROR();
+        delete poFeature;
         return nullptr;
     }
 
@@ -2008,25 +2051,25 @@ OGRDXFFeature *OGRDXFLayer::TranslateARC()
 
     if( fabs(dfEndAngle - dfStartAngle) <= 361.0 )
     {
-        auto poArc = std::unique_ptr<OGRGeometry>(
+        OGRGeometry *poArc =
             OGRGeometryFactory::approximateArcAngles( dfX1, dfY1, dfZ1,
                                                     dfRadius, dfRadius, 0.0,
                                                     dfStartAngle, dfEndAngle,
-                                                    0.0, poDS->InlineBlocks() ));
+                                                    0.0, poDS->InlineBlocks() );
         if( !bHaveZ )
             poArc->flattenTo2D();
 
-        poFeature->ApplyOCSTransformer( poArc.get() );
-        poFeature->SetGeometryDirectly( poArc.release() );
+        poFeature->ApplyOCSTransformer( poArc );
+        poFeature->SetGeometryDirectly( poArc );
     }
     else
     {
         // TODO: emit error ?
     }
 
-    PrepareLineStyle( poFeature.get() );
+    PrepareLineStyle( poFeature );
 
-    return poFeature.release();
+    return poFeature;
 }
 
 /************************************************************************/
@@ -2041,7 +2084,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateSPLINE()
 {
     char szLineBuf[257];
     int nCode;
-    auto poFeature = cpl::make_unique<OGRDXFFeature>(poFeatureDefn);
+    OGRDXFFeature *poFeature = new OGRDXFFeature( poFeatureDefn );
 
     std::vector<double> adfControlPoints( 1, 0.0 );
     std::vector<double> adfKnots( 1, 0.0 );
@@ -2092,6 +2135,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateSPLINE()
             if( nDegree < 0 || nDegree > 100)
             {
                 DXF_LAYER_READER_ERROR();
+                delete poFeature;
                 return nullptr;
             }
             break;
@@ -2102,6 +2146,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateSPLINE()
             if( nKnots < 0 || nKnots > 10000000)
             {
                 DXF_LAYER_READER_ERROR();
+                delete poFeature;
                 return nullptr;
             }
             break;
@@ -2112,6 +2157,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateSPLINE()
             if( nControlPoints < 0 || nControlPoints > 10000000)
             {
                 DXF_LAYER_READER_ERROR();
+                delete poFeature;
                 return nullptr;
             }
             break;
@@ -2119,11 +2165,11 @@ OGRDXFFeature *OGRDXFLayer::TranslateSPLINE()
           case 100:
             if( EQUAL(szLineBuf, "AcDbHelix") )
                 bStop = true;
-            TranslateGenericProperty( poFeature.get(), nCode, szLineBuf );
+            TranslateGenericProperty( poFeature, nCode, szLineBuf );
             break;
 
           default:
-            TranslateGenericProperty( poFeature.get(), nCode, szLineBuf );
+            TranslateGenericProperty( poFeature, nCode, szLineBuf );
             break;
         }
 
@@ -2133,6 +2179,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateSPLINE()
     if( nCode < 0 )
     {
         DXF_LAYER_READER_ERROR();
+        delete poFeature;
         return nullptr;
     }
 
@@ -2143,20 +2190,21 @@ OGRDXFFeature *OGRDXFLayer::TranslateSPLINE()
 /*      Use the helper function to check the input data and insert      */
 /*      the spline.                                                     */
 /* -------------------------------------------------------------------- */
-    auto poLS = InsertSplineWithChecks( nDegree,
+    OGRLineString *poLS = InsertSplineWithChecks( nDegree,
         adfControlPoints, nControlPoints, adfKnots, nKnots, adfWeights );
 
     if( !poLS )
     {
         DXF_LAYER_READER_ERROR();
+        delete poFeature;
         return nullptr;
     }
 
-    poFeature->SetGeometryDirectly( poLS.release() );
+    poFeature->SetGeometryDirectly( poLS );
 
-    PrepareLineStyle( poFeature.get() );
+    PrepareLineStyle( poFeature );
 
-    return poFeature.release();
+    return poFeature;
 }
 
 /************************************************************************/
@@ -2166,7 +2214,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateSPLINE()
 /*     one-based.                                                       */
 /************************************************************************/
 
-std::unique_ptr<OGRLineString> OGRDXFLayer::InsertSplineWithChecks( const int nDegree,
+OGRLineString *OGRDXFLayer::InsertSplineWithChecks( const int nDegree,
     std::vector<double>& adfControlPoints, int nControlPoints,
     std::vector<double>& adfKnots, int nKnots,
     std::vector<double>& adfWeights )
@@ -2252,7 +2300,7 @@ std::unique_ptr<OGRLineString> OGRDXFLayer::InsertSplineWithChecks( const int nD
 /* -------------------------------------------------------------------- */
 /*      Turn into OGR geometry.                                         */
 /* -------------------------------------------------------------------- */
-    auto poLS = cpl::make_unique<OGRLineString>();
+    OGRLineString *poLS = new OGRLineString();
 
     poLS->setNumPoints( p1 );
     for( int i = 0; i < p1; i++ )
@@ -2270,7 +2318,7 @@ OGRDXFFeature *OGRDXFLayer::Translate3DFACE()
 {
     char szLineBuf[257];
     int nCode = 0;
-    auto poFeature = cpl::make_unique<OGRDXFFeature>(poFeatureDefn);
+    OGRDXFFeature *poFeature = new OGRDXFFeature( poFeatureDefn );
     double dfX1 = 0.0;
     double dfY1 = 0.0;
     double dfZ1 = 0.0;
@@ -2340,13 +2388,14 @@ OGRDXFFeature *OGRDXFLayer::Translate3DFACE()
             break;
 
           default:
-            TranslateGenericProperty( poFeature.get(), nCode, szLineBuf );
+            TranslateGenericProperty( poFeature, nCode, szLineBuf );
             break;
         }
     }
     if( nCode < 0 )
     {
         DXF_LAYER_READER_ERROR();
+        delete poFeature;
         return nullptr;
     }
 
@@ -2356,7 +2405,7 @@ OGRDXFFeature *OGRDXFLayer::Translate3DFACE()
 /* -------------------------------------------------------------------- */
 /*      Create geometry                                                 */
 /* -------------------------------------------------------------------- */
-    auto poPoly = cpl::make_unique<OGRPolygon>();
+    OGRPolygon *poPoly = new OGRPolygon();
     OGRLinearRing* poLR = new OGRLinearRing();
     poLR->addPoint( dfX1, dfY1, dfZ1 );
     poLR->addPoint( dfX2, dfY2, dfZ2 );
@@ -2367,11 +2416,11 @@ OGRDXFFeature *OGRDXFLayer::Translate3DFACE()
     poPoly->closeRings();
 
     poFeature->ApplyOCSTransformer( poLR );
-    poFeature->SetGeometryDirectly( poPoly.release() );
+    poFeature->SetGeometryDirectly( poPoly );
 
-    PrepareLineStyle( poFeature.get() );
+    PrepareLineStyle( poFeature );
 
-    return poFeature.release();
+    return poFeature;
 }
 
 /* -------------------------------------------------------------------- */
@@ -2409,7 +2458,7 @@ OGRDXFFeature *OGRDXFLayer::TranslateSOLID()
 {
     char szLineBuf[257];
     int nCode = 0;
-    auto poFeature = cpl::make_unique<OGRDXFFeature>(poFeatureDefn);
+    OGRDXFFeature *poFeature = new OGRDXFFeature(poFeatureDefn);
     double dfX1 = 0.0;
     double dfY1 = 0.0;
     double dfZ1 = 0.0;
@@ -2474,13 +2523,14 @@ OGRDXFFeature *OGRDXFLayer::TranslateSOLID()
             break;
 
         default:
-            TranslateGenericProperty(poFeature.get(), nCode, szLineBuf);
+            TranslateGenericProperty(poFeature, nCode, szLineBuf);
             break;
         }
     }
     if( nCode < 0 )
     {
         DXF_LAYER_READER_ERROR();
+        delete poFeature;
         return nullptr;
     }
     if (nCode == 0)
@@ -2491,50 +2541,52 @@ OGRDXFFeature *OGRDXFLayer::TranslateSOLID()
                         dfZ3 != 0.0 || dfZ4 != 0.0;
 
     // check how many unique corners we have
-    OGRPoint oCorners[4];
-    oCorners[0].setX(dfX1);
-    oCorners[0].setY(dfY1);
+    OGRPoint* poCorners = new OGRPoint[4];
+    poCorners[0].setX(dfX1);
+    poCorners[0].setY(dfY1);
     if( bWantZ )
-        oCorners[0].setZ(dfZ1);
-    oCorners[1].setX(dfX2);
-    oCorners[1].setY(dfY2);
+        poCorners[0].setZ(dfZ1);
+    poCorners[1].setX(dfX2);
+    poCorners[1].setY(dfY2);
     if( bWantZ )
-        oCorners[1].setZ(dfZ2);
-    oCorners[2].setX(dfX3);
-    oCorners[2].setY(dfY3);
+        poCorners[1].setZ(dfZ2);
+    poCorners[2].setX(dfX3);
+    poCorners[2].setY(dfY3);
     if( bWantZ )
-        oCorners[2].setZ(dfZ3);
-    oCorners[3].setX(dfX4);
-    oCorners[3].setY(dfY4);
+        poCorners[2].setZ(dfZ3);
+    poCorners[3].setX(dfX4);
+    poCorners[3].setY(dfY4);
     if( bWantZ )
-        oCorners[3].setZ(dfZ4);
+        poCorners[3].setZ(dfZ4);
 
-    std::sort(&oCorners[0], &oCorners[4], PointXAxisComparer);
-    int nCornerCount = static_cast<int>(std::unique(&oCorners[0], &oCorners[4],
-        PointXYZEqualityComparer) - &oCorners[0]);
+    std::sort(poCorners, poCorners + 4, PointXAxisComparer);
+    int nCornerCount = static_cast<int>(std::unique(poCorners, poCorners + 4,
+        PointXYZEqualityComparer) - poCorners);
     if( nCornerCount < 1 )
     {
         DXF_LAYER_READER_ERROR();
+        delete poFeature;
+        delete[] poCorners;
         return nullptr;
     }
 
-    std::unique_ptr<OGRGeometry> poFinalGeom;
+    OGRGeometry* poFinalGeom;
 
     // what kind of object do we need?
     if( nCornerCount == 1 )
     {
-        poFinalGeom.reset(oCorners[0].clone());
+        poFinalGeom = poCorners[0].clone();
 
-        PrepareLineStyle( poFeature.get() );
+        PrepareLineStyle( poFeature );
     }
     else if( nCornerCount == 2 )
     {
-        auto poLS = cpl::make_unique<OGRLineString>();
-        poLS->setPoint( 0, &oCorners[0] );
-        poLS->setPoint( 1, &oCorners[1] );
-        poFinalGeom.reset(poLS.release());
+        OGRLineString* poLS = new OGRLineString();
+        poLS->setPoint( 0, &poCorners[0] );
+        poLS->setPoint( 1, &poCorners[1] );
+        poFinalGeom = poLS;
 
-        PrepareLineStyle( poFeature.get() );
+        PrepareLineStyle( poFeature );
     }
     else
     {
@@ -2554,17 +2606,19 @@ OGRDXFFeature *OGRDXFLayer::TranslateSOLID()
         if( !bWantZ )
             poLinearRing->flattenTo2D();
 
-        auto poPoly = cpl::make_unique<OGRPolygon>();
+        OGRPolygon* poPoly = new OGRPolygon();
         poPoly->addRingDirectly( poLinearRing );
-        poFinalGeom.reset(poPoly.release());
+        poFinalGeom = poPoly;
 
-        PrepareBrushStyle( poFeature.get() );
+        PrepareBrushStyle( poFeature );
     }
 
-    poFeature->ApplyOCSTransformer( poFinalGeom.get() );
-    poFeature->SetGeometryDirectly( poFinalGeom.release() );
+    delete[] poCorners;
 
-    return poFeature.release();
+    poFeature->ApplyOCSTransformer( poFinalGeom );
+    poFeature->SetGeometryDirectly( poFinalGeom );
+
+    return poFeature;
 }
 
 /************************************************************************/
@@ -2579,16 +2633,17 @@ OGRDXFFeature *OGRDXFLayer::TranslateASMEntity()
 {
     char szLineBuf[257];
     int nCode = 0;
-    auto poFeature = cpl::make_unique<OGRDXFFeature>(poFeatureDefn);
+    OGRDXFFeature *poFeature = new OGRDXFFeature(poFeatureDefn);
 
     while ((nCode = poDS->ReadValue(szLineBuf, sizeof(szLineBuf))) > 0)
     {
-        TranslateGenericProperty(poFeature.get(), nCode, szLineBuf);
+        TranslateGenericProperty(poFeature, nCode, szLineBuf);
     }
 
     if( nCode < 0 )
     {
         DXF_LAYER_READER_ERROR();
+        delete poFeature;
         return nullptr;
     }
     if (nCode == 0)
@@ -2605,18 +2660,24 @@ OGRDXFFeature *OGRDXFLayer::TranslateASMEntity()
     {
         CPLError( CE_Warning, CPLE_AppDefined,
             "ACDSRECORD data for entity %s was not found.", pszEntityHandle );
-        return poFeature.release();
+        return poFeature;
     }
 
     // Return a feature with no geometry but with one very interesting field.
+    // Seems like we have to make a copy of this data, which is then
+    // freed by the feature
+    GByte* pabyData = new GByte[nDataLength];
+    memcpy( pabyData, pabyBinaryData, nDataLength );
     poFeature->SetField( poFeatureDefn->GetFieldIndex( "ASMData" ),
-        static_cast<int>( nDataLength ), pabyBinaryData );
+        static_cast<int>( nDataLength ), pabyData );
+    delete[] pabyData;
 
     // Set up an affine transformation matrix so the user will be able to
     // transform the resulting 3D geometry
-    poFeature->poASMTransform = cpl::make_unique<OGRDXFAffineTransform>();
+    poFeature->poASMTransform =
+        std::unique_ptr<OGRDXFAffineTransform>( new OGRDXFAffineTransform() );
 
-    poFeature->poASMTransform->SetField( poFeature.get(), "ASMTransform" );
+    poFeature->poASMTransform->SetField( poFeature, "ASMTransform" );
 
 #ifdef notdef
     FILE *fp;
@@ -2633,9 +2694,9 @@ OGRDXFFeature *OGRDXFLayer::TranslateASMEntity()
     }
 #endif
 
-    PrepareBrushStyle( poFeature.get() );
+    PrepareBrushStyle( poFeature );
 
-    return poFeature.release();
+    return poFeature;
 }
 
 /************************************************************************/
@@ -3163,11 +3224,16 @@ bool OGRDXFLayer::TranslateINSERT()
                 return false;
             }
 
-            auto poAttribFeature = std::unique_ptr<OGRDXFFeature>( TranslateTEXT( true ));
+            OGRDXFFeature *poAttribFeature = TranslateTEXT( true );
 
             if( poAttribFeature && poAttribFeature->osAttributeTag != "" )
             {
-                m_oInsertState.m_apoAttribs.emplace_back(std::move(poAttribFeature));
+                m_oInsertState.m_apoAttribs.push_back(
+                    std::unique_ptr<OGRDXFFeature>( poAttribFeature ) );
+            }
+            else
+            {
+                delete poAttribFeature;
             }
 
             nCode = poDS->ReadValue(szLineBuf,sizeof(szLineBuf));

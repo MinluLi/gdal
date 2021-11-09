@@ -37,12 +37,6 @@
 
 CPL_CVSID("$Id$")
 
-#ifdef _MSC_VER
-#pragma warning( push )
-// 'tiledb::Query::set_buffer': was declared deprecated
-// 'tiledb::Array::Array': was declared deprecated
-#pragma warning( disable : 4996 ) /* XXXX was deprecated */
-#endif
 
 const CPLString TILEDB_VALUES( "TDB_VALUES" );
 
@@ -129,7 +123,7 @@ class TileDBDataset final: public GDALPamDataset
         static void             SetBlockSize( GDALRasterBand* poBand,
                                                 char ** &papszOptions );
 
-        virtual void            FlushCache( bool bAtClosing ) override;
+        virtual void            FlushCache( void ) override;
 
 
 };
@@ -169,18 +163,7 @@ static CPLString vsi_to_tiledb_uri( const char* pszUri )
     else if ( STARTS_WITH_CI( pszUri, "/VSIGS/") )
         osUri.Printf("gcs://%s", pszUri + 7);
     else
-    {
         osUri = pszUri;
-        // tiledb (at least at 2.4.2 on Conda) wrongly interprets relative
-        // directories on Windows as absolute ones.
-        if( CPLIsFilenameRelative(pszUri) )
-        {
-            char* pszCurDir = CPLGetCurrentDir();
-            if( pszCurDir )
-                osUri = CPLFormFilename(pszCurDir, pszUri, nullptr);
-            CPLFree(pszCurDir);
-        }
-    }
 
     return osUri;
 }
@@ -476,7 +459,7 @@ CPLErr TileDBRasterBand::IWriteBlock( int nBlockXOff,
     }
     else
     {
-        // global order requires ordered blocks (see FlushCache(bool bAtClosing))
+        // global order requires ordered blocks (see FlushCache())
         if ( ( nCurrBlockX != nBlockXOff ) || ( nCurrBlockY != nBlockYOff ) )
         {   CPLError( CE_Failure, CPLE_AppDefined,
                     "Non-sequential global write to TileDB.\n");
@@ -621,7 +604,7 @@ GDALColorInterp TileDBRasterBand::GetColorInterpretation()
 TileDBDataset::~TileDBDataset()
 
 {
-    TileDBDataset::FlushCache(true);
+    TileDBDataset::FlushCache();
 
     // important to finalize arrays before closing array when updating
     if ( bGlobalOrder )
@@ -684,10 +667,10 @@ CPLErr TileDBDataset::AddDimensions( tiledb::Domain& domain,
 /*                             FlushCache()                             */
 /************************************************************************/
 
-void TileDBDataset::FlushCache(bool bAtClosing)
+void TileDBDataset::FlushCache()
 
 {
-    BlockBasedFlushCache(bAtClosing);
+    BlockBasedFlushCache();
 
     if( nPamFlags & GPF_DIRTY )
         TrySaveXML();
@@ -700,9 +683,6 @@ void TileDBDataset::FlushCache(bool bAtClosing)
 CPLErr TileDBDataset::TrySaveXML()
 
 {
-    if( m_array == nullptr )
-        return CE_None;
-
     CPLXMLNode *psTree = nullptr;
     try
     {
@@ -808,7 +788,7 @@ CPLErr TileDBDataset::TrySaveXML()
                 auto oMeta = std::unique_ptr<tiledb::Array>(
                     new tiledb::Array( *m_ctx, m_array->uri(), TILEDB_WRITE, nTimestamp )
                 );
-                oMeta->put_metadata("_gdal", TILEDB_UINT8, static_cast<int>(strlen( pszTree )), pszTree);
+                oMeta->put_metadata("_gdal", TILEDB_UINT8, strlen( pszTree ), pszTree);
                 oMeta->close();
             }
             else
@@ -816,13 +796,13 @@ CPLErr TileDBDataset::TrySaveXML()
                 auto oMeta = std::unique_ptr<tiledb::Array>(
                         new tiledb::Array( *m_ctx, m_array->uri(), TILEDB_WRITE )
                     );
-                oMeta->put_metadata("_gdal", TILEDB_UINT8, static_cast<int>(strlen( pszTree )), pszTree);
+                oMeta->put_metadata("_gdal", TILEDB_UINT8, strlen( pszTree ), pszTree);
                 oMeta->close();
             }
         }
         else
         {
-            m_array->put_metadata("_gdal", TILEDB_UINT8, static_cast<int>(strlen( pszTree )), pszTree);
+            m_array->put_metadata("_gdal", TILEDB_UINT8, strlen( pszTree ), pszTree);
         }
 
         bSaved = true;
@@ -1222,7 +1202,7 @@ GDALDataset *TileDBDataset::Open( GDALOpenInfo * poOpenInfo )
         if( !Identify( poOpenInfo ) )
             return nullptr;
 
-        auto poDS = cpl::make_unique<TileDBDataset>();
+        std::unique_ptr<TileDBDataset> poDS(new TileDBDataset());
 
         const char* pszConfig = CSLFetchNameValue(
                                     poOpenInfo->papszOpenOptions,
@@ -1267,7 +1247,7 @@ GDALDataset *TileDBDataset::Open( GDALOpenInfo * poOpenInfo )
                 return nullptr;
             }
 
-            osArrayPath = vsi_to_tiledb_uri(apszName[1]);
+            osArrayPath = apszName[1];
             osSubdataset = apszName[2];
             poDS->SetSubdatasetName( osSubdataset.c_str() );
         }
@@ -1395,11 +1375,11 @@ GDALDataset *TileDBDataset::Open( GDALOpenInfo * poOpenInfo )
                 if ( poDS->eIndexMode == PIXEL )
                     std::rotate( dims.begin(), dims.begin() + 2, dims.end() );
 
-                poDS->nBandStart = static_cast<int>(dims[0].domain<uint64_t>().first);
-                poDS->nBands = static_cast<int>(dims[0].domain<uint64_t>().second
-                                - dims[0].domain<uint64_t>().first + 1);
-                poDS->nBlockYSize = static_cast<int>(dims[1].tile_extent<uint64_t>());
-                poDS->nBlockXSize = static_cast<int>(dims[2].tile_extent<uint64_t>());
+                poDS->nBandStart = dims[0].domain<uint64_t>().first;
+                poDS->nBands = dims[0].domain<uint64_t>().second
+                                - dims[0].domain<uint64_t>().first + 1;
+                poDS->nBlockYSize = dims[1].tile_extent<uint64_t>();
+                poDS->nBlockXSize = dims[2].tile_extent<uint64_t>();
             }
             else
             {
@@ -1408,8 +1388,8 @@ GDALDataset *TileDBDataset::Open( GDALOpenInfo * poOpenInfo )
                 if ( pszBands )
                 {
                     poDS->nBands = atoi( pszBands );
-                    poDS->nBlockYSize = static_cast<int>(dims[0].tile_extent<uint64_t>());
-                    poDS->nBlockXSize = static_cast<int>(dims[1].tile_extent<uint64_t>());
+                    poDS->nBlockYSize = dims[0].tile_extent<uint64_t>();
+                    poDS->nBlockXSize = dims[1].tile_extent<uint64_t>();
                 }
 
                 poDS->eIndexMode = ATTRIBUTES;
@@ -1498,8 +1478,8 @@ GDALDataset *TileDBDataset::Open( GDALOpenInfo * poOpenInfo )
                 else if ( poDS->eIndexMode == ATTRIBUTES )
                 {
                     poDS->nBands = schema.attribute_num();
-                    poDS->nBlockYSize = static_cast<int>(dims[0].tile_extent<uint64_t>());
-                    poDS->nBlockXSize = static_cast<int>(dims[1].tile_extent<uint64_t>());
+                    poDS->nBlockYSize = dims[0].tile_extent<uint64_t>();
+                    poDS->nBlockXSize = dims[1].tile_extent<uint64_t>();
 
                     // Create band information objects.
                     for ( int i = 1;i <= poDS->nBands;++i )
@@ -1793,7 +1773,7 @@ TileDBDataset* TileDBDataset::CreateLL( const char *pszFilename,
             return nullptr;
         }
 
-        auto poDS = cpl::make_unique<TileDBDataset>();
+        std::unique_ptr<TileDBDataset> poDS(new TileDBDataset());
         poDS->nRasterXSize = nXSize;
         poDS->nRasterYSize = nYSize;
         poDS->eDataType = eType;
@@ -2506,8 +2486,3 @@ void GDALRegister_TileDB()
 
     GetGDALDriverManager()->RegisterDriver( poDriver );
 }
-
-
-#ifdef _MSC_VER
-#pragma warning( pop )
-#endif

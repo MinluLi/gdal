@@ -121,7 +121,7 @@ CEOSDataset::CEOSDataset() :
 CEOSDataset::~CEOSDataset()
 
 {
-    FlushCache(true);
+    FlushCache();
     if( psCEOS )
         CEOSClose( psCEOS );
 }

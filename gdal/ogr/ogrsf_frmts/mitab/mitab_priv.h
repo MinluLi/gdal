@@ -1906,8 +1906,10 @@ class MIDDATAFile
        VSILFILE *m_fp;
        const char *m_pszDelimiter;
 
-       std::string m_osLastRead{};
-       std::string m_osSavedLine{};
+       // Set limit for the length of a line
+#define MIDMAXCHAR 10000
+       char m_szLastRead[MIDMAXCHAR];
+       char m_szSavedLine[MIDMAXCHAR];
 
        char        *m_pszFname;
        TABAccess   m_eAccessMode;

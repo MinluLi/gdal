@@ -112,7 +112,6 @@ public:
         CPLString GetURLNoKVP() const;
 
         virtual CPLString GetCopySourceHeader() const { return std::string(); }
-        virtual const char* GetMetadataDirectiveREPLACE() const { return ""; }
 
         static bool GetBucketAndObjectKey(const char* pszURI,
                                           const char* pszFSPrefix,
@@ -211,7 +210,6 @@ class VSIS3HandleHelper final: public IVSIS3LikeHandleHelper
         void SetVirtualHosting(bool b);
 
         CPLString GetCopySourceHeader() const override { return "x-amz-copy-source"; }
-        const char* GetMetadataDirectiveREPLACE() const override { return "x-amz-metadata-directive: REPLACE"; }
 
         CPLString GetSignedURL(CSLConstList papszOptions);
 

@@ -57,7 +57,7 @@ int PDFDataset::OpenVectorLayers(GDALPDFDictionary* poPageDict)
     }
 
     GetCatalog();
-    if( poCatalogObject == nullptr || poCatalogObject->GetType() != PDFObjectType_Dictionary )
+    if( poCatalogObject == nullptr )
         return FALSE;
 
     GDALPDFObject* poContents = poPageDict->Get("Contents");

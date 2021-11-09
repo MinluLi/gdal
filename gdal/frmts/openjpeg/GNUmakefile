@@ -3,7 +3,7 @@ include ../../GDALmake.opt
 
 OBJ	=	openjpegdataset.o
 
-CPPFLAGS        :=       -iquote .. $(CPPFLAGS)
+CPPFLAGS        :=       -I.. $(CPPFLAGS)
 
 default:	$(OBJ:.o=.$(OBJ_EXT))
 

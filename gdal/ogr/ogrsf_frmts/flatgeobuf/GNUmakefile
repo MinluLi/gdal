@@ -4,7 +4,7 @@ include ../../../GDALmake.opt
 
 OBJ	=  geometryreader.o geometrywriter.o ogrflatgeobufdataset.o ogrflatgeobuflayer.o ogrflatgeobufeditablelayer.o packedrtree.o
 
-CPPFLAGS	:=	-iquote . -iquote .. -iquote ../.. -iquote ../generic $(CPPFLAGS)
+CPPFLAGS	:=	-I. -I.. -I../.. -I../generic $(CPPFLAGS)
 
 default:	$(O_OBJ:.o=.$(OBJ_EXT))
 

@@ -56,10 +56,10 @@ CPL_CVSID("$Id$")
 /************************************************************************/
 
 static void
-GDALFilterLine( const float *pafLastLine, const float *pafThisLine, const float *pafNextLine,
+GDALFilterLine( float *pafLastLine, float *pafThisLine, float *pafNextLine,
                 float *pafOutLine,
-                const GByte *pabyLastTMask, const GByte *pabyThisTMask, const GByte *pabyNextTMask,
-                const GByte *pabyThisFMask, int nXSize )
+                GByte *pabyLastTMask, GByte *pabyThisTMask, GByte*pabyNextTMask,
+                GByte *pabyThisFMask, int nXSize )
 
 {
     for( int iX = 0; iX < nXSize; iX++ )
@@ -804,10 +804,11 @@ GDALFillNodata( GDALRasterBandH hTargetBand,
             {
                 if( adfQuadDist[iQuad] <= dfMaxSearchDist )
                 {
-                    bHasSrcValues = true;
+                    const double dfWeight = 1.0 / adfQuadDist[iQuad];
+
+                    bHasSrcValues = dfWeight != 0;
                     if( !bHasNoData || fQuadValue[iQuad] != fNoData )
                     {
-                        const double dfWeight = 1.0 / adfQuadDist[iQuad];
                         dfWeightSum += dfWeight;
                         dfValueSum += fQuadValue[iQuad] * dfWeight;
                     }
@@ -816,6 +817,7 @@ GDALFillNodata( GDALRasterBandH hTargetBand,
 
             if( bHasSrcValues )
             {
+                pabyMask[iX] = 255;
                 pabyFiltMask[iX] = 255;
                 if( dfWeightSum > 0.0 )
                     pafScanline[iX] = static_cast<float>(dfValueSum / dfWeightSum);

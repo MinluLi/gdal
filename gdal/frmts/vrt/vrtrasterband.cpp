@@ -329,6 +329,7 @@ CPLErr VRTRasterBand::SetCategoryNames( char ** papszNewNames )
 
 CPLErr VRTRasterBand::XMLInit( CPLXMLNode * psTree,
                                const char *pszVRTPath,
+                               void* pUniqueHandle,
                                std::map<CPLString, GDALDataset*>& oMapSharedSources )
 
 {
@@ -592,7 +593,7 @@ CPLErr VRTRasterBand::XMLInit( CPLXMLNode * psTree,
             break;
         }
 
-        if( poBand->XMLInit( psNode, pszVRTPath,
+        if( poBand->XMLInit( psNode, pszVRTPath, pUniqueHandle,
                              oMapSharedSources ) == CE_None )
         {
             SetMaskBand(poBand);
@@ -657,16 +658,11 @@ CPLXMLNode *VRTRasterBand::SerializeToXML( const char *pszVRTPath )
     if( nBand > 0 )
         CPLSetXMLValue( psTree, "#band", CPLSPrintf( "%d", GetBand() ) );
 
-    // Do not serialize block size of VRTWarpedRasterBand since it is already
-    // serialized at the dataset level.
-    if( dynamic_cast<VRTWarpedRasterBand*>(this) == nullptr )
-    {
-        if( nBlockXSize != 128 && nBlockXSize != nRasterXSize )
-            CPLSetXMLValue( psTree, "#blockXSize", CPLSPrintf( "%d", nBlockXSize ) );
+    if( nBlockXSize != 128 && nBlockXSize != nRasterXSize )
+        CPLSetXMLValue( psTree, "#blockXSize", CPLSPrintf( "%d", nBlockXSize ) );
 
-        if( nBlockYSize != 128 && nBlockYSize != nRasterYSize )
-            CPLSetXMLValue( psTree, "#blockYSize", CPLSPrintf( "%d", nBlockYSize ) );
-    }
+    if( nBlockYSize != 128 && nBlockYSize != nRasterYSize )
+        CPLSetXMLValue( psTree, "#blockYSize", CPLSPrintf( "%d", nBlockYSize ) );
 
     CPLXMLNode *psMD = oMDMD.Serialize();
     if( psMD != nullptr )
@@ -1156,7 +1152,7 @@ void VRTRasterBand::GetFileList(char*** ppapszFileList, int *pnSize,
 int VRTRasterBand::GetOverviewCount()
 
 {
-    VRTDataset* poVRTDS = cpl::down_cast<VRTDataset *>( poDS );
+    VRTDataset* poVRTDS = static_cast<VRTDataset *>( poDS );
     if( !poVRTDS->AreOverviewsEnabled() )
         return 0;
 
@@ -1169,27 +1165,8 @@ int VRTRasterBand::GetOverviewCount()
     if( nOverviewCount )
         return nOverviewCount;
 
-    if( poVRTDS->m_apoOverviews.empty() )
-    {
-        // If not found, implicit virtual overviews
-
-        const std::string osFctId("VRTRasterBand::GetOverviewCount");
-        GDALAntiRecursionGuard oGuard(osFctId);
-        if( oGuard.GetCallDepth() >= 32 )
-        {
-            CPLError(CE_Failure, CPLE_AppDefined, "Recursion detected");
-            return 0;
-        }
-
-        GDALAntiRecursionGuard oGuard2(oGuard, poVRTDS->GetDescription());
-        if( oGuard2.GetCallDepth() >= 2 )
-        {
-            CPLError(CE_Failure, CPLE_AppDefined, "Recursion detected");
-            return 0;
-        }
-
-        poVRTDS->BuildVirtualOverviews();
-    }
+    // If not found, implicit virtual overviews
+    poVRTDS->BuildVirtualOverviews();
     if( !poVRTDS->m_apoOverviews.empty() && poVRTDS->m_apoOverviews[0] )
         return static_cast<int>( poVRTDS->m_apoOverviews.size() );
 

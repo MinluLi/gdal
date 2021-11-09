@@ -785,7 +785,7 @@ FITDataset::FITDataset() :
 
 FITDataset::~FITDataset()
 {
-    FlushCache(true);
+    FlushCache();
     if( info )
         delete(info);
     if( fp )

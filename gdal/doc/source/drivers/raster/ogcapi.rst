@@ -35,18 +35,22 @@ The driver supports opening by:
   the following, specifying a deferred processing
 
   .. code-block:: json
- 
-   {
-       "process" : "https://maps.ecere.com/ogcapi/processes/RenderMap",
-       "inputs" : {
-           "transparent" : false,
-           "background" : "navy",
-           "layers" : [
-                { "collection" : "https://maps.ecere.com/ogcapi/collections/NaturalEarth:physical:bathymetry" },
-                { "collection" : "https://maps.ecere.com/ogcapi/collections/SRTM_ViewFinderPanorama" }
-            ]
+
+        {
+        "id" : "SampleRenderMapExecution",
+        "process" : "https://maps.ecere.com/ogcapi/processes/RenderMap",
+        "inputs" : [
+            { "id" : "transparent", "value" : false },
+            { "id" : "background", "value" : "navy" },
+            {
+                "id" : "layers",
+                "list" : [
+                    { "collection" : "https://maps.ecere.com/ogcapi/collections/NaturalEarth:physical:bathymetry" },
+                    { "collection" : "https://maps.ecere.com/ogcapi/collections/SRTM_ViewFinderPanorama" }
+                ]
+            }
+        ]
         }
-    }
 
 - passing a string "OGCAPI:{url}" where {url} is the URL to a OGC API landing page
   In that case the driver will return subdatasets with the different collections.

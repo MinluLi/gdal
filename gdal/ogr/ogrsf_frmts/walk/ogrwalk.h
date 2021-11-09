@@ -173,7 +173,7 @@ public:
                         OGRWalkDataSource();
                         virtual ~OGRWalkDataSource();
 
-    int                 Open( const char * );
+    int                 Open( const char * , int );
 
     const char            *GetName() override { return pszName; }
     int                    GetLayerCount() override { return nLayers; }
@@ -189,6 +189,23 @@ public:
 
     // For Internal Use
     CPLODBCSession     *GetSession() { return &oSession; }
+};
+
+/************************************************************************/
+/*                            OGRWalkDriver                             */
+/************************************************************************/
+
+class OGRWalkDriver final: public OGRODBCMDBDriver
+{
+public:
+                ~OGRWalkDriver();
+
+    const char    *GetName() override;
+    OGRDataSource *Open( const char *, int ) override;
+
+    OGRDataSource *CreateDataSource( const char *, char ** ) override;
+
+    int            TestCapability( const char * ) override;
 };
 
 void RegisterOGRWalk();

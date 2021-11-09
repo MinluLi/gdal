@@ -53,6 +53,8 @@ MIDDATAFile::MIDDATAFile( const char* pszEncoding ) :
     m_pszDelimiter("\t"),  // Encom 2003 (was NULL).
     m_pszFname(nullptr),
     m_eAccessMode(TABRead),
+    // TODO(schwehr): m_szLastRead({}),
+    // TODO(schwehr): m_szSavedLine({}),
     m_dfXMultiplier(1.0),
     m_dfYMultiplier(1.0),
     m_dfXDisplacement(0.0),
@@ -60,6 +62,8 @@ MIDDATAFile::MIDDATAFile( const char* pszEncoding ) :
     m_bEof(FALSE),
     m_osEncoding(pszEncoding)
 {
+    m_szLastRead[0] = '\0';
+    m_szSavedLine[0] = '\0';
 }
 
 MIDDATAFile::~MIDDATAFile() { Close(); }
@@ -68,15 +72,15 @@ void MIDDATAFile::SaveLine(const char *pszLine)
 {
     if(pszLine == nullptr)
     {
-        m_osSavedLine.clear();
+        m_szSavedLine[0] = '\0';
     }
     else
     {
-        m_osSavedLine = pszLine;
+        CPLStrlcpy(m_szSavedLine, pszLine, MIDMAXCHAR);
     }
 }
 
-const char *MIDDATAFile::GetSavedLine() { return m_osSavedLine.c_str(); }
+const char *MIDDATAFile::GetSavedLine() { return m_szSavedLine; }
 
 int MIDDATAFile::Open(const char *pszFname, const char *pszAccess)
 {
@@ -155,30 +159,21 @@ const char *MIDDATAFile::GetLine()
         return nullptr;
     }
 
-    static const int nMaxLineLength = atoi(
-        CPLGetConfigOption("MITAB_MAX_LINE_LENGTH", "1000000"));
-    const char *pszLine = CPLReadLine2L(m_fp, nMaxLineLength, nullptr);
+    const char *pszLine = CPLReadLine2L(m_fp, MIDMAXCHAR, nullptr);
 
     if(pszLine == nullptr)
     {
-        if( strstr(CPLGetLastErrorMsg(), "Maximum number of characters allowed reached") )
-        {
-            CPLError(CE_Failure, CPLE_AppDefined,
-                     "Maximum number of characters allowed reached. "
-                     "You can set the MITAB_MAX_LINE_LENGTH configuration option "
-                     "to the desired number of bytes (or -1 for unlimited)");
-        }
         SetEof(TRUE);
-        m_osLastRead.clear();
+        m_szLastRead[0] = '\0';
     }
     else
     {
         // Skip leading spaces and tabs except if the delimiter is tab.
-        while(*pszLine == ' ' ||
-                          (*m_pszDelimiter != '\t' && *pszLine == '\t'))
+        while(pszLine && (*pszLine == ' ' ||
+                          (*m_pszDelimiter != '\t' && *pszLine == '\t')))
             pszLine++;
 
-        m_osLastRead = pszLine;
+        CPLStrlcpy(m_szLastRead, pszLine, MIDMAXCHAR);
     }
 
 #if DEBUG_VERBOSE
@@ -199,9 +194,9 @@ const char *MIDDATAFile::GetLastLine()
     if(m_eAccessMode == TABRead)
     {
 #if DEBUG_VERBOSE
-        CPLDebug("MITAB", "m_osLastRead: %s", m_osLastRead.c_str());
+        CPLDebug("MITAB", "m_szLastRead: %s", m_szLastRead);
 #endif
-        return m_osLastRead.c_str();
+        return m_szLastRead;
     }
 
     // We should never get here.  Read/Write mode not implemented.

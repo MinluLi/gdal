@@ -126,7 +126,7 @@ def main(argv):
     if argv is None:
         return 0
 
-    driver_name = 'GTiff'
+    frmt = 'GTiff'
     src_color_filename = None
     src_greyscale_filename = None
     dst_color_filename = None
@@ -139,7 +139,7 @@ def main(argv):
 
         if arg == '-of':
             i = i + 1
-            driver_name = argv[i]
+            frmt = argv[i]
 
         elif arg == '-q' or arg == '-quiet':
             quiet = True
@@ -171,7 +171,7 @@ def main(argv):
         return 1
 
     # define output format, name, size, type and set projection
-    out_driver = gdal.GetDriverByName(driver_name)
+    out_driver = gdal.GetDriverByName(frmt)
     outdataset = out_driver.Create(dst_color_filename, colordataset.RasterXSize,
                                    colordataset.RasterYSize, colordataset.RasterCount, datatype)
     outdataset.SetProjection(hilldataset.GetProjection())

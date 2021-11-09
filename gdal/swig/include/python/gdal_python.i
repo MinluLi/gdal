@@ -992,7 +992,7 @@ CPLErr ReadRaster1( double xoff, double yoff, double xsize, double ysize,
 %extend GDALMajorObjectShadow {
 %pythoncode %{
   def GetMetadata(self, domain=''):
-    if domain and domain[:4] == 'xml:':
+    if domain[:4] == 'xml:':
       return self.GetMetadata_List(domain)
     return self.GetMetadata_Dict(domain)
 %}
@@ -1060,12 +1060,12 @@ CPLErr ReadRaster1( double xoff, double yoff, double xsize, double ysize,
       from osgeo import gdal_array
       return gdal_array.MDArrayReadAsArray(self, array_start_idx, count, array_step, buffer_datatype, buf_obj)
 
-  def AdviseRead(self, array_start_idx = None, count = None, options = []):
+  def AdviseRead(self, array_start_idx = None, count = None):
       if not array_start_idx:
         array_start_idx = [0] * self.GetDimensionCount()
       if not count:
         count = [ (self.GetDimensions()[i].GetSize() - array_start_idx[i]) for i in range (self.GetDimensionCount()) ]
-      return _gdal.MDArray_AdviseRead(self, array_start_idx, count, options)
+      return _gdal.MDArray_AdviseRead(self, array_start_idx, count)
 
   def __getitem__(self, item):
 
@@ -1223,21 +1223,13 @@ CPLErr ReadRaster1( double xoff, double yoff, double xsize, double ysize,
 
   def Read(self):
     """ Read an attribute and return it with the most appropriate type """
-    dt = self.GetDataType()
-    dt_class = dt.GetClass()
+    dt_class = self.GetDataType().GetClass()
     if dt_class == GEDTC_STRING:
         if self.GetTotalElementsCount() == 1:
-            s = self.ReadAsString()
-            if dt.GetSubType() == GEDTST_JSON:
-                try:
-                    import json
-                    return json.loads(s)
-                except:
-                    pass
-            return s
+            return self.ReadAsString()
         return self.ReadAsStringArray()
     if dt_class == GEDTC_NUMERIC:
-        if dt.GetNumericDataType() in (GDT_Byte, GDT_Int16, GDT_UInt16, GDT_Int32):
+        if self.GetDataType().GetNumericDataType() in (GDT_Byte, GDT_Int16, GDT_UInt16, GDT_Int32):
             if self.GetTotalElementsCount() == 1:
                 return self.ReadAsInt()
             else:
@@ -1269,9 +1261,6 @@ CPLErr ReadRaster1( double xoff, double yoff, double xsize, double ysize,
         return self.WriteDoubleArray(val)
       if isinstance(val[0], str):
         return self.WriteStringArray(val)
-    if isinstance(val, dict) and self.GetDataType().GetSubType() == GEDTST_JSON:
-        import json
-        return self.WriteString(json.dumps(val))
     return self.WriteRaw(val)
 
 %}
@@ -1406,18 +1395,6 @@ def MultiDimInfo(ds, **kwargs):
 def _strHighPrec(x):
     return x if isinstance(x, str) else '%.18g' % x
 
-mapGRIORAMethodToString = {
-    gdalconst.GRIORA_NearestNeighbour: 'near',
-    gdalconst.GRIORA_Bilinear: 'bilinear',
-    gdalconst.GRIORA_Cubic: 'cubic',
-    gdalconst.GRIORA_CubicSpline: 'cubicspline',
-    gdalconst.GRIORA_Lanczos: 'lanczos',
-    gdalconst.GRIORA_Average: 'average',
-    gdalconst.GRIORA_RMS: 'rms',
-    gdalconst.GRIORA_Mode: 'mode',
-    gdalconst.GRIORA_Gauss: 'gauss',
-}
-
 def TranslateOptions(options=None, format=None,
               outputType = gdalconst.GDT_Unknown, bandList=None, maskBand=None,
               width = 0, height = 0, widthPct = 0.0, heightPct = 0.0,
@@ -1463,13 +1440,7 @@ def TranslateOptions(options=None, format=None,
           callback --- callback method
           callback_data --- user data for callback
     """
-
-    # Only used for tests
-    return_option_list = options == '__RETURN_OPTION_LIST__'
-    if return_option_list:
-        options = []
-    else:
-        options = [] if options is None else options
+    options = [] if options is None else options
 
     if isinstance(options, str):
         new_options = ParseCommandLine(options)
@@ -1536,15 +1507,26 @@ def TranslateOptions(options=None, format=None,
         if not rat:
             new_options += ['-norat']
         if resampleAlg is not None:
-            if resampleAlg in mapGRIORAMethodToString:
-                new_options += ['-r', mapGRIORAMethodToString[resampleAlg]]
+            if resampleAlg == gdalconst.GRA_NearestNeighbour:
+                new_options += ['-r', 'near']
+            elif resampleAlg == gdalconst.GRA_Bilinear:
+                new_options += ['-r', 'bilinear']
+            elif resampleAlg == gdalconst.GRA_Cubic:
+                new_options += ['-r', 'cubic']
+            elif resampleAlg == gdalconst.GRA_CubicSpline:
+                new_options += ['-r', 'cubicspline']
+            elif resampleAlg == gdalconst.GRA_Lanczos:
+                new_options += ['-r', 'lanczos']
+            elif resampleAlg == gdalconst.GRA_Average:
+                new_options += ['-r', 'average']
+            elif resampleAlg == gdalconst.GRA_RMS:
+                new_options += ['-r', 'rms']
+            elif resampleAlg == gdalconst.GRA_Mode:
+                new_options += ['-r', 'mode']
             else:
                 new_options += ['-r', str(resampleAlg)]
         if xRes != 0 and yRes != 0:
             new_options += ['-tr', _strHighPrec(xRes), _strHighPrec(yRes)]
-
-    if return_option_list:
-        return new_options
 
     return (GDALTranslateOptions(new_options), callback, callback_data)
 
@@ -1629,13 +1611,7 @@ def WarpOptions(options=None, format=None,
           callback --- callback method
           callback_data --- user data for callback
     """
-
-    # Only used for tests
-    return_option_list = options == '__RETURN_OPTION_LIST__'
-    if return_option_list:
-        options = []
-    else:
-        options = [] if options is None else options
+    options = [] if options is None else options
 
     if isinstance(options, str):
         new_options = ParseCommandLine(options)
@@ -1673,26 +1649,24 @@ def WarpOptions(options=None, format=None,
         if errorThreshold is not None:
             new_options += ['-et', _strHighPrec(errorThreshold)]
         if resampleAlg is not None:
-
-            mapMethodToString = {
-                gdalconst.GRA_NearestNeighbour: 'near',
-                gdalconst.GRA_Bilinear: 'bilinear',
-                gdalconst.GRA_Cubic: 'cubic',
-                gdalconst.GRA_CubicSpline: 'cubicspline',
-                gdalconst.GRA_Lanczos: 'lanczos',
-                gdalconst.GRA_Average: 'average',
-                gdalconst.GRA_RMS: 'rms',
-                gdalconst.GRA_Mode: 'mode',
-                gdalconst.GRA_Max: 'max',
-                gdalconst.GRA_Min: 'min',
-                gdalconst.GRA_Med: 'med',
-                gdalconst.GRA_Q1: 'q1',
-                gdalconst.GRA_Q3: 'q3',
-                gdalconst.GRA_Sum: 'sum',
-            }
-
-            if resampleAlg in mapMethodToString:
-                new_options += ['-r', mapMethodToString[resampleAlg]]
+            if resampleAlg == gdalconst.GRIORA_NearestNeighbour:
+                new_options += ['-r', 'near']
+            elif resampleAlg == gdalconst.GRIORA_Bilinear:
+                new_options += ['-rb']
+            elif resampleAlg == gdalconst.GRIORA_Cubic:
+                new_options += ['-rc']
+            elif resampleAlg == gdalconst.GRIORA_CubicSpline:
+                new_options += ['-rcs']
+            elif resampleAlg == gdalconst.GRIORA_Lanczos:
+                new_options += ['-r', 'lanczos']
+            elif resampleAlg == gdalconst.GRIORA_Average:
+                new_options += ['-r', 'average']
+            elif resampleAlg == gdalconst.GRIORA_RMS:
+                new_options += ['-r', 'rms']
+            elif resampleAlg == gdalconst.GRIORA_Mode:
+                new_options += ['-r', 'mode']
+            elif resampleAlg == gdalconst.GRIORA_Gauss:
+                new_options += ['-r', 'gauss']
             else:
                 new_options += ['-r', str(resampleAlg)]
         if warpMemoryLimit is not None:
@@ -1746,11 +1720,8 @@ def WarpOptions(options=None, format=None,
         else:
             overviewLevel = None
 
-        if overviewLevel is not None and overviewLevel != 'AUTO':
+        if overviewLevel:
             new_options += ['-ovr', overviewLevel]
-
-    if return_option_list:
-        return new_options
 
     return (GDALWarpAppOptions(new_options), callback, callback_data)
 
@@ -2396,13 +2367,7 @@ def BuildVRTOptions(options=None,
           callback --- callback method.
           callback_data --- user data for callback.
     """
-
-    # Only used for tests
-    return_option_list = options == '__RETURN_OPTION_LIST__'
-    if return_option_list:
-        options = []
-    else:
-        options = [] if options is None else options
+    options = [] if options is None else options
 
     if isinstance(options, str):
         new_options = ParseCommandLine(options)
@@ -2424,8 +2389,24 @@ def BuildVRTOptions(options=None,
         if addAlpha:
             new_options += ['-addalpha']
         if resampleAlg is not None:
-            if resampleAlg in mapGRIORAMethodToString:
-                new_options += ['-r', mapGRIORAMethodToString[resampleAlg]]
+            if resampleAlg == gdalconst.GRIORA_NearestNeighbour:
+                new_options += ['-r', 'near']
+            elif resampleAlg == gdalconst.GRIORA_Bilinear:
+                new_options += ['-rb']
+            elif resampleAlg == gdalconst.GRIORA_Cubic:
+                new_options += ['-rc']
+            elif resampleAlg == gdalconst.GRIORA_CubicSpline:
+                new_options += ['-rcs']
+            elif resampleAlg == gdalconst.GRIORA_Lanczos:
+                new_options += ['-r', 'lanczos']
+            elif resampleAlg == gdalconst.GRIORA_Average:
+                new_options += ['-r', 'average']
+            elif resampleAlg == gdalconst.GRIORA_RMS:
+                new_options += ['-r', 'rms']
+            elif resampleAlg == gdalconst.GRIORA_Mode:
+                new_options += ['-r', 'mode']
+            elif resampleAlg == gdalconst.GRIORA_Gauss:
+                new_options += ['-r', 'gauss']
             else:
                 new_options += ['-r', str(resampleAlg)]
         if outputSRS is not None:
@@ -2438,9 +2419,6 @@ def BuildVRTOptions(options=None,
             new_options += ['-vrtnodata', str(VRTNodata)]
         if hideNodata:
             new_options += ['-hidenodata']
-
-    if return_option_list:
-        return new_options
 
     return (GDALBuildVRTOptions(new_options), callback, callback_data)
 
@@ -2584,21 +2562,5 @@ def ConfigurePythonLogging(logger_name='gdal', enable_debug=False):
 
     # Install as the default GDAL log handler
     SetErrorHandler(_pylog_handler)
-
-
-def EscapeString(*args, **kwargs):
-    """EscapeString(string_or_bytes, scheme = gdal.CPLES_SQL)"""
-    if isinstance(args[0], bytes):
-        return _gdal.EscapeBinary(*args, **kwargs)
-    else:
-        return _gdal.wrapper_EscapeString(*args, **kwargs)
-
-
-def ApplyVerticalShiftGrid(*args, **kwargs):
-    """ApplyVerticalShiftGrid(Dataset src_ds, Dataset grid_ds, bool inverse=False, double srcUnitToMeter=1.0, double dstUnitToMeter=1.0, char ** options=None) -> Dataset"""
-
-    from warnings import warn
-    warn('ApplyVerticalShiftGrid() will be removed in GDAL 4.0', DeprecationWarning)
-    return _ApplyVerticalShiftGrid(*args, **kwargs)
 
 %}

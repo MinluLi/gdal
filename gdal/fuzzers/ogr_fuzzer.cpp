@@ -28,6 +28,8 @@
 
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "ogr_api.h"
 #include "cpl_conv.h"
@@ -71,13 +73,6 @@ int LLVMFuzzerInitialize(int* /*argc*/, char*** argv)
     // To avoid timeouts. See https://github.com/OSGeo/gdal/issues/502
     CPLSetConfigOption("DXF_MAX_BSPLINE_CONTROL_POINTS", "100");
     CPLSetConfigOption("NAS_INDICATOR","NAS-Operationen;AAA-Fachschema;aaa.xsd;aaa-suite");
-    CPLSetConfigOption("USERNAME", "unknown"); // see GMLASConfiguration::GetBaseCacheDirectory()
-
-#ifdef OGR_SKIP
-    CPLSetConfigOption("OGR_SKIP", OGR_SKIP);
-#endif
-    REGISTER_FUNC();
-
     return 0;
 }
 
@@ -100,7 +95,10 @@ int LLVMFuzzerTestOneInput(const uint8_t *buf, size_t len)
             reinterpret_cast<GByte*>(const_cast<uint8_t*>(buf)), len, FALSE );
 #endif
     VSIFCloseL(fp);
-
+#ifdef OGR_SKIP
+    CPLSetConfigOption("OGR_SKIP", OGR_SKIP);
+#endif
+    REGISTER_FUNC();
     CPLPushErrorHandler(CPLQuietErrorHandler);
 #ifdef USE_FILESYSTEM
     OGRDataSourceH hDS = OGROpen( szTempFilename, FALSE, nullptr );

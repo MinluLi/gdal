@@ -48,7 +48,6 @@
 
 #include <limits>
 #include <utility>
-#include <algorithm>
 
 CPL_CVSID("$Id$")
 
@@ -92,7 +91,7 @@ CPLXMLNode * GDALWMSDatasetGetConfigFromURL(GDALOpenInfo *poOpenInfo)
         VersionStringToInt(osVersion.c_str())>= VersionStringToInt("1.3.0") )
     {
         OGRSpatialReference oSRS;
-        oSRS.SetFromUserInput(osCRS, OGRSpatialReference::SET_FROM_USER_INPUT_LIMITATIONS_get());
+        oSRS.SetFromUserInput(osCRS);
         oSRS.AutoIdentifyEPSG();
         if( oSRS.EPSGTreatsAsLatLong() || oSRS.EPSGTreatsAsNorthingEasting() )
         {
@@ -147,59 +146,14 @@ CPLXMLNode * GDALWMSDatasetGetConfigFromURL(GDALOpenInfo *poOpenInfo)
     }
 
     if (osSRSValue.empty())
-    {
         osSRSValue = "EPSG:4326";
 
-        if (osBBOX.empty())
-        {
-            if (osBBOXOrder.compare("yxYX") == 0)
-                osBBOX = "-90,-180,90,180";
-            else
-                osBBOX = "-180,-90,180,90";
-        }
-    }
-    else
+    if (osBBOX.empty())
     {
-        if (osBBOX.empty()) {
-            OGRSpatialReference oSRS;
-            oSRS.SetFromUserInput(osSRSValue);
-            oSRS.AutoIdentifyEPSG();
-
-            double dfWestLongitudeDeg, dfSouthLatitudeDeg,
-                    dfEastLongitudeDeg, dfNorthLatitudeDeg;
-            if (!oSRS.GetAreaOfUse(&dfWestLongitudeDeg, &dfSouthLatitudeDeg,
-                    &dfEastLongitudeDeg, &dfNorthLatitudeDeg, nullptr))
-            {
-                CPLError(CE_Failure, CPLE_AppDefined,
-                    "Failed retrieving a default bounding box for the requested SRS");
-                return nullptr;
-            }
-            auto poCT = std::unique_ptr<OGRCoordinateTransformation>(
-                    OGRCreateCoordinateTransformation(OGRSpatialReference::GetWGS84SRS(),
-                                                        &oSRS));
-            if (!poCT)
-            {
-                CPLError(CE_Failure, CPLE_AppDefined,
-                    "Failed creating a coordinate transformation for the requested SRS");
-                return nullptr;
-            }
-            if (!poCT->Transform(1, &dfWestLongitudeDeg, &dfNorthLatitudeDeg) ||
-                !poCT->Transform(1, &dfEastLongitudeDeg, &dfSouthLatitudeDeg))
-            {
-                CPLError(CE_Failure, CPLE_AppDefined, 
-                    "Failed transforming coordinates to the requested SRS");
-                return nullptr;
-            }
-            const double dfMaxX = std::max(dfWestLongitudeDeg, dfEastLongitudeDeg);
-            const double dfMinX = std::min(dfWestLongitudeDeg, dfEastLongitudeDeg);
-            const double dfMaxY = std::max(dfNorthLatitudeDeg, dfSouthLatitudeDeg);
-            const double dfMinY = std::min(dfNorthLatitudeDeg, dfSouthLatitudeDeg);
-            if (osBBOXOrder.compare("yxYX") == 0) {
-                osBBOX = CPLSPrintf("%lf,%lf,%lf,%lf", dfMinY, dfMinX, dfMaxY, dfMaxX);
-            } else {
-                osBBOX = CPLSPrintf("%lf,%lf,%lf,%lf", dfMinX, dfMinY, dfMaxX, dfMaxY);
-            }
-        }
+        if (osBBOXOrder.compare("yxYX") == 0)
+            osBBOX = "-90,-180,90,180";
+        else
+            osBBOX = "-180,-90,180,90";
     }
 
     char** papszTokens = CSLTokenizeStringComplex(osBBOX, ",", 0, 0);
@@ -212,7 +166,6 @@ CPLXMLNode * GDALWMSDatasetGetConfigFromURL(GDALOpenInfo *poOpenInfo)
     const char* pszMinY = papszTokens[1];
     const char* pszMaxX = papszTokens[2];
     const char* pszMaxY = papszTokens[3];
-
 
     if (osBBOXOrder.compare("yxYX") == 0)
     {
@@ -658,7 +611,7 @@ static CPLXMLNode* GDALWMSDatasetGetConfigFromArcGISJSON(const char* pszURL,
     if( nWKID < 0 && !osWKT.empty() )
     {
         OGRSpatialReference oSRS;
-        oSRS.importFromWkt(osWKT);
+        oSRS.SetFromUserInput(osWKT);
         oSRS.morphFromESRI();
 
         int nEntries = 0;

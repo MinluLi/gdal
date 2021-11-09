@@ -1572,10 +1572,9 @@ SHPWriteObject(SHPHandle psSHP, int nShapeId, SHPObject * psObject ) {
     {
         if( psSHP->nFileSize > UINT_MAX - nRecordSize)
         {
-            char str[255];
+            char str[128];
             snprintf( str, sizeof(str), "Failed to write shape object. "
-                     "The maximum file size of %u has been reached. "
-                     "The current record of size %u cannot be added.",
+                     "File size cannot reach %u + %u.",
                      psSHP->nFileSize, nRecordSize );
             str[sizeof(str)-1] = '\0';
             psSHP->sHooks.Error( str );

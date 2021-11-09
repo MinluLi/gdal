@@ -13,7 +13,7 @@ OBJ	=	mitab_rawbinblock.o mitab_mapheaderblock.o \
 		mitab_tabview.o mitab_ogr_datasource.o mitab_geometry.o \
 		mitab_tabseamless.o
 
-CPPFLAGS	:=	-iquote .. -iquote ../..  $(CPPFLAGS) -DOGR \
+CPPFLAGS	:=	-I.. -I../..  $(CPPFLAGS) -DOGR \
 			-DMITAB_USE_OFTDATETIME
 
 CXXFLAGS        :=      $(WARN_EFFCPLUSPLUS) $(WARN_OLD_STYLE_CAST) $(CXXFLAGS)

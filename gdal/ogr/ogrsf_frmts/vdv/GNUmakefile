@@ -4,7 +4,7 @@ include ../../../GDALmake.opt
 
 OBJ	=	ogrvdvdatasource.o
 
-CPPFLAGS	:=	-iquote .. -iquote ../.. $(CPPFLAGS)
+CPPFLAGS	:=	-I.. -I../.. $(CPPFLAGS)
 
 default:	$(O_OBJ:.o=.$(OBJ_EXT))
 

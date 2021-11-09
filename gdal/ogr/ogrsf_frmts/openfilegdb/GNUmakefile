@@ -4,7 +4,7 @@ include ../../../GDALmake.opt
 
 OBJ	=	ogropenfilegdbdriver.o ogropenfilegdbdatasource.o ogropenfilegdblayer.o filegdbtable.o filegdbindex.o
 
-CPPFLAGS	:=	-iquote .. -iquote ../.. -iquote ../mem  $(CPPFLAGS)
+CPPFLAGS	:=	-I.. -I../.. -I../mem  $(CPPFLAGS)
 
 default:	$(O_OBJ:.o=.$(OBJ_EXT))
 

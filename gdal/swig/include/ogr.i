@@ -597,29 +597,6 @@ typedef int CPLErr;
 #endif /* FROM_GDAL_I */
 
 /************************************************************************/
-/*                               OGRGetGEOSVersion                      */
-/************************************************************************/
-%inline %{
-int GetGEOSVersionMajor() {
-    int num;
-    OGRGetGEOSVersion(&num, NULL, NULL);
-    return num;
-}
-
-int GetGEOSVersionMinor() {
-    int num;
-    OGRGetGEOSVersion(NULL, &num, NULL);
-    return num;
-}
-
-int GetGEOSVersionMicro() {
-    int num;
-    OGRGetGEOSVersion(NULL, NULL, &num);
-    return num;
-}
-%}
-
-/************************************************************************/
 /*                               OGREnvelope                            */
 /************************************************************************/
 
@@ -1654,7 +1631,7 @@ public:
 %apply (GByte* outBytes) {GByte*};
   GByte* GetFieldAsBinary(int id, int *nLen, char **pBuf) {
     GByte* pabyBlob = OGR_F_GetFieldAsBinary(self, id, nLen);
-    *pBuf = (char*)VSIMalloc(*nLen);
+    *pBuf = (char*)malloc(*nLen);
     memcpy(*pBuf, pabyBlob, *nLen);
     return (GByte*)*pBuf;
   }
@@ -1669,7 +1646,7 @@ public:
       else
       {
         GByte* pabyBlob = OGR_F_GetFieldAsBinary(self, id, nLen);
-        *pBuf = (char*)VSIMalloc(*nLen);
+        *pBuf = (char*)malloc(*nLen);
         memcpy(*pBuf, pabyBlob, *nLen);
         return (GByte*)*pBuf;
       }
@@ -1678,7 +1655,7 @@ public:
 #else
   OGRErr GetFieldAsBinary( int id, int *nLen, char **pBuf) {
     GByte* pabyBlob = OGR_F_GetFieldAsBinary(self, id, nLen);
-    *pBuf = (char*)VSIMalloc(*nLen);
+    *pBuf = (char*)malloc(*nLen);
     memcpy(*pBuf, pabyBlob, *nLen);
     return OGRERR_NONE;
   }
@@ -1694,7 +1671,7 @@ public:
       else
       {
         GByte* pabyBlob = OGR_F_GetFieldAsBinary(self, id, nLen);
-        *pBuf = (char*)VSIMalloc(*nLen);
+        *pBuf = (char*)malloc(*nLen);
         memcpy(*pBuf, pabyBlob, *nLen);
         return OGRERR_NONE;
       }
@@ -3126,8 +3103,8 @@ public:
   }
 
   %newobject MakeValid;
-  OGRGeometryShadow* MakeValid( char** options = NULL ) {
-    return (OGRGeometryShadow*) OGR_G_MakeValidEx(self, options);
+  OGRGeometryShadow* MakeValid() {
+    return (OGRGeometryShadow*) OGR_G_MakeValid(self);
   }
 
   %newobject Normalize;

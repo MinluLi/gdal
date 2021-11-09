@@ -32,7 +32,7 @@
 
 #include "cpl_string.h"
 #include "gdal_pam.h"
-#include <sqlite3.h>
+#include "ogr_sqlite.h" // for sqlite3*
 
 typedef struct
 {
@@ -143,7 +143,7 @@ class GDALGPKGMBTilesLikePseudoDataset
                                                  int nDstXSize, int nDstYSize);
         CPLErr                  DoPartialFlushOfPartialTilesIfNecessary();
 
-        virtual CPLErr                  IFlushCacheWithErrCode(bool bAtClosing) = 0;
+        virtual CPLErr                  IFlushCacheWithErrCode() = 0;
         virtual int                     IGetRasterCount() = 0;
         virtual GDALRasterBand*         IGetRasterBand(int nBand) = 0;
         virtual sqlite3                *IGetDB() = 0;
@@ -172,7 +172,7 @@ class GDALGPKGMBTilesLikeRasterBand: public GDALPamRasterBand
                                            void* pData) override;
         virtual CPLErr          IWriteBlock(int nBlockXOff, int nBlockYOff,
                                            void* pData) override;
-        virtual CPLErr          FlushCache(bool bAtClosing) override;
+        virtual CPLErr          FlushCache() override;
 
         virtual GDALColorTable* GetColorTable() override;
         virtual CPLErr          SetColorTable(GDALColorTable* poCT) override;

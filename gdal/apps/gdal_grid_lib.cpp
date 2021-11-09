@@ -650,7 +650,8 @@ static OGRGeometryCollection* LoadGeometry( const char* pszDS,
         poLyr->SetAttributeFilter( pszWhere );
 
     OGRGeometryCollection *poGeom = nullptr;
-    for( auto& poFeat: poLyr )
+    OGRFeature *poFeat = nullptr;
+    while ( (poFeat = poLyr->GetNextFeature()) != nullptr )
     {
         OGRGeometry* poSrcGeom = poFeat->GetGeometryRef();
         if ( poSrcGeom )
@@ -683,12 +684,15 @@ static OGRGeometryCollection* LoadGeometry( const char* pszDS,
                 CPLError(CE_Failure, CPLE_AppDefined,
                          "Geometry not of polygon type.");
                 OGRGeometryFactory::destroyGeometry( poGeom );
+                OGRFeature::DestroyFeature( poFeat );
                 if ( pszSQL != nullptr )
                     poDS->ReleaseResultSet( poLyr );
                 GDALClose(poDS);
                 return nullptr;
             }
         }
+
+        OGRFeature::DestroyFeature( poFeat );
     }
 
     if( pszSQL != nullptr )

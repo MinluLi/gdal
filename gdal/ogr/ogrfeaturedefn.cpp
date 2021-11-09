@@ -61,10 +61,19 @@ CPL_CVSID("$Id$")
  * need to be unique.
  */
 
-OGRFeatureDefn::OGRFeatureDefn( const char * pszName )
+OGRFeatureDefn::OGRFeatureDefn( const char * pszName ) :
+    nRefCount(0),
+    nFieldCount(0),
+    papoFieldDefn(nullptr),
+    nGeomFieldCount(1),
+    papoGeomFieldDefn(nullptr),
+    pszFeatureClassName(nullptr),
+    bIgnoreStyle(FALSE)
 {
     pszFeatureClassName = CPLStrdup( pszName );
-    apoGeomFieldDefn.emplace_back(cpl::make_unique<OGRGeomFieldDefn>("", wkbUnknown));
+    papoGeomFieldDefn =
+        static_cast<OGRGeomFieldDefn**>(CPLMalloc(sizeof(OGRGeomFieldDefn*)));
+    papoGeomFieldDefn[0] = new OGRGeomFieldDefn("", wkbUnknown);
 }
 
 /************************************************************************/
@@ -105,6 +114,20 @@ OGRFeatureDefn::~OGRFeatureDefn()
     }
 
     CPLFree( pszFeatureClassName );
+
+    for( int i = 0; i < nFieldCount; i++ )
+    {
+        delete papoFieldDefn[i];
+    }
+
+    CPLFree( papoFieldDefn );
+
+    for( int i = 0; i < nGeomFieldCount; i++ )
+    {
+        delete papoGeomFieldDefn[i];
+    }
+
+    CPLFree( papoGeomFieldDefn );
 }
 
 /************************************************************************/
@@ -180,21 +203,15 @@ OGRFeatureDefn *OGRFeatureDefn::Clone() const
 {
     OGRFeatureDefn *poCopy = new OGRFeatureDefn( GetName() );
 
-    {
-        const int nFieldCount = GetFieldCount();
-        poCopy->apoFieldDefn.reserve(nFieldCount);
-        for( int i = 0; i < nFieldCount; i++ )
-            poCopy->AddFieldDefn( GetFieldDefn( i ) );
-    }
+    GetFieldCount();
+    for( int i = 0; i < nFieldCount; i++ )
+        poCopy->AddFieldDefn( const_cast<OGRFieldDefn*>(GetFieldDefn( i )) );
 
-    {
-        // Remove the default geometry field created instantiation.
-        poCopy->DeleteGeomFieldDefn(0);
-        const int nGeomFieldCount = GetGeomFieldCount();
-        poCopy->apoGeomFieldDefn.reserve(nGeomFieldCount);
-        for( int i = 0; i < nGeomFieldCount; i++ )
-            poCopy->AddGeomFieldDefn( GetGeomFieldDefn( i ) );
-    }
+    // Remove the default geometry field created instantiation.
+    poCopy->DeleteGeomFieldDefn(0);
+    GetGeomFieldCount();
+    for( int i = 0; i < nGeomFieldCount; i++ )
+        poCopy->AddGeomFieldDefn( const_cast<OGRGeomFieldDefn*>(GetGeomFieldDefn( i )) );
 
     return poCopy;
 }
@@ -268,7 +285,7 @@ const char *OGR_FD_GetName( OGRFeatureDefnH hDefn )
 
 int OGRFeatureDefn::GetFieldCount() const
 {
-    return static_cast<int>(apoFieldDefn.size());
+    return nFieldCount;
 }
 
 /************************************************************************/
@@ -319,7 +336,7 @@ OGRFieldDefn *OGRFeatureDefn::GetFieldDefn( int iField )
         return nullptr;
     }
 
-    return apoFieldDefn[iField].get();
+    return papoFieldDefn[iField];
 }
 
 /**
@@ -344,7 +361,7 @@ const OGRFieldDefn *OGRFeatureDefn::GetFieldDefn( int iField ) const
         return nullptr;
     }
 
-    return apoFieldDefn[iField].get();
+    return papoFieldDefn[iField];
 }
 
 /************************************************************************/
@@ -388,7 +405,9 @@ OGRFieldDefnH OGR_FD_GetFieldDefn( OGRFeatureDefnH hDefn, int iField )
 
 void OGRFeatureDefn::ReserveSpaceForFields(int nFieldCountIn)
 {
-    apoFieldDefn.reserve(nFieldCountIn);
+    papoFieldDefn = static_cast<OGRFieldDefn **>(
+        CPLRealloc(papoFieldDefn,
+                   sizeof(void *) * std::max(nFieldCount, nFieldCountIn)));
 }
 //! @endcond
 
@@ -411,10 +430,15 @@ void OGRFeatureDefn::ReserveSpaceForFields(int nFieldCountIn)
  * @param poNewDefn the definition of the new field.
  */
 
-void OGRFeatureDefn::AddFieldDefn( const OGRFieldDefn * poNewDefn )
+void OGRFeatureDefn::AddFieldDefn( OGRFieldDefn * poNewDefn )
 
 {
-    apoFieldDefn.emplace_back(cpl::make_unique<OGRFieldDefn>(poNewDefn));
+    GetFieldCount();
+    papoFieldDefn = static_cast<OGRFieldDefn **>(
+        CPLRealloc(papoFieldDefn, sizeof(void *) * (nFieldCount + 1)));
+
+    papoFieldDefn[nFieldCount] = new OGRFieldDefn( poNewDefn );
+    nFieldCount++;
 }
 
 /************************************************************************/
@@ -471,7 +495,18 @@ OGRErr OGRFeatureDefn::DeleteFieldDefn( int iField )
     if( iField < 0 || iField >= GetFieldCount() )
         return OGRERR_FAILURE;
 
-    apoFieldDefn.erase(apoFieldDefn.begin() + iField);
+    delete papoFieldDefn[iField];
+    papoFieldDefn[iField] = nullptr;
+
+    if( iField < nFieldCount - 1 )
+    {
+        memmove(papoFieldDefn + iField,
+                papoFieldDefn + iField + 1,
+                (nFieldCount - 1 - iField) * sizeof(void *));
+    }
+
+    nFieldCount--;
+
     return OGRERR_NONE;
 }
 
@@ -525,23 +560,27 @@ OGRErr OGR_FD_DeleteFieldDefn( OGRFeatureDefnH hDefn, int iField )
  * @since OGR 1.9.0
  */
 
-OGRErr OGRFeatureDefn::ReorderFieldDefns( const int* panMap )
+OGRErr OGRFeatureDefn::ReorderFieldDefns( int* panMap )
 
 {
-    const int nFieldCount = GetFieldCount();
-    if( nFieldCount == 0 )
+    if( GetFieldCount() == 0 )
         return OGRERR_NONE;
 
     const OGRErr eErr = OGRCheckPermutation(panMap, nFieldCount);
     if( eErr != OGRERR_NONE )
         return eErr;
 
-    std::vector<std::unique_ptr<OGRFieldDefn>> apoFieldDefnNew(nFieldCount);
+    OGRFieldDefn** papoFieldDefnNew = static_cast<OGRFieldDefn**>(
+        CPLMalloc(sizeof(OGRFieldDefn*) * nFieldCount));
+
     for( int i = 0; i < nFieldCount; i++ )
     {
-        apoFieldDefnNew[i] = std::move(apoFieldDefn[panMap[i]]);
+        papoFieldDefnNew[i] = papoFieldDefn[panMap[i]];
     }
-    apoFieldDefn = std::move(apoFieldDefnNew);
+
+    CPLFree(papoFieldDefn);
+    papoFieldDefn = papoFieldDefnNew;
+
     return OGRERR_NONE;
 }
 
@@ -570,7 +609,7 @@ OGRErr OGRFeatureDefn::ReorderFieldDefns( const int* panMap )
  * @since OGR 2.1.0
  */
 
-OGRErr OGR_FD_ReorderFieldDefns( OGRFeatureDefnH hDefn, const int* panMap )
+OGRErr OGR_FD_ReorderFieldDefns( OGRFeatureDefnH hDefn, int* panMap )
 
 {
     return OGRFeatureDefn::FromHandle(hDefn)->ReorderFieldDefns(panMap);
@@ -592,7 +631,7 @@ OGRErr OGR_FD_ReorderFieldDefns( OGRFeatureDefnH hDefn, const int* panMap )
  */
 int OGRFeatureDefn::GetGeomFieldCount() const
 {
-    return static_cast<int>(apoGeomFieldDefn.size());
+    return nGeomFieldCount;
 }
 
 /************************************************************************/
@@ -648,7 +687,7 @@ OGRGeomFieldDefn *OGRFeatureDefn::GetGeomFieldDefn( int iGeomField )
         return nullptr;
     }
 
-    return apoGeomFieldDefn[iGeomField].get();
+    return papoGeomFieldDefn[iGeomField];
 }
 
 /**
@@ -674,7 +713,7 @@ const OGRGeomFieldDefn *OGRFeatureDefn::GetGeomFieldDefn( int iGeomField ) const
         return nullptr;
     }
 
-    return apoGeomFieldDefn[iGeomField].get();
+    return papoGeomFieldDefn[iGeomField];
 }
 /************************************************************************/
 /*                      OGR_FD_GetGeomFieldDefn()                       */
@@ -735,34 +774,21 @@ OGRGeomFieldDefnH OGR_FD_GetGeomFieldDefn( OGRFeatureDefnH hDefn,
  * This method is the same as the C function OGR_FD_AddGeomFieldDefn().
  *
  * @param poNewDefn the definition of the new geometry field.
+ * @param bCopy whether poNewDefn should be copied.
  *
  * @since GDAL 1.11
  */
 
-void OGRFeatureDefn::AddGeomFieldDefn( const OGRGeomFieldDefn * poNewDefn )
+void OGRFeatureDefn::AddGeomFieldDefn( OGRGeomFieldDefn * poNewDefn,
+                                       int bCopy )
 {
-    apoGeomFieldDefn.emplace_back(cpl::make_unique<OGRGeomFieldDefn>(poNewDefn));
-}
+    GetGeomFieldCount();
+    papoGeomFieldDefn = static_cast<OGRGeomFieldDefn **>(
+        CPLRealloc( papoGeomFieldDefn, sizeof(void*) * (nGeomFieldCount + 1) ));
 
-/**
- * \brief Add a new geometry field definition.
- *
- * To add a new geometry field definition to a layer definition, do not use this
- * function directly, but use OGRLayer::CreateGeomField() instead.
- *
- * This method takes ownership of the passed geometry field definition.
- *
- * This method should only be called while there are no OGRFeature
- * objects in existence based on this OGRFeatureDefn.
- *
- * @param poNewDefn the definition of the new geometry field.
- *
- * @since GDAL 3.4
- */
-
-void OGRFeatureDefn::AddGeomFieldDefn( std::unique_ptr<OGRGeomFieldDefn>&& poNewDefn )
-{
-    apoGeomFieldDefn.emplace_back(std::move(poNewDefn));
+    papoGeomFieldDefn[nGeomFieldCount] = bCopy ?
+        new OGRGeomFieldDefn( poNewDefn ) : poNewDefn;
+    nGeomFieldCount++;
 }
 
 /************************************************************************/
@@ -824,7 +850,18 @@ OGRErr OGRFeatureDefn::DeleteGeomFieldDefn( int iGeomField )
     if( iGeomField < 0 || iGeomField >= GetGeomFieldCount() )
         return OGRERR_FAILURE;
 
-    apoGeomFieldDefn.erase(apoGeomFieldDefn.begin() + iGeomField);
+    delete papoGeomFieldDefn[iGeomField];
+    papoGeomFieldDefn[iGeomField] = nullptr;
+
+    if( iGeomField < nGeomFieldCount - 1 )
+    {
+        memmove(papoGeomFieldDefn + iGeomField,
+                papoGeomFieldDefn + iGeomField + 1,
+                (nGeomFieldCount - 1 - iGeomField) * sizeof(void*));
+    }
+
+    nGeomFieldCount--;
+
     return OGRERR_NONE;
 }
 
@@ -879,7 +916,7 @@ OGRErr OGR_FD_DeleteGeomFieldDefn( OGRFeatureDefnH hDefn, int iGeomField )
 int OGRFeatureDefn::GetGeomFieldIndex( const char * pszGeomFieldName ) const
 
 {
-    const int nGeomFieldCount = GetGeomFieldCount();
+    GetGeomFieldCount();
     for( int i = 0; i < nGeomFieldCount; i++ )
     {
         const OGRGeomFieldDefn* poGFldDefn = GetGeomFieldDefn(i);
@@ -1011,10 +1048,9 @@ OGRwkbGeometryType OGR_FD_GetGeomType( OGRFeatureDefnH hDefn )
 void OGRFeatureDefn::SetGeomType( OGRwkbGeometryType eNewType )
 
 {
-    const int nGeomFieldCount = GetGeomFieldCount();
-    if( nGeomFieldCount > 0 )
+    if( GetGeomFieldCount() > 0 )
     {
-        if( nGeomFieldCount == 1 && eNewType == wkbNone )
+        if( GetGeomFieldCount() == 1 && eNewType == wkbNone )
             DeleteGeomFieldDefn(0);
         else
             GetGeomFieldDefn(0)->SetType(eNewType);
@@ -1182,7 +1218,7 @@ int OGR_FD_GetReferenceCount( OGRFeatureDefnH hDefn )
 int OGRFeatureDefn::GetFieldIndex( const char * pszFieldName ) const
 
 {
-    const int nFieldCount = GetFieldCount();
+    GetFieldCount();
     for( int i = 0; i < nFieldCount; i++ )
     {
         const OGRFieldDefn* poFDefn = GetFieldDefn(i);
@@ -1210,7 +1246,7 @@ int OGRFeatureDefn::GetFieldIndex( const char * pszFieldName ) const
 int OGRFeatureDefn::GetFieldIndexCaseSensitive( const char * pszFieldName ) const
 
 {
-    const int nFieldCount = GetFieldCount();
+    GetFieldCount();
     for( int i = 0; i < nFieldCount; i++ )
     {
         const OGRFieldDefn* poFDefn = GetFieldDefn(i);
@@ -1416,7 +1452,7 @@ int OGR_FD_IsStyleIgnored( OGRFeatureDefnH hDefn )
 
 void OGR_FD_SetStyleIgnored( OGRFeatureDefnH hDefn, int bIgnore )
 {
-    OGRFeatureDefn::FromHandle(hDefn)->SetStyleIgnored(CPL_TO_BOOL(bIgnore));
+    OGRFeatureDefn::FromHandle(hDefn)->SetStyleIgnored(bIgnore);
 }
 
 /************************************************************************/
@@ -1459,11 +1495,9 @@ void OGRFeatureDefn::DestroyFeatureDefn( OGRFeatureDefn *poDefn )
 
 int OGRFeatureDefn::IsSame( const OGRFeatureDefn * poOtherFeatureDefn ) const
 {
-    const int nFieldCount = GetFieldCount();
-    const int nGeomFieldCount = GetGeomFieldCount();
     if( strcmp(GetName(), poOtherFeatureDefn->GetName()) == 0 &&
-        nFieldCount == poOtherFeatureDefn->GetFieldCount() &&
-        nGeomFieldCount == poOtherFeatureDefn->GetGeomFieldCount() )
+        GetFieldCount() == poOtherFeatureDefn->GetFieldCount() &&
+        GetGeomFieldCount() == poOtherFeatureDefn->GetGeomFieldCount() )
     {
         for( int i = 0; i < nFieldCount; i++ )
         {
@@ -1540,8 +1574,7 @@ std::vector<int> OGRFeatureDefn::ComputeMapForSetFrom( const OGRFeatureDefn* poS
 {
     std::map<CPLString, int> oMapNameToTargetFieldIndex;
     std::map<CPLString, int> oMapNameToTargetFieldIndexUC;
-    const int nFieldCount = GetFieldCount();
-    for( int i = 0; i < nFieldCount; i++ )
+    for( int i = 0; i < GetFieldCount(); i++ )
     {
         const OGRFieldDefn* poFldDefn = GetFieldDefn(i);
         assert(poFldDefn); /* Make GCC-8 -Wnull-dereference happy */
@@ -1556,9 +1589,8 @@ std::vector<int> OGRFeatureDefn::ComputeMapForSetFrom( const OGRFeatureDefn* poS
         }
     }
     std::vector<int> aoMapSrcToTargetIdx;
-    const int nSrcFieldCount = poSrcFDefn->GetFieldCount();
-    aoMapSrcToTargetIdx.resize(nSrcFieldCount);
-    for( int i = 0; i < nSrcFieldCount; i++ )
+    aoMapSrcToTargetIdx.resize(poSrcFDefn->GetFieldCount());
+    for( int i = 0; i < poSrcFDefn->GetFieldCount(); i++ )
     {
         const OGRFieldDefn* poSrcFldDefn = poSrcFDefn->GetFieldDefn(i);
         assert(poSrcFldDefn); /* Make GCC-8 -Wnull-dereference happy */
@@ -1570,7 +1602,7 @@ std::vector<int> OGRFeatureDefn::ComputeMapForSetFrom( const OGRFeatureDefn* poS
             // Build case insensitive map only if needed
             if( oMapNameToTargetFieldIndexUC.empty() )
             {
-                for( int j = 0; j < nFieldCount; j++ )
+                for( int j = 0; j < GetFieldCount(); j++ )
                 {
                     const OGRFieldDefn* poFldDefn = GetFieldDefn(j);
                     assert(poFldDefn); /* Make GCC-8 -Wnull-dereference happy */

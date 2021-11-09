@@ -725,11 +725,6 @@ OGRFeature *OGRDWGLayer::Translate2DPOLYLINE( OdDbEntityPtr poEntity )
         poIter->step();
     }
 
-    if (poPL->isClosed() && !poLS->IsEmpty())
-    {
-        poLS->addPoint(poLS->getX(0), poLS->getY(0), poLS->getZ(0));
-    }
-
     poFeature->SetGeometryDirectly( poLS );
 
     PrepareLineStyle( poFeature );
@@ -761,11 +756,6 @@ OGRFeature *OGRDWGLayer::Translate3DPOLYLINE( OdDbEntityPtr poEntity )
         OdGePoint3d oPoint = poVertex->position();
         poLS->addPoint( oPoint.x, oPoint.y, oPoint.z );
         poIter->step();
-    }
-
-    if (poPL->isClosed() && !poLS->IsEmpty())
-    {
-        poLS->addPoint(poLS->getX(0), poLS->getY(0), poLS->getZ(0));
     }
 
     poFeature->SetGeometryDirectly( poLS );

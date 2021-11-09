@@ -2,30 +2,30 @@
  * Copyright (c) 1988-1997 Sam Leffler
  * Copyright (c) 1991-1997 Silicon Graphics, Inc.
  *
- * Permission to use, copy, modify, distribute, and sell this software and
+ * Permission to use, copy, modify, distribute, and sell this software and 
  * its documentation for any purpose is hereby granted without fee, provided
  * that (i) the above copyright notices and this permission notice appear in
  * all copies of the software and related documentation, and (ii) the names of
  * Sam Leffler and Silicon Graphics may not be used in any advertising or
  * publicity relating to the software without the specific, prior written
  * permission of Sam Leffler and Silicon Graphics.
- *
- * THE SOFTWARE IS PROVIDED "AS-IS" AND WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY
- * WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
- *
+ * 
+ * THE SOFTWARE IS PROVIDED "AS-IS" AND WITHOUT WARRANTY OF ANY KIND, 
+ * EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY 
+ * WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.  
+ * 
  * IN NO EVENT SHALL SAM LEFFLER OR SILICON GRAPHICS BE LIABLE FOR
  * ANY SPECIAL, INCIDENTAL, INDIRECT OR CONSEQUENTIAL DAMAGES OF ANY KIND,
  * OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
- * WHETHER OR NOT ADVISED OF THE POSSIBILITY OF DAMAGE, AND ON ANY THEORY OF
- * LIABILITY, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE
+ * WHETHER OR NOT ADVISED OF THE POSSIBILITY OF DAMAGE, AND ON ANY THEORY OF 
+ * LIABILITY, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE 
  * OF THIS SOFTWARE.
  */
 
 #include "tiffiop.h"
 #ifdef LZW_SUPPORT
 /*
- * TIFF Library.
+ * TIFF Library.  
  * Rev 5.0 Lempel-Ziv & Welch Compression Support
  *
  * This code is derived from the compress program whose code is
@@ -361,10 +361,10 @@ LZWDecode(TIFF* tif, uint8_t* op0, tmsize_t occ0, uint16_t s)
 {
 	static const char module[] = "LZWDecode";
 	LZWCodecState *sp = DecoderState(tif);
-	uint8_t *op = (uint8_t*) op0;
+	char *op = (char*) op0;
 	long occ = (long) occ0;
-	uint8_t *tp;
-	uint8_t *bp;
+	char *tp;
+	unsigned char *bp;
 	hcode_t code;
 	int len;
 	long nbits, nextbits, nbitsmask;
@@ -415,13 +415,16 @@ LZWDecode(TIFF* tif, uint8_t* op0, tmsize_t occ0, uint16_t s)
 		occ -= residue;
 		tp = op;
 		do {
-			*--tp = codep->value;
+			int t;
+			--tp;
+			t = codep->value;
 			codep = codep->next;
+			*tp = (char)t;
 		} while (--residue && codep);
 		sp->dec_restart = 0;
 	}
 
-	bp = (uint8_t*)tif->tif_rawcp;
+	bp = (unsigned char *)tif->tif_rawcp;
 #ifdef LZW_CHECKEOS
 	sp->dec_bitsleft += (((uint64_t)tif->tif_rawcc - sp->old_tif_rawcc) << 3);
 #endif
@@ -455,7 +458,7 @@ LZWDecode(TIFF* tif, uint8_t* op0, tmsize_t occ0, uint16_t s)
 					     tif->tif_row);
 				return (0);
 			}
-			*op++ = (uint8_t)code;
+			*op++ = (char)code;
 			occ--;
 			oldcodep = sp->dec_codetab + code;
 			continue;
@@ -530,8 +533,11 @@ LZWDecode(TIFF* tif, uint8_t* op0, tmsize_t occ0, uint16_t s)
 			len = codep->length;
 			tp = op + len;
 			do {
-				*--tp = codep->value;
+				int t;
+				--tp;
+				t = codep->value;
 				codep = codep->next;
+				*tp = (char)t;
 			} while (codep && tp > op);
 			if (codep) {
 			    codeLoop(tif, module);
@@ -541,7 +547,7 @@ LZWDecode(TIFF* tif, uint8_t* op0, tmsize_t occ0, uint16_t s)
 			op += len;
 			occ -= len;
 		} else {
-			*op++ = (uint8_t)code;
+			*op++ = (char)code;
 			occ--;
 		}
 	}
@@ -589,10 +595,10 @@ LZWDecodeCompat(TIFF* tif, uint8_t* op0, tmsize_t occ0, uint16_t s)
 {
 	static const char module[] = "LZWDecodeCompat";
 	LZWCodecState *sp = DecoderState(tif);
-	uint8_t *op = (uint8_t*) op0;
+	char *op = (char*) op0;
 	long occ = (long) occ0;
-	uint8_t *tp;
-	uint8_t *bp;
+	char *tp;
+	unsigned char *bp;
 	int code, nbits;
 	int len;
 	long nextbits, nextdata, nbitsmask;
@@ -646,7 +652,7 @@ LZWDecodeCompat(TIFF* tif, uint8_t* op0, tmsize_t occ0, uint16_t s)
 		sp->dec_restart = 0;
 	}
 
-	bp = (uint8_t*)tif->tif_rawcp;
+	bp = (unsigned char *)tif->tif_rawcp;
 #ifdef LZW_CHECKEOS
 	sp->dec_bitsleft += (((uint64_t)tif->tif_rawcc - sp->old_tif_rawcc) << 3);
 #endif
@@ -680,7 +686,7 @@ LZWDecodeCompat(TIFF* tif, uint8_t* op0, tmsize_t occ0, uint16_t s)
 					     tif->tif_row);
 				return (0);
 			}
-			*op++ = (uint8_t)code;
+			*op++ = (char)code;
 			occ--;
 			oldcodep = sp->dec_codetab + code;
 			continue;
@@ -749,14 +755,17 @@ LZWDecodeCompat(TIFF* tif, uint8_t* op0, tmsize_t occ0, uint16_t s)
 			len = codep->length;
 			tp = op + len;
 			do {
-				*--tp = codep->value;
+				int t;
+				--tp;
+				t = codep->value;
 				codep = codep->next;
+				*tp = (char)t;
 			} while (codep && tp > op);
 			assert(occ >= len);
 			op += len;
 			occ -= len;
 		} else {
-			*op++ = (uint8_t)code;
+			*op++ = (char)code;
 			occ--;
 		}
 	}
@@ -863,16 +872,16 @@ LZWPreEncode(TIFF* tif, uint16_t s)
 /*
  * Encode a chunk of pixels.
  *
- * Uses an open addressing double hashing (no chaining) on the
+ * Uses an open addressing double hashing (no chaining) on the 
  * prefix code/next character combination.  We do a variant of
  * Knuth's algorithm D (vol. 3, sec. 6.4) along with G. Knott's
  * relatively-prime secondary probe.  Here, the modular division
- * first probe is gives way to a faster exclusive-or manipulation.
+ * first probe is gives way to a faster exclusive-or manipulation. 
  * Also do block compression with an adaptive reset, whereby the
  * code table is cleared when the compression ratio decreases,
  * but after the table fills.  The variable-length output codes
  * are re-sized at this point, and a CODE_CLEAR is generated
- * for the decoder.
+ * for the decoder. 
  */
 static int
 LZWEncode(TIFF* tif, uint8_t* bp, tmsize_t cc, uint16_t s)
@@ -1083,10 +1092,9 @@ LZWPostEncode(TIFF* tif)
 	}
 	PutNextCode(op, CODE_EOI);
         /* Explicit 0xff masking to make icc -check=conversions happy */
-	if (nextbits > 0)
+	if (nextbits > 0) 
 		*op++ = (unsigned char)((nextdata << (8-nextbits))&0xff);
 	tif->tif_rawcc = (tmsize_t)(op - tif->tif_rawdata);
-	(void)outcount;
 	return (1);
 }
 
@@ -1154,7 +1162,7 @@ TIFFInitLZW(TIFF* tif, int scheme)
 	/*
 	 * Install codec methods.
 	 */
-	tif->tif_fixuptags = LZWFixupTags;
+	tif->tif_fixuptags = LZWFixupTags; 
 	tif->tif_setupdecode = LZWSetupDecode;
 	tif->tif_predecode = LZWPreDecode;
 	tif->tif_decoderow = LZWDecode;
@@ -1173,7 +1181,7 @@ TIFFInitLZW(TIFF* tif, int scheme)
 	(void) TIFFPredictorInit(tif);
 	return (1);
 bad:
-	TIFFErrorExt(tif->tif_clientdata, module,
+	TIFFErrorExt(tif->tif_clientdata, module, 
 		     "No space for LZW state block");
 	return (0);
 }

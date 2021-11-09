@@ -216,7 +216,6 @@ bool OGRCouchDBTableLayer::RunSpatialFilterQueryIfNecessary()
         pszSpatialFilter = "_design/ogr_spatial/_spatial/spatial";
     else if( bHasGeocouchUtilsMinimalSpatialView )
         pszSpatialFilter = "_design/geo/_spatial/minimal";
-    CPLAssert(pszSpatialFilter);
 
     CPLString osURI("/");
     osURI += osEscapedName;
@@ -1052,7 +1051,7 @@ int OGRCouchDBTableLayer::GetTotalFeatureCount()
     }
 
     if (nTotalRows >= static_cast<int>(nSpecialRows))
-        nTotalRows -= static_cast<int>(nSpecialRows);
+        nTotalRows -= nSpecialRows;
 
     json_object_put(poAnswerObj);
 

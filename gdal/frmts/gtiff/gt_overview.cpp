@@ -837,38 +837,6 @@ GTIFFBuildOverviewsEx( const char * pszFilename,
         GTIFFBuildOverviewMetadata( pszResampling, poBaseDS, osMetadata );
     }
 
-    if( poBaseDS != nullptr && poBaseDS->GetRasterCount() == nBands )
-    {
-        const bool bStandardColorInterp =
-            GTIFFIsStandardColorInterpretation(GDALDataset::ToHandle(poBaseDS),
-                                               static_cast<uint16_t>(nPhotometric),
-                                               nullptr);
-        if( !bStandardColorInterp )
-        {
-            if( osMetadata.size() >= strlen("</GDALMetadata>") &&
-                osMetadata.substr(osMetadata.size() - strlen("</GDALMetadata>")) == "</GDALMetadata>" )
-            {
-                osMetadata.resize(osMetadata.size() - strlen("</GDALMetadata>"));
-            }
-            else
-            {
-                CPLAssert(osMetadata.empty());
-                osMetadata = "<GDALMetadata>";
-            }
-            for( int i = 0; i < poBaseDS->GetRasterCount(); ++i )
-            {
-                const GDALColorInterp eInterp =
-                    poBaseDS->GetRasterBand(i + 1)->GetColorInterpretation();
-                osMetadata += CPLSPrintf(
-                    "<Item sample=\"%d\" name=\"COLORINTERP\" role=\"colorinterp\">",
-                    i);
-                osMetadata += GDALGetColorInterpretationName(eInterp);
-                osMetadata += "</Item>";
-            }
-            osMetadata += "</GDALMetadata>";
-        }
-    }
-
 /* -------------------------------------------------------------------- */
 /*      Loop, creating overviews.                                       */
 /* -------------------------------------------------------------------- */
@@ -1240,7 +1208,7 @@ GTIFFBuildOverviewsEx( const char * pszFilename,
 /*      Cleanup                                                         */
 /* -------------------------------------------------------------------- */
     if( eErr == CE_None )
-        hODS->FlushCache(true);
+        hODS->FlushCache();
     delete hODS;
 
     GTIFFSetInExternalOvr(false);

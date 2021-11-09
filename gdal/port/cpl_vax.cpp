@@ -54,9 +54,8 @@ void    CPLVaxToIEEEDouble(void * dbl)
 /*      Arrange the VAX double so that it may be accessed by a          */
 /*      double64_t structure, (two GUInt32s).                           */
 /* -------------------------------------------------------------------- */
-    {
-    const unsigned char *src =  static_cast<const unsigned char *>(dbl);
-    unsigned char dest[8];
+    unsigned char *src =  static_cast<unsigned char *>(dbl);
+    unsigned char *dest = reinterpret_cast<unsigned char *>(&dt);
 #ifdef CPL_LSB
     dest[2] = src[0];
     dest[3] = src[1];
@@ -76,8 +75,6 @@ void    CPLVaxToIEEEDouble(void * dbl)
     dest[7] = src[6];
     dest[6] = src[7];
 #endif
-    memcpy(&dt, dest, 8);
-    }
 
 /* -------------------------------------------------------------------- */
 /*      Save the sign of the double                                     */
@@ -114,8 +111,8 @@ void    CPLVaxToIEEEDouble(void * dbl)
 /* -------------------------------------------------------------------- */
 /*      Change the number to a byte swapped format                      */
 /* -------------------------------------------------------------------- */
-    const unsigned char* src = reinterpret_cast<const unsigned char *>(&dt);
-    unsigned char* dest = static_cast<unsigned char *>(dbl);
+    src = reinterpret_cast<unsigned char *>(&dt);
+    dest = static_cast<unsigned char *>(dbl);
 
     memcpy(dest + 0, src + 4, 4);
     memcpy(dest + 4, src + 0, 4);
@@ -135,8 +132,8 @@ void    CPLIEEEToVaxDouble(void * dbl)
 
 #ifdef CPL_LSB
     {
-    const GByte* src  = static_cast<const GByte *>(dbl);
-    GByte dest[8];
+    GByte* src  = static_cast<GByte *>(dbl);
+    GByte* dest = reinterpret_cast<GByte *>(&dt);
 
     dest[0] = src[4];
     dest[1] = src[5];
@@ -146,7 +143,6 @@ void    CPLIEEEToVaxDouble(void * dbl)
     dest[5] = src[1];
     dest[6] = src[2];
     dest[7] = src[3];
-    memcpy( &dt, dest, 8 );
     }
 #else
     memcpy( &dt, dbl, 8 );
@@ -167,7 +163,7 @@ void    CPLIEEEToVaxDouble(void * dbl)
 /* -------------------------------------------------------------------- */
     if (exponent > 255)
     {
-        GByte dest[8];
+        GByte* dest = static_cast<GByte *>(dbl);
 
         if (sign)
             dest[1] = 0xff;
@@ -181,7 +177,6 @@ void    CPLIEEEToVaxDouble(void * dbl)
         dest[5] = 0xff;
         dest[6] = 0xff;
         dest[7] = 0xff;
-        memcpy( dbl, dest, 8 );
 
         return;
     }
@@ -192,7 +187,16 @@ void    CPLIEEEToVaxDouble(void * dbl)
     else if ((exponent < 0 ) ||
              (exponent == 0 && sign == 0))
     {
-        memset( dbl, 0, 8 );
+        GByte* dest = static_cast<GByte *>(dbl);
+
+        dest[0] = 0x00;
+        dest[1] = 0x00;
+        dest[2] = 0x00;
+        dest[3] = 0x00;
+        dest[4] = 0x00;
+        dest[5] = 0x00;
+        dest[6] = 0x00;
+        dest[7] = 0x00;
 
         return;
     }
@@ -212,16 +216,15 @@ void    CPLIEEEToVaxDouble(void * dbl)
 /* -------------------------------------------------------------------- */
 /*      Convert the double back to VAX format                           */
 /* -------------------------------------------------------------------- */
-    const GByte* src = reinterpret_cast<GByte *>(&dt);
+    GByte* src = reinterpret_cast<GByte *>(&dt);
+    GByte* dest = static_cast<GByte *>(dbl);
 
 #ifdef CPL_LSB
-    GByte* dest = static_cast<GByte *>(dbl);
     memcpy(dest + 2, src + 0, 2);
     memcpy(dest + 0, src + 2, 2);
     memcpy(dest + 6, src + 4, 2);
     memcpy(dest + 4, src + 6, 2);
 #else
-    GByte dest[8];
     dest[1] = src[0];
     dest[0] = src[1];
     dest[3] = src[2];
@@ -230,7 +233,6 @@ void    CPLIEEEToVaxDouble(void * dbl)
     dest[4] = src[5];
     dest[7] = src[6];
     dest[6] = src[7];
-    memcpy( dbl, dest, 8 );
 #endif
 }
 

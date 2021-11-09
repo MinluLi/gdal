@@ -184,7 +184,6 @@ void RegisterOGRGMLAS()
 "</CreationOptionList>").c_str() );
 
     poDriver->SetMetadataItem( GDAL_DCAP_VIRTUALIO, "YES" );
-    poDriver->SetMetadataItem( GDAL_DCAP_MULTIPLE_VECTOR_LAYERS, "YES" );
 
     poDriver->pfnOpen = OGRGMLASDriverOpen;
     poDriver->pfnCreateCopy = OGRGMLASDriverCreateCopy;

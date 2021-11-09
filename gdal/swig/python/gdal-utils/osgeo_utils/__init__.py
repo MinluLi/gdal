@@ -1,6 +1,5 @@
-__package_name__ = 'gdal-utils'
-gdal_utils_version = (3, 3, 0, 7)
-__version__ = '.'.join(str(i) for i in gdal_utils_version)
+__pacakge_name__ = 'gdal-utils'
+__version__ = '3.3.0.6'
 __author__ = "Frank Warmerdam"
 __author_email__ = "warmerdam@pobox.com"
 __maintainer__ = "Idan Miara"

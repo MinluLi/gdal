@@ -2239,8 +2239,13 @@ void *CPLHTTPSetOptions(void *pcurl, const char* pszURL,
         // Do not allow /vsicurl/ access from /vsicurl because of GetCurlHandleFor()
         // e.g. "/vsicurl/,HEADER_FILE=/vsicurl/,url= " would cause use of
         // memory after free
-        if( !STARTS_WITH(pszHeaderFile, "/vsi") ||
-            STARTS_WITH(pszHeaderFile, "/vsimem/") )
+        if( strstr(pszHeaderFile, "/vsicurl/") == nullptr &&
+            strstr(pszHeaderFile, "/vsicurl?") == nullptr &&
+            strstr(pszHeaderFile, "/vsis3/") == nullptr &&
+            strstr(pszHeaderFile, "/vsigs/") == nullptr &&
+            strstr(pszHeaderFile, "/vsiaz/") == nullptr &&
+            strstr(pszHeaderFile, "/vsioss/") == nullptr &&
+            strstr(pszHeaderFile, "/vsiswift/") == nullptr )
         {
             fp = VSIFOpenL( pszHeaderFile, "rb" );
         }

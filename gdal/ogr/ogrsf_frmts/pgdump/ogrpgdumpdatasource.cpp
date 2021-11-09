@@ -600,10 +600,11 @@ OGRPGDumpDataSource::ICreateLayer( const char * pszLayerName,
     if( bHavePostGIS )
     {
         OGRGeomFieldDefn oTmp( pszGFldName, eType );
-        auto poGeomField = cpl::make_unique<OGRPGDumpGeomFieldDefn>(&oTmp);
+        OGRPGDumpGeomFieldDefn *poGeomField =
+            new OGRPGDumpGeomFieldDefn(&oTmp);
         poGeomField->nSRSId = nSRSId;
         poGeomField->GeometryTypeFlags = GeometryTypeFlags;
-        poLayer->GetLayerDefn()->AddGeomFieldDefn(std::move(poGeomField));
+        poLayer->GetLayerDefn()->AddGeomFieldDefn(poGeomField, FALSE);
     }
     else if( pszGFldName )
         poLayer->SetGeometryFieldName(pszGFldName);

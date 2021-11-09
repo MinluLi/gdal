@@ -47,7 +47,6 @@ static void Usage(const char* pszErrorMsg = nullptr)
         "                             [-group <group_spec>]* \n"
         "                             [-subset <subset_spec>]* \n"
         "                             [-scaleaxes <scaleaxes_spec>] \n"
-        "                             [-oo NAME=VALUE]*\n"
         "                             <src_filename> <dst_filename>\n" );
 
     if( pszErrorMsg != nullptr )
@@ -78,7 +77,6 @@ static void GDALMultiDimTranslateOptionsForBinaryFree(
     CPLFree(psOptionsForBinary->pszSource);
     CPLFree(psOptionsForBinary->pszDest);
     CPLFree(psOptionsForBinary->pszFormat);
-    CSLDestroy(psOptionsForBinary->papszOpenOptions);
     CPLFree(psOptionsForBinary);
 }
 
@@ -162,9 +160,7 @@ MAIN_START(argc, argv)
         hDstDS = GDALOpenEx(
             psOptionsForBinary->pszDest,
             GDAL_OF_RASTER | GDAL_OF_MULTIDIM_RASTER | GDAL_OF_VERBOSE_ERROR | GDAL_OF_UPDATE,
-            nullptr,
-            psOptionsForBinary->papszOpenOptions,
-            nullptr );
+            nullptr, nullptr, nullptr );
         CPLPopErrorHandler();
     }
 

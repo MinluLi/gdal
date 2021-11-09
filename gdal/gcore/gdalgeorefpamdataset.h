@@ -40,7 +40,7 @@ class CPL_DLL GDALGeorefPamDataset : public GDALPamDataset
   protected:
     bool        bGeoTransformValid;
     double      adfGeoTransform[6];
-    OGRSpatialReference m_oSRS{};
+    char        *pszProjection;
     int         nGCPCount;
     GDAL_GCP    *pasGCPList;
     char**      m_papszRPC;
@@ -52,9 +52,9 @@ class CPL_DLL GDALGeorefPamDataset : public GDALPamDataset
     int         m_nRPCGeorefSrcIndex;
     int         m_nPixelIsPointGeorefSrcIndex;
 
-    int         GetPAMGeorefSrcIndex() const;
-    mutable bool        m_bGotPAMGeorefSrcIndex;
-    mutable int         m_nPAMGeorefSrcIndex;
+    int         GetPAMGeorefSrcIndex();
+    bool        m_bGotPAMGeorefSrcIndex;
+    int         m_nPAMGeorefSrcIndex;
 
     bool        m_bPAMLoaded;
     char**      m_papszMainMD;
@@ -69,10 +69,16 @@ class CPL_DLL GDALGeorefPamDataset : public GDALPamDataset
 
     CPLErr          GetGeoTransform( double * ) override;
 
-    const OGRSpatialReference* GetSpatialRef() const override ;
+    const char *_GetProjectionRef(void) override;
+    const OGRSpatialReference* GetSpatialRef() const override {
+        return GetSpatialRefFromOldGetProjectionRef();
+    }
 
     int             GetGCPCount() override;
-    const OGRSpatialReference* GetGCPSpatialRef() const override;
+    const char     *_GetGCPProjection() override;
+    const OGRSpatialReference* GetGCPSpatialRef() const override {
+        return GetGCPSpatialRefFromOldGetGCPProjection();
+    }
     const GDAL_GCP *GetGCPs() override;
 
     char      **GetMetadata( const char * pszDomain = "" ) override;

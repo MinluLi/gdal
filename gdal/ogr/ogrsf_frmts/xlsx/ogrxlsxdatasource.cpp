@@ -94,7 +94,7 @@ void OGRXLSXLayer::SetUpdated( bool bUpdatedIn )
 
 OGRErr OGRXLSXLayer::SyncToDisk()
 {
-    poDS->FlushCache(false);
+    poDS->FlushCache();
     return OGRERR_NONE;
 }
 
@@ -227,7 +227,7 @@ OGRXLSXDataSource::OGRXLSXDataSource() :
 OGRXLSXDataSource::~OGRXLSXDataSource()
 
 {
-    OGRXLSXDataSource::FlushCache(true);
+    OGRXLSXDataSource::FlushCache();
 
     CPLFree( pszName );
 
@@ -2285,7 +2285,7 @@ static bool WriteDotRels(const char* pszName)
 /*                            FlushCache()                              */
 /************************************************************************/
 
-void OGRXLSXDataSource::FlushCache(bool /* bAtClosing */)
+void OGRXLSXDataSource::FlushCache()
 {
     if( !bUpdated )
         return;

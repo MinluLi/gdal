@@ -108,7 +108,6 @@ void OGRAVCBinLayer::ResetReading()
 
     bNeedReset = false;
     nNextFID = 1;
-    m_bEOF = false;
 
     if( hTable != nullptr )
     {
@@ -209,9 +208,6 @@ OGRFeature *OGRAVCBinLayer::GetFeature( GIntBig nFID )
 OGRFeature *OGRAVCBinLayer::GetNextFeature()
 
 {
-    if ( m_bEOF )
-        return nullptr;
-
     if( bNeedReset )
         ResetReading();
 
@@ -235,7 +231,7 @@ OGRFeature *OGRAVCBinLayer::GetNextFeature()
     }
 
     if( poFeature == nullptr )
-        m_bEOF = true;
+        ResetReading();
 
     return poFeature;
 }

@@ -102,6 +102,7 @@ struct WriteFuncStruct
     char*           pBuffer = nullptr;
     size_t          nSize = 0;
     bool            bIsHTTP = false;
+    bool            bIsInHeader = false;
     bool            bMultiRange = false;
     vsi_l_offset    nStartOffset = 0;
     vsi_l_offset    nEndOffset = 0;
@@ -109,7 +110,7 @@ struct WriteFuncStruct
     vsi_l_offset    nContentLength = 0;
     bool            bFoundContentRange = false;
     bool            bError = false;
-    bool            bInterruptDownload = false;
+    bool            bDownloadHeaderOnly = false;
     bool            bDetectRangeDownloadingError = false;
     GIntBig         nTimestampDate = 0; // Corresponds to Date: header field
 
@@ -151,9 +152,9 @@ struct PutData
 
 class VSICurlHandle;
 
-class VSICurlFilesystemHandlerBase : public VSIFilesystemHandler
+class VSICurlFilesystemHandler : public VSIFilesystemHandler
 {
-    CPL_DISALLOW_COPY_ASSIGN(VSICurlFilesystemHandlerBase)
+    CPL_DISALLOW_COPY_ASSIGN(VSICurlFilesystemHandler)
 
     struct FilenameOffsetPair
     {
@@ -231,10 +232,9 @@ protected:
 
     static bool IsAllowedFilename( const char* pszFilename );
 
-    VSICurlFilesystemHandlerBase();
-
 public:
-    ~VSICurlFilesystemHandlerBase() override;
+    VSICurlFilesystemHandler();
+    ~VSICurlFilesystemHandler() override;
 
     VSIVirtualHandle *Open( const char *pszFilename,
                             const char *pszAccess,
@@ -266,9 +266,9 @@ public:
                             bool* pbGotFileList );
     void InvalidateDirContent( const char *pszDirname );
 
-    virtual const char* GetDebugKey() const = 0;
+    virtual const char* GetDebugKey() const { return "VSICURL"; }
 
-    virtual CPLString GetFSPrefix() const = 0;
+    virtual CPLString GetFSPrefix() const { return "/vsicurl/"; }
     virtual bool      AllowCachedDataFor(const char* pszFilename);
 
     std::shared_ptr<std::string> GetRegion( const char* pszURL,
@@ -298,23 +298,6 @@ public:
     bool ExistsInCacheDirList( const CPLString& osDirname, bool *pbIsDir );
 
     virtual CPLString GetURLFromFilename( const CPLString& osFilename );
-
-    std::string GetStreamingFilename(const std::string& osFilename) const override = 0;
-};
-
-
-class VSICurlFilesystemHandler: public VSICurlFilesystemHandlerBase
-{
-    CPL_DISALLOW_COPY_ASSIGN(VSICurlFilesystemHandler)
-
-public:
-    VSICurlFilesystemHandler() = default;
-
-    const char* GetDebugKey() const override { return "VSICURL"; }
-
-    CPLString GetFSPrefix() const override { return "/vsicurl/"; }
-
-    std::string GetStreamingFilename(const std::string& osFilename) const override;
 };
 
 /************************************************************************/
@@ -326,7 +309,7 @@ class VSICurlHandle : public VSIVirtualHandle
     CPL_DISALLOW_COPY_ASSIGN(VSICurlHandle)
 
   protected:
-    VSICurlFilesystemHandlerBase* poFS = nullptr;
+    VSICurlFilesystemHandler* poFS = nullptr;
 
     bool            m_bCached = true;
 
@@ -365,7 +348,6 @@ class VSICurlHandle : public VSIVirtualHandle
     virtual std::string DownloadRegion(vsi_l_offset startOffset, int nBlocks);
 
     bool                m_bUseHead = false;
-    bool                m_bUseRedirectURLIfNoQueryStringParams = false;
 
     int          ReadMultiRangeSingleGet( int nRanges, void ** ppData,
                                          const vsi_l_offset* panOffsets,
@@ -386,7 +368,7 @@ class VSICurlHandle : public VSIVirtualHandle
 
   public:
 
-    VSICurlHandle( VSICurlFilesystemHandlerBase* poFS,
+    VSICurlHandle( VSICurlFilesystemHandler* poFS,
                    const char* pszFilename,
                    const char* pszURLIn = nullptr );
     ~VSICurlHandle() override;
@@ -423,7 +405,7 @@ class VSICurlHandle : public VSIVirtualHandle
 /*                        IVSIS3LikeFSHandler                           */
 /************************************************************************/
 
-class IVSIS3LikeFSHandler: public VSICurlFilesystemHandlerBase
+class IVSIS3LikeFSHandler: public VSICurlFilesystemHandler
 {
     CPL_DISALLOW_COPY_ASSIGN(IVSIS3LikeFSHandler)
 
@@ -446,8 +428,6 @@ class IVSIS3LikeFSHandler: public VSICurlFilesystemHandlerBase
     virtual int      CopyObject( const char *oldpath, const char *newpath,
                                  CSLConstList papszMetadata );
 
-    int RmdirRecursiveInternal( const char* pszDirname, int nBatchSize);
-
     IVSIS3LikeFSHandler() = default;
 
   public:
@@ -462,6 +442,8 @@ class IVSIS3LikeFSHandler: public VSICurlFilesystemHandlerBase
 
     virtual void UpdateMapFromHandle(IVSIS3LikeHandleHelper*) {}
     virtual void UpdateHandleFromMap( IVSIS3LikeHandleHelper * ) {}
+
+    virtual CPLString GetStreamingPath( const char* pszFilename ) const;
 
     bool Sync( const char* pszSource, const char* pszTarget,
                 const char* const * papszOptions,
@@ -502,8 +484,6 @@ class IVSIS3LikeFSHandler: public VSICurlFilesystemHandlerBase
                         IVSIS3LikeHandleHelper *poS3HandleHelper,
                         int nMaxRetry,
                         double dfRetryDelay);
-
-    bool    AbortPendingUploads(const char* pszFilename) override;
 };
 
 /************************************************************************/
@@ -529,7 +509,7 @@ class IVSIS3LikeHandle:  public VSICurlHandle
         }
 
   public:
-    IVSIS3LikeHandle( VSICurlFilesystemHandlerBase* poFSIn,
+    IVSIS3LikeHandle( VSICurlFilesystemHandler* poFSIn,
                       const char* pszFilename,
                       const char* pszURLIn ) :
         VSICurlHandle(poFSIn, pszFilename, pszURLIn) {}
@@ -611,7 +591,7 @@ class VSIAppendWriteHandle : public VSIVirtualHandle
 
     protected:
 
-    VSICurlFilesystemHandlerBase* m_poFS = nullptr;
+    VSICurlFilesystemHandler* m_poFS = nullptr;
     CPLString           m_osFSPrefix{};
     CPLString           m_osFilename{};
 
@@ -628,7 +608,7 @@ class VSIAppendWriteHandle : public VSIVirtualHandle
     virtual bool        Send(bool bIsLastBlock) = 0;
 
     public:
-        VSIAppendWriteHandle( VSICurlFilesystemHandlerBase* poFS,
+        VSIAppendWriteHandle( VSICurlFilesystemHandler* poFS,
                               const char* pszFSPrefix,
                               const char* pszFilename,
                               int nChunkSize );
@@ -658,7 +638,7 @@ struct CurlRequestHelper
     ~CurlRequestHelper();
     long perform(CURL* hCurlHandle,
                  struct curl_slist* headers, // ownership transferred
-                 VSICurlFilesystemHandlerBase *poFS,
+                 VSICurlFilesystemHandler *poFS,
                  IVSIS3LikeHandleHelper *poS3HandleHelper);
 };
 
@@ -721,8 +701,6 @@ class NetworkStatisticsLogger
         void AsJSON(CPLJSONObject& oJSON) const;
     };
 
-    // Workaround bug in Coverity Scan
-    // coverity[generated_default_constructor_used_in_field_initializer]
     Stats m_stats{};
     std::map<GIntBig, std::vector<ContextPathItem>> m_mapThreadIdToContextPath{};
 

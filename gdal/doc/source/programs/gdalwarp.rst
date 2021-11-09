@@ -16,8 +16,7 @@ Synopsis
 .. code-block::
 
     gdalwarp [--help-general] [--formats]
-        [-s_srs srs_def] [-t_srs srs_def] [-ct string] [-to "NAME=VALUE"]* [-vshift | -novshift]
-        [[-s_coord_epoch epoch] | [-t_coord_epoch epoch]]
+        [-s_srs srs_def] [-t_srs srs_def] [-ct string] [-to "NAME=VALUE"]* [-novshiftgrid]
         [-order n | -tps | -rpc | -geoloc] [-et err_threshold]
         [-refine_gcps tolerance [minimum_gcps]]
         [-te xmin ymin xmax ymax] [-te_srs srs_def]
@@ -50,17 +49,6 @@ with control information.
 
     .. include:: options/srs_def_gdalwarp.rst
 
-.. option:: -s_coord_epoch <epoch>
-
-    .. versionadded:: 3.4
-
-    Assign a coordinate epoch, linked with the source SRS. Useful when the
-    source SRS is a dynamic CRS. Only taken into account if :option:`-s_srs`
-    is used.
-
-    Currently :option:`-s_coord_epoch` and :option:`-t_coord_epoch` are
-    mutually exclusive, due to lack of support for transformations between two dynamic CRS.
-
 .. option:: -t_srs <srs_def>
 
     Set target spatial reference.
@@ -70,17 +58,6 @@ with control information.
     or as overridden by the user with :option:`-s_srs`
 
     .. include:: options/srs_def_gdalwarp.rst
-
-.. option:: -t_coord_epoch <epoch>
-
-    .. versionadded:: 3.4
-
-    Assign a coordinate epoch, linked with the target SRS. Useful when the
-    target SRS is a dynamic CRS. Only taken into account if :option:`-t_srs`
-    is used.
-
-    Currently :option:`-s_coord_epoch` and :option:`-t_coord_epoch` are
-    mutually exclusive, due to lack of support for transformations between two dynamic CRS.
 
 .. option:: -ct <string>
 
@@ -96,22 +73,13 @@ with control information.
 
     Set a transformer option suitable to pass to :cpp:func:`GDALCreateGenImgProjTransformer2`.
 
-.. option:: -vshift
+.. option:: -novshiftgrid
 
-    Force the use of vertical shift. This option is generally not necessary,
-    except when using an explicit coordinate transformation (:option:`-ct`),
-    and not specifying an explicit source and target SRS.
+    Disable the use of vertical
+    datum shift grids when one of the source or target SRS has an explicit vertical
+    datum, and the input dataset is a single band dataset.
 
-    .. versionadded:: 3.4
-
-.. option:: -novshift
-
-    Disable the use of vertical shift when one of the source or target SRS has
-    an explicit vertical datum, and the input dataset is a single band dataset.
-
-    .. note:: this option was named ``-novshiftgrid`` in GDAL 2.2 to 3.3.
-
-    .. versionadded:: 3.4
+    .. versionadded:: 2.2
 
 .. option:: -order <n>
 
@@ -238,19 +206,11 @@ with control information.
 
 .. option:: -srcnodata <value [value...]>
 
-    Set nodata masking values for input bands (different values can be supplied
-    for each band). If more than one value is supplied all values should be quoted
-    to keep them together as a single operating system argument.
-    Masked values will not be used in interpolation.
-    Use a value of ``None`` to ignore intrinsic nodata settings on the source dataset.
-
-    When this option is set to a non-``None`` value, it causes the ``UNIFIED_SRC_NODATA``
-    warping option (see :cpp:member:`GDALWarpOptions::papszWarpOptions`) to be
-    set to ``YES``, if it is not explicitly set.
-
-    If ``-srcnodata`` is not explicitly set, but the source dataset has nodata values,
-    they will be taken into account, with ``UNIFIED_SRC_NODATA`` at ``PARTIAL``
-    by default.
+    Set nodata masking
+    values for input bands (different values can be supplied for each band).  If
+    more than one value is supplied all values should be quoted to keep them
+    together as a single operating system argument.  Masked values will not be
+    used in interpolation.  Use a value of ``None`` to ignore intrinsic nodata settings on the source dataset.
 
 .. option:: -dstnodata <value [value...]>
 
@@ -377,6 +337,10 @@ layer containing the cutline features has no explicit SRS, the cutline
 features must be in the SRS of the destination file. When writing to a
 not yet existing target dataset, its extent will be the one of the
 original raster unless -te or -crop_to_cutline are specified.
+
+When doing vertical shift adjustments, the transformer option -to ERROR_ON_MISSING_VERT_SHIFT=YES
+can be used to error out as soon as a vertical shift value is missing (instead of
+0 being used).
 
 Starting with GDAL 3.1, it is possible to use as output format a driver that
 only supports the CreateCopy operation. This may internally imply creation of

@@ -194,7 +194,6 @@ void OGRODBCLayer::ResetReading()
 
 {
     iNextShapeId = 0;
-    m_bEOF = false;
 }
 
 /************************************************************************/
@@ -227,7 +226,7 @@ OGRFeature *OGRODBCLayer::GetNextFeature()
 OGRFeature *OGRODBCLayer::GetNextRawFeature()
 
 {
-    if( m_bEOF || GetStatement() == nullptr )
+    if( GetStatement() == nullptr )
         return nullptr;
 
 /* -------------------------------------------------------------------- */
@@ -237,7 +236,6 @@ OGRFeature *OGRODBCLayer::GetNextRawFeature()
     {
         delete poStmt;
         poStmt = nullptr;
-        m_bEOF = true;
         return nullptr;
     }
 

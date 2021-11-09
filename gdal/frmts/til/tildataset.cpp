@@ -33,6 +33,7 @@
 #include "gdal_mdreader.h"
 #include "gdal_frmts.h"
 #include "gdal_pam.h"
+#include "gdal_proxy.h"
 #include "ogr_spatialref.h"
 #include "vrtdataset.h"
 
@@ -47,7 +48,7 @@ CPL_CVSID("$Id$")
 class TILDataset final : public GDALPamDataset
 {
     VRTDataset *poVRTDS;
-    std::vector<std::string> m_aosFilenames;
+    std::vector<GDALDataset *> apoTileDS;
 
     char **papszMetadataFiles;
 
@@ -177,6 +178,12 @@ int TILDataset::CloseDependentDatasets()
         bHasDroppedRef = TRUE;
         delete poVRTDS;
         poVRTDS = nullptr;
+    }
+
+    while( !apoTileDS.empty() )
+    {
+        GDALClose( (GDALDatasetH) apoTileDS.back() );
+        apoTileDS.pop_back();
     }
 
     return bHasDroppedRef;
@@ -389,7 +396,6 @@ GDALDataset *TILDataset::Open( GDALOpenInfo * poOpenInfo )
         if( pszFilename[strlen(pszFilename)-1] == '"' )
             const_cast<char *>( pszFilename )[strlen(pszFilename)-1] = '\0';
         osFilename = CPLFormFilename(osDirname, pszFilename, nullptr);
-        poDS->m_aosFilenames.push_back(osFilename);
 
         osKey.Printf( "TILE_%d.ULColOffset", iTile );
         const int nULX = atoi(CSLFetchNameValueDef(papszTIL, osKey, "0"));
@@ -403,13 +409,26 @@ GDALDataset *TILDataset::Open( GDALOpenInfo * poOpenInfo )
         osKey.Printf( "TILE_%d.LRRowOffset", iTile );
         const int nLRY = atoi(CSLFetchNameValueDef(papszTIL, osKey, "0"));
 
+        GDALDataset *poTileDS =
+            new GDALProxyPoolDataset( osFilename,
+                                      nLRX - nULX + 1, nLRY - nULY + 1 );
+        if( poTileDS == nullptr )
+            continue;
+
+        poDS->apoTileDS.push_back( poTileDS );
+
         for( int iBand = 1; iBand <= nBandCount; iBand++ )
         {
+            reinterpret_cast<GDALProxyPoolDataset *>( poTileDS )->
+                AddSrcBandDescription( eDT, nLRX - nULX + 1, 1 );
+
+            GDALRasterBand *poSrcBand = poTileDS->GetRasterBand(iBand);
+
             VRTSourcedRasterBand *poVRTBand =
                 reinterpret_cast<VRTSourcedRasterBand *>(
                     poDS->poVRTDS->GetRasterBand(iBand) );
 
-            poVRTBand->AddSimpleSource( osFilename, iBand,
+            poVRTBand->AddSimpleSource( poSrcBand,
                                         0, 0,
                                         nLRX - nULX + 1, nLRY - nULY + 1,
                                         nULX, nULY,
@@ -440,8 +459,9 @@ char **TILDataset::GetFileList()
 {
     char **papszFileList = GDALPamDataset::GetFileList();
 
-    for( const auto& osFilename: m_aosFilenames )
-        papszFileList = CSLAddString( papszFileList, osFilename.c_str());
+    for( unsigned int i = 0; i < apoTileDS.size(); i++ )
+        papszFileList = CSLAddString( papszFileList,
+                                      apoTileDS[i]->GetDescription() );
 
     if(nullptr != papszMetadataFiles)
     {

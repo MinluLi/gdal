@@ -105,7 +105,7 @@ void OGRODSLayer::SetUpdated(bool bUpdatedIn)
 
 OGRErr OGRODSLayer::SyncToDisk()
 {
-    poDS->FlushCache(false);
+    poDS->FlushCache();
     return OGRERR_NONE;
 }
 
@@ -251,7 +251,7 @@ OGRODSDataSource::OGRODSDataSource() :
 OGRODSDataSource::~OGRODSDataSource()
 
 {
-    OGRODSDataSource::FlushCache(true);
+    OGRODSDataSource::FlushCache();
 
     CPLFree( pszName );
 
@@ -701,35 +701,6 @@ void OGRODSDataSource::startElementTable(const char *pszNameIn,
 }
 
 /************************************************************************/
-/*                      ReserveAndLimitFieldCount()                     */
-/************************************************************************/
-
-static void ReserveAndLimitFieldCount(OGRLayer* poLayer,
-                                      std::vector<std::string>& aosValues)
-{
-    int nMaxCols = atoi(
-        CPLGetConfigOption("OGR_ODS_MAX_FIELD_COUNT", "2000"));
-    // Arbitrary limit to please Coverity Scan that would complain about
-    // tainted_data to resize aosValues.
-    constexpr int MAXCOLS_LIMIT = 1000000;
-    if( nMaxCols > MAXCOLS_LIMIT )
-        nMaxCols = MAXCOLS_LIMIT;
-    if( static_cast<int>(aosValues.size()) > nMaxCols )
-    {
-        CPLError(CE_Warning, CPLE_AppDefined,
-                 "%d columns detected. Limiting to %d. "
-                 "Set OGR_ODS_MAX_FIELD_COUNT configuration option "
-                 "to allow more fields.",
-                 static_cast<int>(aosValues.size()),
-                 nMaxCols);
-        aosValues.resize(nMaxCols);
-    }
-
-    poLayer->GetLayerDefn()->ReserveSpaceForFields(
-        static_cast<int>(aosValues.size()));
-}
-
-/************************************************************************/
 /*                           endElementTable()                          */
 /************************************************************************/
 
@@ -751,8 +722,6 @@ void OGRODSDataSource::endElementTable( CPL_UNUSED /* in non-DEBUG*/ const char 
         else if (nCurLine == 1)
         {
             /* If we have only one single line in the sheet */
-
-            ReserveAndLimitFieldCount(poCurLayer, apoFirstLineValues);
 
             for( size_t i = 0; i < apoFirstLineValues.size(); i++ )
             {
@@ -850,9 +819,8 @@ void OGRODSDataSource::FillRepeatedCells(bool wasLastCell)
         return;
     }
 
-    // Use 16 as minimum cost for each allocation.
     const size_t nCellMemSize =
-        std::max<size_t>(16, (!osValue.empty()) ? osValue.size() : osFormula.size());
+        (!osValue.empty()) ? osValue.size() : osFormula.size();
     if( nCellMemSize > static_cast<size_t>(10 * 1024 * 1024) /
             (std::max(nCellsRepeated, 1) * nRowsRepeated) )
     {
@@ -862,20 +830,6 @@ void OGRODSDataSource::FillRepeatedCells(bool wasLastCell)
         nCellsRepeated = 0;
         return;
     }
-
-    m_nAccRepeatedMemory +=
-        nCellMemSize * std::max(nCellsRepeated, 1) * nRowsRepeated;
-    if( m_nAccRepeatedMemory > static_cast<size_t>(10 * 1024 * 1024) )
-    {
-        CPLError(CE_Failure, CPLE_NotSupported,
-                 "Too much accumulated memory for row/cell repetition. "
-                 "Parsing stopped");
-        bEndTableParsing = true;
-        nCellsRepeated = 0;
-        bStopParsing = true;
-        return;
-    }
-
     for(int i = 0; i < nCellsRepeated; i++)
     {
         if( !osValue.empty() )
@@ -1027,8 +981,6 @@ void OGRODSDataSource::endElementRow( CPL_UNUSED /*in non-DEBUG*/ const char * p
 
             poCurLayer->SetHasHeaderLine(bFirstLineIsHeaders);
 
-            ReserveAndLimitFieldCount(poCurLayer, apoFirstLineValues);
-
             if (bFirstLineIsHeaders)
             {
                 for(i = 0; i < apoFirstLineValues.size(); i++)
@@ -1093,9 +1045,6 @@ void OGRODSDataSource::endElementRow( CPL_UNUSED /*in non-DEBUG*/ const char * p
                     bEndTableParsing = true;
                     return;
                 }
-
-                ReserveAndLimitFieldCount(poCurLayer, apoCurLineValues);
-
                 for( i = static_cast<size_t>(
                          poCurLayer->GetLayerDefn()->GetFieldCount());
                      i < apoCurLineValues.size();
@@ -1172,7 +1121,7 @@ void OGRODSDataSource::endElementRow( CPL_UNUSED /*in non-DEBUG*/ const char * p
                         }
                         else if( eFieldType == OFTInteger &&
                                  poFieldDefn->GetSubType() == OFSTBoolean &&
-                                 eValType == OFTInteger &&
+                                 eValType == OFTInteger && 
                                  eValSubType != OFSTBoolean )
                         {
                             poFieldDefn->SetSubType(OFSTNone);
@@ -1853,7 +1802,7 @@ static void WriteLayer(VSILFILE* fp, OGRLayer* poLayer)
 /*                            FlushCache()                              */
 /************************************************************************/
 
-void OGRODSDataSource::FlushCache(bool /* bAtClosing */)
+void OGRODSDataSource::FlushCache()
 {
     if (!bUpdated)
         return;

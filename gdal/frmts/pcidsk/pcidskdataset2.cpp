@@ -829,7 +829,7 @@ PCIDSK2Dataset::PCIDSK2Dataset() :
 #endif
 PCIDSK2Dataset::~PCIDSK2Dataset()
 {
-    PCIDSK2Dataset::FlushCache(true);
+    PCIDSK2Dataset::FlushCache();
 
     while( !apoLayers.empty() )
     {
@@ -1037,10 +1037,10 @@ void PCIDSK2Dataset::ProcessRPC()
 /*                             FlushCache()                             */
 /************************************************************************/
 
-void PCIDSK2Dataset::FlushCache(bool bAtClosing)
+void PCIDSK2Dataset::FlushCache()
 
 {
-    GDALPamDataset::FlushCache(bAtClosing);
+    GDALPamDataset::FlushCache();
 
     if( poFile )
     {
@@ -1761,13 +1761,11 @@ GDALDataset *PCIDSK2Dataset::Open( GDALOpenInfo * poOpenInfo )
 /*      Try opening the file.                                           */
 /* -------------------------------------------------------------------- */
     PCIDSKFile *poFile = nullptr;
-    const int nMaxBandCount = atoi(CPLGetConfigOption("GDAL_MAX_BAND_COUNT", "65536"));
     try {
         poFile =
             PCIDSK::Open( poOpenInfo->pszFilename,
                           poOpenInfo->eAccess == GA_ReadOnly ? "r" : "r+",
-                          PCIDSK2GetInterfaces(),
-                          nMaxBandCount );
+                          PCIDSK2GetInterfaces() );
         if( poFile == nullptr )
         {
             CPLError( CE_Failure, CPLE_OpenFailed,

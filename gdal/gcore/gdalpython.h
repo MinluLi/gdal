@@ -30,7 +30,6 @@
 #define GDALPYTHON_H_INCLUDED
 
 #include "cpl_string.h"
-#include <cwchar>
 
 bool GDALPythonInitialize();
 
@@ -46,8 +45,7 @@ namespace GDALPy
     typedef size_t Py_ssize_t;
 
     extern int (*Py_IsInitialized)(void);
-    extern void (*Py_SetProgramName)(const wchar_t*);
-    extern void (*Py_SetPythonHome)(const wchar_t*);
+    extern void (*Py_SetProgramName)(const char*);
     extern PyObject* (*PyObject_Type)(PyObject*);
     extern int (*PyObject_IsInstance)(PyObject*, PyObject*);
     extern PyObject* (*PyTuple_New)(size_t);

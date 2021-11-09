@@ -126,7 +126,7 @@ class GDALOverviewBand final: public GDALProxyRasterBand
     GDALOverviewBand( GDALOverviewDataset* poDS, int nBand );
     ~GDALOverviewBand() override;
 
-    CPLErr FlushCache(bool bAtClosing) override;
+    CPLErr FlushCache() override;
 
     int GetOverviewCount() override;
     GDALRasterBand *GetOverview( int ) override;
@@ -254,7 +254,7 @@ GDALOverviewDataset::GDALOverviewDataset( GDALDataset* poMainDSIn,
 
 GDALOverviewDataset::~GDALOverviewDataset()
 {
-    GDALOverviewDataset::FlushCache(true);
+    GDALOverviewDataset::FlushCache();
 
     GDALOverviewDataset::CloseDependentDatasets();
 
@@ -603,17 +603,17 @@ GDALOverviewBand::GDALOverviewBand( GDALOverviewDataset* poDSIn, int nBandIn )
 
 GDALOverviewBand::~GDALOverviewBand()
 {
-    GDALOverviewBand::FlushCache(true);
+    GDALOverviewBand::FlushCache();
 }
 
 /************************************************************************/
 /*                              FlushCache()                            */
 /************************************************************************/
 
-CPLErr GDALOverviewBand::FlushCache(bool bAtClosing)
+CPLErr GDALOverviewBand::FlushCache()
 {
     if( poUnderlyingBand )
-        return poUnderlyingBand->FlushCache(bAtClosing);
+        return poUnderlyingBand->FlushCache();
     return CE_None;
 }
 

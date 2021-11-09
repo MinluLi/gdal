@@ -101,16 +101,18 @@ ZSTDPreDecode(TIFF* tif, uint16_t s)
         if( (sp->state & LSTATE_INIT_DECODE) == 0 )
             tif->tif_setupdecode(tif);
 
-        if( sp->dstream == NULL )
+        if( sp->dstream )
         {
-            sp->dstream = ZSTD_createDStream();
-            if( sp->dstream == NULL ) {
-                TIFFErrorExt(tif->tif_clientdata, module,
-                             "Cannot allocate decompression stream");
-                return 0;
-            }
+            ZSTD_freeDStream(sp->dstream);
+            sp->dstream = NULL;
         }
 
+        sp->dstream = ZSTD_createDStream();
+        if( sp->dstream == NULL ) {
+            TIFFErrorExt(tif->tif_clientdata, module,
+                         "Cannot allocate decompression stream");
+            return 0;
+        }
         zstd_ret = ZSTD_initDStream(sp->dstream);
         if( ZSTD_isError(zstd_ret) ) {
             TIFFErrorExt(tif->tif_clientdata, module,
@@ -201,13 +203,15 @@ ZSTDPreEncode(TIFF* tif, uint16_t s)
         if( sp->state != LSTATE_INIT_ENCODE )
             tif->tif_setupencode(tif);
 
-        if (sp->cstream == NULL) {
-            sp->cstream = ZSTD_createCStream();
-            if( sp->cstream == NULL ) {
-                TIFFErrorExt(tif->tif_clientdata, module,
-                             "Cannot allocate compression stream");
-                return 0;
-            }
+        if (sp->cstream) {
+            ZSTD_freeCStream(sp->cstream);
+            sp->cstream = NULL;
+        }
+        sp->cstream = ZSTD_createCStream();
+        if( sp->cstream == NULL ) {
+            TIFFErrorExt(tif->tif_clientdata, module,
+                         "Cannot allocate compression stream");
+            return 0;
         }
 
         zstd_ret = ZSTD_initCStream(sp->cstream, sp->compression_level);

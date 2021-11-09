@@ -8,7 +8,7 @@ ifeq ($(HAVE_EXPAT),yes)
 CPPFLAGS +=   -DHAVE_EXPAT
 endif
 
-CPPFLAGS	:=	-iquote .. -iquote ../..  $(EXPAT_INCLUDE) $(CPPFLAGS)
+CPPFLAGS	:=	-I.. -I../..  $(EXPAT_INCLUDE) $(CPPFLAGS)
 
 default:	$(O_OBJ:.o=.$(OBJ_EXT))
 

@@ -409,7 +409,7 @@ const char *OGRWktReadToken( const char * pszInput, char * pszToken )
 /* -------------------------------------------------------------------- */
 /*      Swallow pre-white space.                                        */
 /* -------------------------------------------------------------------- */
-    while( *pszInput == ' ' || *pszInput == '\t' || *pszInput == '\n' || *pszInput == '\r' )
+    while( *pszInput == ' ' || *pszInput == '\t' )
         ++pszInput;
 
 /* -------------------------------------------------------------------- */
@@ -448,7 +448,7 @@ const char *OGRWktReadToken( const char * pszInput, char * pszToken )
 /* -------------------------------------------------------------------- */
 /*      Eat any trailing white space.                                   */
 /* -------------------------------------------------------------------- */
-    while( *pszInput == ' ' || *pszInput == '\t' || *pszInput == '\n' || *pszInput == '\r' )
+    while( *pszInput == ' ' || *pszInput == '\t' )
         ++pszInput;
 
     return pszInput;
@@ -1563,7 +1563,7 @@ double OGRFastAtof(const char* pszStr)
  * @return OGRERR_NONE if panPermutation is a permutation of [0, nSize - 1].
  * @since OGR 1.9.0
  */
-OGRErr OGRCheckPermutation( const int* panPermutation, int nSize )
+OGRErr OGRCheckPermutation( int* panPermutation, int nSize )
 {
     OGRErr eErr = OGRERR_NONE;
     int* panCheck = static_cast<int *>(CPLCalloc(nSize, sizeof(int)));

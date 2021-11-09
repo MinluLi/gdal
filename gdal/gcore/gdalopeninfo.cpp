@@ -213,13 +213,12 @@ retry:  // TODO(schwehr): Stop using goto.
 
 #endif  // HAVE_READLINK
 
-#if !(defined(_WIN32) || defined(__linux__) || defined(__ANDROID__) || (defined(__MACH__) && defined(__APPLE__)))
-    /* On BSDs, fread() on a directory returns non zero, so we have to */
-    /* do a stat() before to check the nature of pszFilename. */
+#ifdef __FreeBSD__
+    /* FreeBSD 8 oddity: fopen(a_directory, "rb") returns non NULL */
     bool bPotentialDirectory = (eAccess == GA_ReadOnly);
 #else
     bool bPotentialDirectory = false;
-#endif
+#endif  // __FreeBDS__
 
     /* Check if the filename might be a directory of a special virtual file system */
     if( STARTS_WITH(pszFilename, "/vsizip/") ||
@@ -351,7 +350,7 @@ retry:  // TODO(schwehr): Stop using goto.
         {
             bHasGotSiblingFiles = true;
         }
-        else
+        else 
         {
             const char* pszOptionVal =
                 CPLGetConfigOption( "GDAL_DISABLE_READDIR_ON_OPEN", "NO" );

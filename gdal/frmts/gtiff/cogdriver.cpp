@@ -40,8 +40,6 @@
 #include <memory>
 #include <vector>
 
-static bool gbHasLZW = false;
-
 extern "C" CPL_DLL void GDALRegister_COG();
 
 /************************************************************************/
@@ -166,7 +164,7 @@ bool COGGetWarpingCharacteristics(GDALDataset* poSrcDS,
 
         // "Normalize" SRS as AUTH:CODE
         OGRSpatialReference oTargetSRS;
-        oTargetSRS.SetFromUserInput(osTargetSRS, OGRSpatialReference::SET_FROM_USER_INPUT_LIMITATIONS_get());
+        oTargetSRS.SetFromUserInput(osTargetSRS);
         const char* pszAuthCode = oTargetSRS.GetAuthorityCode(nullptr);
         const char* pszAuthName = oTargetSRS.GetAuthorityName(nullptr);
         if( pszAuthName && pszAuthCode )
@@ -182,7 +180,7 @@ bool COGGetWarpingCharacteristics(GDALDataset* poSrcDS,
     void* hTransformArg = nullptr;
 
     OGRSpatialReference oTargetSRS;
-    oTargetSRS.SetFromUserInput(osTargetSRS, OGRSpatialReference::SET_FROM_USER_INPUT_LIMITATIONS_get());
+    oTargetSRS.SetFromUserInput(osTargetSRS);
     const char* pszAuthCode = oTargetSRS.GetAuthorityCode(nullptr);
     const int nEPSGCode = pszAuthCode ? atoi(pszAuthCode) : 0;
 
@@ -235,10 +233,6 @@ bool COGGetWarpingCharacteristics(GDALDataset* poSrcDS,
                 {
                     hTransformArg = GDALCreateGenImgProjTransformer2(
                         GDALDataset::FromHandle(poTmpDS.get()), nullptr, aosTO.List() );
-                    if( hTransformArg == nullptr )
-                    {
-                        return false;
-                    }
                 }
             }
         }
@@ -247,10 +241,6 @@ bool COGGetWarpingCharacteristics(GDALDataset* poSrcDS,
     {
         hTransformArg =
             GDALCreateGenImgProjTransformer2( poSrcDS, nullptr, aosTO.List() );
-        if( hTransformArg == nullptr )
-        {
-            return false;
-        }
     }
 
     GDALTransformerInfo* psInfo = static_cast<GDALTransformerInfo*>(hTransformArg);
@@ -762,8 +752,7 @@ GDALDataset* GDALCOGCreator::Create(const char * pszFilename,
         }
     }
 
-    CPLString osCompress = CSLFetchNameValueDef(papszOptions, "COMPRESS",
-                                                gbHasLZW ? "LZW" : "NONE");
+    CPLString osCompress = CSLFetchNameValueDef(papszOptions, "COMPRESS", "NONE");
     if( EQUAL(osCompress, "JPEG") &&
         poCurDS->GetRasterCount() == 4 )
     {
@@ -994,28 +983,12 @@ GDALDataset* GDALCOGCreator::Create(const char * pszFilename,
         aosOptions.SetNameValue("ZSTD_LEVEL",
                                 CSLFetchNameValue(papszOptions, "LEVEL"));
     }
-    else if( EQUAL(osCompress, "LZMA") )
-    {
-        aosOptions.SetNameValue("LZMA_PRESET",
-                                CSLFetchNameValue(papszOptions, "LEVEL"));
-    }
 
     if( STARTS_WITH_CI(osCompress, "LERC") )
     {
         aosOptions.SetNameValue("MAX_Z_ERROR",
                                 CSLFetchNameValue(papszOptions, "MAX_Z_ERROR"));
     }
-
-    if( STARTS_WITH_CI(osCompress, "JXL") )
-    {
-        aosOptions.SetNameValue("JXL_LOSSLESS",
-                                CSLFetchNameValue(papszOptions, "JXL_LOSSLESS"));
-        aosOptions.SetNameValue("JXL_EFFORT",
-                                CSLFetchNameValue(papszOptions, "JXL_EFFORT"));
-        aosOptions.SetNameValue("JXL_DISTANCE",
-                                CSLFetchNameValue(papszOptions, "JXL_DISTANCE"));
-    }
-
     aosOptions.SetNameValue("BIGTIFF",
                                 CSLFetchNameValue(papszOptions, "BIGTIFF"));
     aosOptions.SetNameValue("NUM_THREADS",
@@ -1054,15 +1027,14 @@ GDALDataset* GDALCOGCreator::Create(const char * pszFilename,
                                      CPLSPrintf("%d", nAlignedLevels));
          }
     }
-    const char* pszOverviewCompress = CSLFetchNameValueDef(
-        papszOptions, "OVERVIEW_COMPRESS", osCompress.c_str());
+    const char* pszOverviewCompress = CSLFetchNameValue(papszOptions, "OVERVIEW_COMPRESS");
 
     CPLConfigOptionSetter ovrCompressSetter("COMPRESS_OVERVIEW", pszOverviewCompress, true);
     CPLConfigOptionSetter ovrQualityJpegSetter("JPEG_QUALITY_OVERVIEW", CSLFetchNameValue(papszOptions, "OVERVIEW_QUALITY"), true);
     CPLConfigOptionSetter ovrQualityWebpSetter("WEBP_LEVEL_OVERVIEW", CSLFetchNameValue(papszOptions, "OVERVIEW_QUALITY"), true);
 
     std::unique_ptr<CPLConfigOptionSetter> poPhotometricSetter;
-    if (nBands == 3 && EQUAL(pszOverviewCompress, "JPEG") )
+    if (pszOverviewCompress != nullptr && nBands == 3 && EQUAL(pszOverviewCompress, "JPEG") )
     {
         poPhotometricSetter.reset(new CPLConfigOptionSetter("PHOTOMETRIC_OVERVIEW", "YCBCR", true));
     }
@@ -1090,7 +1062,7 @@ GDALDataset* GDALCOGCreator::Create(const char * pszFilename,
     GDALDestroyScaledProgress(pScaledProgress);
 
     if( poRet )
-        poRet->FlushCache(false);
+        poRet->FlushCache();
 
     CPLDebug("COG", "Generating final product: end");
     return poRet;
@@ -1157,7 +1129,6 @@ GDALCOGDriver::GDALCOGDriver()
     osCompressValues = GTiffGetCompressValues(
         bHasLZW, bHasDEFLATE, bHasLZMA, bHasZSTD, bHasJPEG, bHasWebP, bHasLERC,
         true /* bForCOG */);
-    gbHasLZW = bHasLZW;
 }
 
 void GDALCOGDriver::InitializeCreationOptionList()
@@ -1168,19 +1139,15 @@ void GDALCOGDriver::InitializeCreationOptionList()
 
     CPLString osOptions;
     osOptions = "<CreationOptionList>"
-                "   <Option name='COMPRESS' type='string-select' default='";
-    osOptions += bHasLZW ? "LZW" : "NONE";
-    osOptions += "'>";
+                "   <Option name='COMPRESS' type='string-select'>";
     osOptions += osCompressValues;
     osOptions += "   </Option>";
 
-    osOptions += "   <Option name='OVERVIEW_COMPRESS' type='string-select' default='";
-    osOptions += bHasLZW ? "LZW" : "NONE";
-    osOptions += "'>";
+    osOptions += "   <Option name='OVERVIEW_COMPRESS' type='string-select'>";
     osOptions += osCompressValues;
     osOptions += "   </Option>";
 
-    if( bHasLZW || bHasDEFLATE || bHasZSTD || bHasLZMA)
+    if( bHasLZW || bHasDEFLATE || bHasZSTD )
     {
         const char* osPredictorOptions =  "     <Value>YES</Value>"
                      "     <Value>NO</Value>"
@@ -1188,7 +1155,7 @@ void GDALCOGDriver::InitializeCreationOptionList()
                      "     <Value alias='3'>FLOATING_POINT</Value>";
 
         osOptions += "   <Option name='LEVEL' type='int' "
-            "description='DEFLATE/ZSTD/LZMA compression level: 1 (fastest)'/>";
+            "description='DEFLATE/ZSTD compression level: 1 (fastest)'/>";
 
         osOptions += "   <Option name='PREDICTOR' type='string-select' default='FALSE'>";
         osOptions += osPredictorOptions;
@@ -1209,12 +1176,6 @@ void GDALCOGDriver::InitializeCreationOptionList()
         osOptions += ""
 "   <Option name='MAX_Z_ERROR' type='float' description='Maximum error for LERC compression' default='0'/>";
     }
-#ifdef HAVE_JXL
-    osOptions += ""
-"   <Option name='JXL_LOSSLESS' type='boolean' description='Whether JPEGXL compression should be lossless' default='YES'/>"
-"   <Option name='JXL_EFFORT' type='int' description='Level of effort 1(fast)-9(slow)' default='5'/>"
-"   <Option name='JXL_DISTANCE' type='float' description='Distance level for lossy compression (0=mathematically lossless, 1.0=visually lossless, usual range [0.5,3])' default='1.0' min='0.1' max='15.0'/>";
-#endif
     osOptions +=
 "   <Option name='NUM_THREADS' type='string' "
         "description='Number of worker threads for compression. "
@@ -1311,8 +1272,6 @@ void GDALRegister_COG()
                                "Float64 CInt16 CInt32 CFloat32 CFloat64" );
 
     poDriver->SetMetadataItem( GDAL_DCAP_VIRTUALIO, "YES" );
-
-    poDriver->SetMetadataItem( GDAL_DCAP_COORDINATE_EPOCH, "YES" );
 
     poDriver->pfnCreateCopy = COGCreateCopy;
 

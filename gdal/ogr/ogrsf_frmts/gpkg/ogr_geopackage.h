@@ -31,7 +31,7 @@
 #define OGR_GEOPACKAGE_H_INCLUDED
 
 #include "ogrsf_frmts.h"
-#include "ogrsqlitebase.h"
+#include "ogr_sqlite.h"
 #include "gpkgmbtilescommon.h"
 #include "ogrsqliteutility.h"
 
@@ -105,7 +105,6 @@ class GDALGeoPackageDataset final : public OGRSQLiteBaseDataSource, public GDALG
 #endif
     bool                m_bHasGPKGGeometryColumns;
     bool                m_bHasDefinition12_063;
-    bool                m_bHasEpochColumn = false; // whether gpkg_spatial_ref_sys has a epoch column
 
     CPLString           m_osIdentifier;
     bool                m_bIdentifierAsCO;
@@ -115,7 +114,7 @@ class GDALGeoPackageDataset final : public OGRSQLiteBaseDataSource, public GDALG
     bool                m_bHasReadMetadataFromStorage;
     bool                m_bMetadataDirty;
     CPLStringList       m_aosSubDatasets{};
-    OGRSpatialReference m_oSRS{};
+    char               *m_pszProjection;
     bool                m_bRecordInsertedInGPKGContent;
     bool                m_bGeoTransformValid;
     double              m_adfGeoTransform[6];
@@ -221,18 +220,16 @@ class GDALGeoPackageDataset final : public OGRSQLiteBaseDataSource, public GDALG
                                                 const char* pszLayerName );
 
         bool                ConvertGpkgSpatialRefSysToExtensionWkt2();
-        void                DetectSpatialRefSysColumns();
 
         std::map<int, bool> m_oSetGPKGLayerWarnings{};
 
         void                FixupWrongRTreeTrigger();
-        void                FixupWrongMedataReferenceColumnNameUpdate();
 
     public:
                             GDALGeoPackageDataset();
                             virtual ~GDALGeoPackageDataset();
 
-        virtual char **     GetMetadata( const char *pszDomain = "" ) override;
+        virtual char **     GetMetadata( const char *pszDomain = nullptr ) override;
         virtual const char *GetMetadataItem( const char * pszName,
                                              const char * pszDomain = "" ) override;
         virtual char **     GetMetadataDomainList() override;
@@ -242,13 +239,19 @@ class GDALGeoPackageDataset final : public OGRSQLiteBaseDataSource, public GDALG
                                              const char * pszValue,
                                              const char * pszDomain = "" ) override;
 
-        const OGRSpatialReference* GetSpatialRef() const override;
-        CPLErr SetSpatialRef(const OGRSpatialReference* poSRS) override;
+        virtual const char* _GetProjectionRef() override;
+        virtual CPLErr      _SetProjection( const char* pszProjection ) override;
+        const OGRSpatialReference* GetSpatialRef() const override {
+            return GetSpatialRefFromOldGetProjectionRef();
+        }
+        CPLErr SetSpatialRef(const OGRSpatialReference* poSRS) override {
+            return OldSetProjectionFromSetSpatialRef(poSRS);
+        }
 
         virtual CPLErr      GetGeoTransform( double* padfGeoTransform ) override;
         virtual CPLErr      SetGeoTransform( double* padfGeoTransform ) override;
 
-        virtual void        FlushCache(bool bAtClosing) override;
+        virtual void        FlushCache() override;
         virtual CPLErr      IBuildOverviews( const char *, int, int *,
                                              int, int *, GDALProgressFunc, void * ) override;
 
@@ -313,7 +316,7 @@ class GDALGeoPackageDataset final : public OGRSQLiteBaseDataSource, public GDALG
     protected:
         // Coming from GDALGPKGMBTilesLikePseudoDataset
 
-        virtual CPLErr                  IFlushCacheWithErrCode(bool bAtClosing) override;
+        virtual CPLErr                  IFlushCacheWithErrCode() override;
         virtual int                     IGetRasterCount() override { return nBands; }
         virtual GDALRasterBand*         IGetRasterBand(int nBand) override { return GetRasterBand(nBand); }
         virtual sqlite3                *IGetDB() override { return GetDB(); }
@@ -399,7 +402,7 @@ class OGRGeoPackageLayer CPL_NON_FINAL: public OGRLayer, public IOGRSQLiteGetSpa
     int                 TestCapability( const char * ) override;
     OGRFeatureDefn*     GetLayerDefn() override { return m_poFeatureDefn; }
 
-    virtual bool         HasFastSpatialFilter(int /*iGeomCol*/) override { return false; }
+    virtual int          HasFastSpatialFilter(int /*iGeomCol*/) override { return FALSE; }
     virtual CPLString    GetSpatialWhere(int /*iGeomCol*/,
                                          OGRGeometry* /*poFilterGeom*/) override { return ""; }
 };
@@ -556,7 +559,7 @@ class OGRGeoPackageTableLayer final : public OGRGeoPackageLayer
     CPLString           ReturnSQLCreateSpatialIndexTriggers(const char* pszTableName);
     CPLString           ReturnSQLDropSpatialIndexTriggers();
 
-    virtual char **     GetMetadata( const char *pszDomain = "" ) override;
+    virtual char **     GetMetadata( const char *pszDomain = nullptr ) override;
     virtual const char *GetMetadataItem( const char * pszName,
                                              const char * pszDomain = "" ) override;
     virtual char **     GetMetadataDomainList() override;
@@ -569,7 +572,7 @@ class OGRGeoPackageTableLayer final : public OGRGeoPackageLayer
 
     void                RenameTo(const char* pszDstTableName);
 
-    virtual bool         HasFastSpatialFilter(int iGeomCol) override;
+    virtual int          HasFastSpatialFilter(int iGeomCol) override;
     virtual CPLString    GetSpatialWhere(int iGeomCol,
                                          OGRGeometry* poFilterGeom) override;
 
@@ -633,10 +636,10 @@ class OGRGeoPackageSelectLayer final : public OGRGeoPackageLayer, public IOGRSQL
 
   public:
                         OGRGeoPackageSelectLayer( GDALGeoPackageDataset *,
-                                              const CPLString& osSQL,
+                                              CPLString osSQL,
                                               sqlite3_stmt *,
-                                              bool bUseStatementForGetNextFeature,
-                                              bool bEmptyLayer );
+                                              int bUseStatementForGetNextFeature,
+                                              int bEmptyLayer );
                        virtual ~OGRGeoPackageSelectLayer();
 
     virtual void        ResetReading() override;

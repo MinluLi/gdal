@@ -145,7 +145,7 @@ BYNDataset::BYNDataset() :
 BYNDataset::~BYNDataset()
 
 {
-    FlushCache(true);
+    FlushCache();
 
     if( GetAccess() == GA_Update)
         UpdateHeader();

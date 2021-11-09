@@ -38,7 +38,7 @@
 /*                      OGRUnionLayerGeomFieldDefn                      */
 /************************************************************************/
 
-class CPL_DLL OGRUnionLayerGeomFieldDefn final: public OGRGeomFieldDefn
+class OGRUnionLayerGeomFieldDefn final: public OGRGeomFieldDefn
 {
     public:
 
@@ -47,8 +47,8 @@ class CPL_DLL OGRUnionLayerGeomFieldDefn final: public OGRGeomFieldDefn
     OGREnvelope     sStaticEnvelope{};
 
             OGRUnionLayerGeomFieldDefn(const char* pszName, OGRwkbGeometryType eType);
-   explicit OGRUnionLayerGeomFieldDefn(const OGRGeomFieldDefn* poSrc);
-   explicit OGRUnionLayerGeomFieldDefn(const OGRUnionLayerGeomFieldDefn* poSrc);
+   explicit OGRUnionLayerGeomFieldDefn(OGRGeomFieldDefn* poSrc);
+   explicit OGRUnionLayerGeomFieldDefn(OGRUnionLayerGeomFieldDefn* poSrc);
            ~OGRUnionLayerGeomFieldDefn();
 };
 
@@ -64,7 +64,7 @@ typedef enum
     FIELD_SPECIFIED,
 } FieldUnionStrategy;
 
-class CPL_DLL OGRUnionLayer final: public OGRLayer
+class OGRUnionLayer final: public OGRLayer
 {
     CPL_DISALLOW_COPY_ASSIGN(OGRUnionLayer)
 

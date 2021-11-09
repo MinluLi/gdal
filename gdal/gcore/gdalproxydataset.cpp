@@ -144,12 +144,12 @@ D_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, IBuildOverviews,
                         ( pszResampling, nOverviews, panOverviewList,
                           nListBands, panBandList, pfnProgress, pProgressData ))
 
-void  GDALProxyDataset::FlushCache(bool bAtClosing)
+void  GDALProxyDataset::FlushCache()
 {
     GDALDataset* poUnderlyingDataset = RefUnderlyingDataset();
     if (poUnderlyingDataset)
     {
-        poUnderlyingDataset->FlushCache(bAtClosing);
+        poUnderlyingDataset->FlushCache();
         UnrefUnderlyingDataset(poUnderlyingDataset);
     }
 }
@@ -321,17 +321,17 @@ RB_PROXY_METHOD_WITH_RET(CPLErr, CE_Failure, SetMetadataItem,
                         (pszName, pszValue, pszDomain))
 
 
-CPLErr GDALProxyRasterBand::FlushCache(bool bAtClosing)
+CPLErr GDALProxyRasterBand::FlushCache()
 {
     // We need to make sure that all cached bocks at the proxy level are
     // first flushed
-    CPLErr ret = GDALRasterBand::FlushCache(bAtClosing);
+    CPLErr ret = GDALRasterBand::FlushCache();
     if( ret == CE_None )
     {
         GDALRasterBand* poSrcBand = RefUnderlyingRasterBand();
         if (poSrcBand)
         {
-            ret = poSrcBand->FlushCache(bAtClosing);
+            ret = poSrcBand->FlushCache();
             UnrefUnderlyingRasterBand(poSrcBand);
         }
         else

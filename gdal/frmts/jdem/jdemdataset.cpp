@@ -221,7 +221,7 @@ JDEMDataset::JDEMDataset() :
 JDEMDataset::~JDEMDataset()
 
 {
-    FlushCache(true);
+    FlushCache();
     if( fp != nullptr )
         CPL_IGNORE_RET_VAL(VSIFCloseL(fp));
 }

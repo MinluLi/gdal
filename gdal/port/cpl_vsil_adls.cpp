@@ -133,7 +133,6 @@ struct VSIDIRADLS: public VSIDIR
     VSIADLSFSHandler* m_poFS = nullptr;
     int m_nMaxFiles = 0;
     bool m_bCacheEntries = true;
-    std::string m_osFilterPrefix{}; // client-side only. No server-side option in https://docs.microsoft.com/en-us/rest/api/storageservices/datalakestoragegen2/path/list
 
     explicit VSIDIRADLS(VSIADLSFSHandler *poFSIn): m_poFS(poFSIn) {}
 
@@ -276,10 +275,10 @@ class VSIADLSFSHandler final : public IVSIS3LikeFSHandler
                         int /* nMaxRetry */,
                         double /* dfRetryDelay */) override { return true; }
 
+    CPLString GetStreamingPath( const char* pszFilename ) const override;
+
     IVSIS3LikeHandleHelper* CreateHandleHelper(
         const char* pszURI, bool bAllowNoObject) override;
-
-    std::string GetStreamingFilename(const std::string& osFilename) const override;
 };
 
 /************************************************************************/
@@ -609,11 +608,6 @@ const VSIDIREntry* VSIDIRADLS::NextDirEntry()
                     }
                 }
             }
-            if( !m_osFilterPrefix.empty() &&
-                !STARTS_WITH(entry->pszName, m_osFilterPrefix.c_str()) )
-            {
-                continue;
-            }
             return entry.get();
         }
         if( oIter.m_osNextMarker.empty() )
@@ -679,9 +673,6 @@ int VSIADLSFSHandler::Stat( const char *pszFilename, VSIStatBufL *pStatBuf,
 {
     if( !STARTS_WITH_CI(pszFilename, GetFSPrefix()) )
         return -1;
-
-    if( (nFlags & VSI_STAT_CACHE_ONLY) != 0 )
-        return VSICurlFilesystemHandlerBase::Stat(pszFilename, pStatBuf, nFlags);
 
     const CPLString osFilenameWithoutSlash(RemoveTrailingSlash(pszFilename));
 
@@ -772,7 +763,7 @@ int VSIADLSFSHandler::Stat( const char *pszFilename, VSIStatBufL *pStatBuf,
         return 0;
     }
 
-    return VSICurlFilesystemHandlerBase::Stat(osFilenameWithoutSlash, pStatBuf, nFlags);
+    return VSICurlFilesystemHandler::Stat(osFilenameWithoutSlash, pStatBuf, nFlags);
 }
 
 /************************************************************************/
@@ -788,7 +779,7 @@ char** VSIADLSFSHandler::GetFileMetadata( const char* pszFilename,
 
     if( pszDomain == nullptr || (!EQUAL(pszDomain, "STATUS") && !EQUAL(pszDomain, "ACL")) )
     {
-        return VSICurlFilesystemHandlerBase::GetFileMetadata(
+        return VSICurlFilesystemHandler::GetFileMetadata(
                     pszFilename, pszDomain, papszOptions);
     }
 
@@ -1212,7 +1203,7 @@ VSIVirtualHandle* VSIADLSFSHandler::Open( const char *pszFilename,
     }
 
     return
-        VSICurlFilesystemHandlerBase::Open(pszFilename, pszAccess, bSetError, papszOptions);
+        VSICurlFilesystemHandler::Open(pszFilename, pszAccess, bSetError, papszOptions);
 }
 
 /************************************************************************/
@@ -2026,7 +2017,7 @@ const char* VSIADLSFSHandler::GetOptions()
     "  <Option name='VSIAZ_CHUNK_SIZE' type='int' "
         "description='Size in MB for chunks of files that are uploaded' "
         "default='4' min='1' max='4'/>" +
-        VSICurlFilesystemHandlerBase::GetOptionsStatic() +
+        VSICurlFilesystemHandler::GetOptionsStatic() +
         "</Options>");
     return osOptions.c_str();
 }
@@ -2093,7 +2084,6 @@ VSIDIR* VSIADLSFSHandler::OpenDir( const char *pszPath,
     dir->m_nMaxFiles = atoi(CSLFetchNameValueDef(papszOptions, "MAXFILES", "0"));
     dir->m_bCacheEntries = CPLTestBool(
         CSLFetchNameValueDef(papszOptions, "CACHE_ENTRIES", "YES"));
-    dir->m_osFilterPrefix = CSLFetchNameValueDef(papszOptions, "PREFIX", "");
     if( !dir->IssueListDir() )
     {
         delete dir;
@@ -2104,14 +2094,18 @@ VSIDIR* VSIADLSFSHandler::OpenDir( const char *pszPath,
 }
 
 /************************************************************************/
-/*                      GetStreamingFilename()                          */
+/*                         GetStreamingPath()                           */
 /************************************************************************/
 
-std::string VSIADLSFSHandler::GetStreamingFilename(const std::string& osFilename) const
+CPLString VSIADLSFSHandler::GetStreamingPath( const char* pszFilename ) const
 {
-    if( STARTS_WITH(osFilename.c_str(), GetFSPrefix().c_str()) )
-        return "/vsiaz_streaming/" + osFilename.substr(GetFSPrefix().size());
-    return osFilename;
+    const CPLString osPrefix(GetFSPrefix());
+    if( !STARTS_WITH_CI(pszFilename, osPrefix) )
+        return CPLString();
+
+    // Transform /vsiadls/foo into /vsiaz_streaming/foo
+    const size_t nPrefixLen = osPrefix.size();
+    return CPLString("/vsiaz_streaming/")  + (pszFilename + nPrefixLen);
 }
 
 /************************************************************************/

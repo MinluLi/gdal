@@ -132,7 +132,6 @@ class CPL_DLL GMLGeometryPropertyDefn
     int         m_nGeometryType;
     int         m_nAttributeIndex;
     bool        m_bNullable;
-    std::string m_osSRSName{};
 
 public:
         GMLGeometryPropertyDefn( const char *pszName, const char *pszSrcElement,
@@ -149,9 +148,6 @@ public:
         int GetAttributeIndex() const { return m_nAttributeIndex; }
 
         bool IsNullable() const { return m_bNullable; }
-
-        void SetSRSName(const std::string& srsName) { m_osSRSName = srsName; }
-        const std::string& GetSRSName() const { return m_osSRSName; }
 };
 
 /************************************************************************/
@@ -344,6 +340,6 @@ IGMLReader *CreateGMLReader(bool bUseExpatParserPreferably,
                             GMLSwapCoordinatesEnum eSwapCoordinates,
                             bool bGetSecondaryGeometryOption);
 
-OGRFieldType CPL_DLL GML_GetOGRFieldType(GMLPropertyType eType, OGRFieldSubType& eSubType);
+OGRFieldType GML_GetOGRFieldType(GMLPropertyType eType, OGRFieldSubType& eSubType);
 
 #endif /* GMLREADER_H_INCLUDED */

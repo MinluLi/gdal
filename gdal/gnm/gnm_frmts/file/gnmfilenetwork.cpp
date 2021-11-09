@@ -42,7 +42,7 @@ GNMFileNetwork::GNMFileNetwork() : GNMGenericNetwork()
 
 GNMFileNetwork::~GNMFileNetwork()
 {
-    FlushCache(true);
+    FlushCache();
 
     for (std::map<OGRLayer*, GDALDataset*>::iterator
             it = m_mpLayerDatasetMap.begin();

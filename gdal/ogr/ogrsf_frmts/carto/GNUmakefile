@@ -4,7 +4,7 @@ include ../../../GDALmake.opt
 
 OBJ	=	ogrcartodriver.o ogrcartodatasource.o ogrcartolayer.o ogrcartotablelayer.o ogrcartoresultlayer.o
 
-CPPFLAGS	:=	-iquote ../geojson $(JSON_INCLUDE) -iquote .. -iquote ../.. -iquote ../pgdump $(CPPFLAGS)
+CPPFLAGS	:=	-I../geojson $(JSON_INCLUDE) -I.. -I../.. -I../pgdump $(CPPFLAGS)
 
 default:	$(O_OBJ:.o=.$(OBJ_EXT))
 

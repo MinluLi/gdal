@@ -72,7 +72,7 @@ GeoRasterDataset::GeoRasterDataset()
 
 GeoRasterDataset::~GeoRasterDataset()
 {
-    GeoRasterDataset::FlushCache(true);
+    GeoRasterDataset::FlushCache();
 
     poGeoRaster->FlushMetadata();
 
@@ -1720,7 +1720,7 @@ GDALDataset *GeoRasterDataset::CreateCopy( const char* pszFilename,
     //      Finalize
     // --------------------------------------------------------------------
 
-    poDstDS->FlushCache(false);
+    poDstDS->FlushCache();
 
     if( pfnProgress )
     {
@@ -1789,12 +1789,12 @@ CPLErr GeoRasterDataset::IRasterIO( GDALRWFlag eRWFlag,
 }
 
 //  ---------------------------------------------------------------------------
-//                                                  FlushCache(bool bAtClosing)
+//                                                                 FlushCache()
 //  ---------------------------------------------------------------------------
 
-void GeoRasterDataset::FlushCache(bool bAtClosing)
+void GeoRasterDataset::FlushCache()
 {
-    GDALDataset::FlushCache(bAtClosing);
+    GDALDataset::FlushCache();
 }
 
 //  ---------------------------------------------------------------------------
@@ -2499,9 +2499,8 @@ void GeoRasterDataset::SetSubdatasets( GeoRasterWrapper* poGRW )
     {
         OWStatement* poStmt = poConnection->CreateStatement( CPLSPrintf(
             "SELECT   DISTINCT COLUMN_NAME, OWNER FROM ALL_SDO_GEOR_SYSDATA\n"
-            "  WHERE  OWNER = UPPER('%s') AND TABLE_NAME = UPPER('%s')\n"
+            "  WHERE  TABLE_NAME = UPPER('%s')\n"
             "  ORDER  BY COLUMN_NAME ASC",
-                poGRW->sOwner.c_str(),
                 poGRW->sTable.c_str() ) );
 
         char szColumn[OWNAME];

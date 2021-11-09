@@ -1406,7 +1406,8 @@ CPLErr GDALRasterizeLayers( GDALDatasetH hDS,
                     break;
             }
 
-            for( auto& poFeat: poLayer )
+            OGRFeature *poFeat = nullptr;
+            while( (poFeat = poLayer->GetNextFeature()) != nullptr )
             {
                 OGRGeometry *poGeom = poFeat->GetGeometryRef();
 
@@ -1427,6 +1428,8 @@ CPLErr GDALRasterizeLayers( GDALDatasetH hDS,
                                         padfBurnValues, eBurnValueSource,
                                         eMergeAlg,
                                         pfnTransformer, pTransformArg );
+
+                delete poFeat;
             }
 
             // Only write image if not a single chunk is being rendered.
@@ -1715,20 +1718,27 @@ CPLErr GDALRasterizeLayersBuf( void *pData, int nBufXSize, int nBufYSize,
             CPLFree( pszProjection );
         }
 
-        for( auto& poFeat: poLayer )
+        poLayer->ResetReading();
+
         {
-            OGRGeometry *poGeom = poFeat->GetGeometryRef();
+            OGRFeature *poFeat = nullptr;
+            while( (poFeat = poLayer->GetNextFeature()) != nullptr )
+            {
+                OGRGeometry *poGeom = poFeat->GetGeometryRef();
 
-            if( pszBurnAttribute )
-                dfBurnValue = poFeat->GetFieldAsDouble( iBurnField );
+                if( pszBurnAttribute )
+                    dfBurnValue = poFeat->GetFieldAsDouble( iBurnField );
 
-            gv_rasterize_one_shape( static_cast<unsigned char *>(pData), 0, 0,
-                                    nBufXSize, nBufYSize,
-                                    1, eBufType,
-                                    nPixelSpace, nLineSpace, 0, bAllTouched, poGeom,
-                                    &dfBurnValue, eBurnValueSource,
-                                    eMergeAlg,
-                                    pfnTransformer, pTransformArg );
+                gv_rasterize_one_shape( static_cast<unsigned char *>(pData), 0, 0,
+                                        nBufXSize, nBufYSize,
+                                        1, eBufType,
+                                        nPixelSpace, nLineSpace, 0, bAllTouched, poGeom,
+                                        &dfBurnValue, eBurnValueSource,
+                                        eMergeAlg,
+                                        pfnTransformer, pTransformArg );
+
+                delete poFeat;
+            }
         }
 
         poLayer->ResetReading();

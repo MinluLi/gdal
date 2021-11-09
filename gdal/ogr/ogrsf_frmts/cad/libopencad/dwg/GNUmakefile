@@ -7,7 +7,7 @@ OBJ := \
 
 O_OBJ =	$(foreach file,$(OBJ),../../../o/$(file))
 
-CPPFLAGS	:=	-iquote . -iquote .. -iquote ../.. -iquote ../../.. $(CPPFLAGS)
+CPPFLAGS	:=	-I. -I.. -I../.. -I../../.. $(CPPFLAGS)
 
 default:	$(O_OBJ:.o=.$(OBJ_EXT))
 

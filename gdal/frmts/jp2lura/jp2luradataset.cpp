@@ -720,15 +720,15 @@ GDALDataset * JP2LuraDataset::CreateCopy(const char * pszFilename,
             bGeoreferencingCompatOfGeoJP2 = true;
             oJP2MD.SetGCPs(poSrcDS->GetGCPCount(),
                     poSrcDS->GetGCPs());
-            oJP2MD.SetSpatialRef(poSrcDS->GetGCPSpatialRef());
+            oJP2MD.SetProjection(poSrcDS->GetGCPProjection());
         }
         else
         {
-            const auto poSRS = poSrcDS->GetSpatialRef();
-            if (poSRS != nullptr && !poSRS->IsEmpty())
+            const char* pszWKT = poSrcDS->GetProjectionRef();
+            if (pszWKT != nullptr && pszWKT[0] != '\0')
             {
                     bGeoreferencingCompatOfGeoJP2 = true;
-                    oJP2MD.SetSpatialRef(poSRS);
+                    oJP2MD.SetProjection(pszWKT);
             }
             double adfGeoTransform[6];
             if (poSrcDS->GetGeoTransform(adfGeoTransform) == CE_None)
@@ -737,7 +737,7 @@ GDALDataset * JP2LuraDataset::CreateCopy(const char * pszFilename,
                     oJP2MD.SetGeoTransform(adfGeoTransform);
             }
             bGeoreferencingCompatOfGMLJP2 =
-                    poSRS != nullptr && !poSRS->IsEmpty() &&
+                    (pszWKT != nullptr && pszWKT[0] != '\0') &&
                     poSrcDS->GetGeoTransform(adfGeoTransform) == CE_None;
         }
         if (poSrcDS->GetMetadata("RPC") != nullptr)
@@ -2392,7 +2392,7 @@ CPLErr  JP2LuraDataset::IRasterIO(GDALRWFlag eRWFlag,
     /* ==================================================================== */
 
     if ((nBufXSize < nXSize || nBufYSize < nYSize)
-            && poBand->GetOverviewCount() > 0 )
+            && poBand->GetOverviewCount() > 0 && eRWFlag == GF_Read)
     {
         int         nOverview;
         GDALRasterIOExtraArg sExtraArg;

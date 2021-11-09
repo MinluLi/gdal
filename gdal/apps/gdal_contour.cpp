@@ -306,7 +306,12 @@ MAIN_START(argc, argv)
 /* -------------------------------------------------------------------- */
 /*      Try to get a coordinate system from the raster.                 */
 /* -------------------------------------------------------------------- */
-    OGRSpatialReferenceH hSRS = GDALGetSpatialRef( hSrcDS );
+    OGRSpatialReferenceH hSRS = nullptr;
+
+    const char *pszWKT = GDALGetProjectionRef( hSrcDS );
+
+    if( pszWKT != nullptr && strlen(pszWKT) != 0 )
+        hSRS = OSRNewSpatialReference( pszWKT );
 
 /* -------------------------------------------------------------------- */
 /*      Create the output file.                                         */
@@ -466,10 +471,13 @@ MAIN_START(argc, argv)
     }
 
     CPLErr eErr = GDALContourGenerateEx( hBand, hLayer, options, pfnProgress, nullptr );
-
+    
     CSLDestroy( options );
     OGR_DS_Destroy( hDS );
     GDALClose( hSrcDS );
+
+    if (hSRS)
+        OSRDestroySpatialReference( hSRS );
 
     CSLDestroy( argv );
     CSLDestroy( papszDSCO );

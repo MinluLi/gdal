@@ -33,7 +33,7 @@ import os
 from numbers import Real
 from typing import Optional, Union, Sequence, Tuple, Dict, Any, Iterator, List
 
-from osgeo import gdal, __version__ as gdal_version_str
+from osgeo import gdal
 from osgeo_utils.auxiliary.base import get_extension, is_path_like, PathLikeOrStr, enum_to_str, OptionalBoolStr, \
     is_true, \
     MaybeSequence, T
@@ -41,7 +41,6 @@ from osgeo_utils.auxiliary.base import get_extension, is_path_like, PathLikeOrSt
 PathOrDS = Union[PathLikeOrStr, gdal.Dataset]
 DataTypeOrStr = Union[str, int]
 CreationOptions = Optional[Dict[str, Any]]
-gdal_version = tuple(int(s) for s in str(gdal_version_str).split('.') if s.isdigit())[:3]
 
 
 def DoesDriverHandleExtension(drv: gdal.Driver, ext: str) -> bool:
@@ -69,7 +68,7 @@ def GetOutputDriversFor(filename: PathLikeOrStr, is_raster=True) -> List[str]:
 
     # GMT is registered before netCDF for opening reasons, but we want
     # netCDF to be used by default for output.
-    if ext.lower() == 'nc' and len(drv_list) >= 2 and \
+    if ext.lower() == 'nc' and not drv_list and \
         drv_list[0].upper() == 'GMT' and drv_list[1].upper() == 'NETCDF':
         drv_list = ['NETCDF', 'GMT']
 
@@ -156,12 +155,6 @@ def get_ovr_idx(filename_or_ds: PathOrDS,
                 ovr_idx: Optional[int] = None,
                 ovr_res: Optional[Union[int, float]] = None) -> int:
     """
-    This function uses a different convention than the GDAL API itself:
-    * ovr_idx = 0 means the full resolution image (GDAL API: no OVERVIEW_LEVEL)
-    * ovr_idx = [1|2|3|...] means the [1st|2nd|3rd|...] overview (GDAL API: OVERVIEW_LEVEL = [0|1|2|...])
-    * ovr_idx = -1 means the last overview (GDAL API: OVERVIEW_LEVEL = bnd.GetOverviewCount())
-    * ovr_idx = -i means the i-th overview from the last (GDAL API: OVERVIEW_LEVEL = bnd.GetOverviewCount()-i+1)
-
     returns a non-negative ovr_idx, from given mutually exclusive ovr_idx (index) or ovr_res (resolution)
     ovr_idx == None and ovr_res == None => returns 0
     ovr_idx: int >= 0 => returns the given ovr_idx
@@ -223,22 +216,9 @@ class OpenDS:
         filename: PathLikeOrStr,
         access_mode=gdal.GA_ReadOnly,
         ovr_idx: Optional[Union[int, float]] = None,
-        ovr_only: bool = False,
         open_options: Optional[Union[Dict[str, str], Sequence[str]]] = None,
         logger=None,
-    ) -> gdal.Dataset:
-        """
-        opens a gdal Dataset with the given arguments and returns it
-
-        :param filename: filename of the dataset to be opened
-        :param access_mode: access mode to open the dataset
-        :param ovr_idx: the index of the overview of the dataset,
-               Note: uses different numbering then GDAL API itself. read docs of: `get_ovr_idx`
-        :param ovr_only: open the dataset without exposing its overviews
-        :param open_options: gdal open options to be used to open the dataset
-        :param logger: logger to be used to log the opening operation
-        :return: gdal.Dataset
-        """
+    ):
         if not open_options:
             open_options = dict()
         elif isinstance(open_options, Sequence):
@@ -246,16 +226,8 @@ class OpenDS:
         else:
             open_options = dict(open_options)
         ovr_idx = get_ovr_idx(filename, ovr_idx)
-        # gdal overview 0 is the first overview (after the base layer)
-        if ovr_idx == 0:
-            if ovr_only:
-                if gdal_version >= (3, 3):
-                    open_options["OVERVIEW_LEVEL"] = 'NONE'
-                else:
-                    raise Exception('You asked to not expose overviews, Which is not supported in your gdal version, '
-                                    'please update your gdal version to gdal >= 3.3 or do not ask to hide overviews')
-        else:  # if ovr_idx > 0:
-            open_options["OVERVIEW_LEVEL"] = f'{ovr_idx - 1}{"only" if ovr_only else ""}'
+        if ovr_idx > 0:
+            open_options["OVERVIEW_LEVEL"] = ovr_idx - 1  # gdal overview 0 is the first overview (after the base layer)
         if logger is not None:
             s = 'opening file: "{}"'.format(filename)
             if open_options:
@@ -308,11 +280,13 @@ def get_raster_minimum(filename_or_ds: PathOrDS, bnd_index: Optional[int] = 1):
             return get_band_minimum(bnd)
 
 
-def get_raster_min_max(filename_or_ds: PathOrDS, bnd_index: int = 1, approx_ok: Union[bool, int] = False):
+def get_raster_min_max(filename_or_ds: PathOrDS, bnd_index: int = 1):
     with OpenDS(filename_or_ds) as ds:
         bnd = ds.GetRasterBand(bnd_index)
-        min_max = bnd.ComputeRasterMinMax(int(approx_ok))
-        return min_max
+        bnd.ComputeStatistics(0)
+        min_val = bnd.GetMinimum()
+        max_val = bnd.GetMaximum()
+        return min_val, max_val
 
 
 def get_nodatavalue(filename_or_ds: PathOrDS):
@@ -352,7 +326,7 @@ def get_ext_by_of(of: str):
     return '.' + ext
 
 
-def get_band_nums(ds: gdal.Dataset, band_nums: Optional[MaybeSequence[int]] = None):
+def get_band_nums(ds: gdal.Dataset, band_nums: MaybeSequence[int] = None):
     if not band_nums:
         band_nums = list(range(1, ds.RasterCount + 1))
     elif isinstance(band_nums, int):
@@ -360,16 +334,7 @@ def get_band_nums(ds: gdal.Dataset, band_nums: Optional[MaybeSequence[int]] = No
     return band_nums
 
 
-def get_bands(filename_or_ds: PathOrDS, band_nums: Optional[MaybeSequence[int]] = None, ovr_idx: Optional[int] = None) \
-            -> List[gdal.Band]:
-    """
-    returns a list of gdal bands of the given dataset
-    :param filename_or_ds: filename or the dataset itself
-    :param band_nums: sequence of bands numbers (or a single number)
-    :param ovr_idx: the index of the overview of the dataset,
-           Note: uses different numbering then GDAL API itself. read docs of: `get_ovr_idx`
-    :return:
-    """
+def get_bands(filename_or_ds: PathOrDS, band_nums: MaybeSequence[int], ovr_idx: Optional[int] = None) -> List[gdal.Band]:
     ds = open_ds(filename_or_ds)
     band_nums = get_band_nums(ds, band_nums)
     bands = []
@@ -378,18 +343,14 @@ def get_bands(filename_or_ds: PathOrDS, band_nums: Optional[MaybeSequence[int]] 
         if band is None:
             raise Exception(f'Could not get band {band_num} from file {filename_or_ds}')
         if ovr_idx:
-            ovr_idx = get_ovr_idx(ds, ovr_idx)
-            if ovr_idx != 0:
-                band = band.GetOverview(ovr_idx-1)
+            band = band.GetOverview(ovr_idx-1)
             if band is None:
                 raise Exception(f'Could not get overview {ovr_idx} from band {band_num} of file {filename_or_ds}')
         bands.append(band)
     return bands
 
 
-def get_scales_and_offsets(bands: Union[PathOrDS, MaybeSequence[gdal.Band]]) -> Tuple[bool, MaybeSequence[Real], MaybeSequence[Real]]:
-    if isinstance(bands, PathOrDS.__args__):
-        bands = get_bands(bands)
+def get_scales_and_offsets(bands: MaybeSequence[gdal.Band]) -> Tuple[bool, MaybeSequence[Real], MaybeSequence[Real]]:
     single_band = not isinstance(bands, Sequence)
     if single_band:
         bands = [bands]
@@ -399,3 +360,4 @@ def get_scales_and_offsets(bands: Union[PathOrDS, MaybeSequence[gdal.Band]]) -> 
     if single_band:
         scales, offsets = scales[0], offsets[0]
     return is_scaled, scales, offsets
+

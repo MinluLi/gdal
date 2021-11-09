@@ -38,7 +38,7 @@
 #include "cpl_error.h"
 #include "cpl_string.h"
 #include "cpl_vsi.h"
-#include "ogrsqlitevfs.h"
+#include "sqlite3.h"
 
 CPL_CVSID("$Id$")
 

@@ -397,7 +397,7 @@ class CPL_DLL GDALDataset : public GDALMajorObject
                                void *, int, int, GDALDataType,
                                int, int *, GSpacing, GSpacing, GSpacing,
                                GDALRasterIOExtraArg* psExtraArg ) CPL_WARN_UNUSED_RESULT;
-    void   BlockBasedFlushCache(bool bAtClosing);
+    void   BlockBasedFlushCache();
 
     CPLErr BandBasedRasterIO( GDALRWFlag eRWFlag,
                                int nXOff, int nYOff, int nXSize, int nYSize,
@@ -437,9 +437,6 @@ class CPL_DLL GDALDataset : public GDALMajorObject
     void  ShareLockWithParentDataset(GDALDataset* poParentDataset);
 
 //! @endcond
-
-    void                CleanupPostFileClosing();
-
     virtual int         CloseDependentDatasets();
 //! @cond Doxygen_Suppress
     int                 ValidateLayerCreationOptions( const char* const* papszLCO );
@@ -508,7 +505,7 @@ class CPL_DLL GDALDataset : public GDALMajorObject
 
     Bands              GetBands();
 
-    virtual void FlushCache(bool bAtClosing = false);
+    virtual void FlushCache(void);
 
     virtual const OGRSpatialReference* GetSpatialRef() const;
     virtual CPLErr SetSpatialRef(const OGRSpatialReference* poSRS);
@@ -602,7 +599,8 @@ class CPL_DLL GDALDataset : public GDALMajorObject
     int           GetShared() const;
     void          MarkAsShared();
 
-    void          MarkSuppressOnClose();
+    /** Set that the dataset must be deleted on close. */
+    void          MarkSuppressOnClose() { bSuppressOnClose = true; }
 
     /** Return open options.
      * @return open options.
@@ -696,8 +694,6 @@ private:
 
     virtual int         GetLayerCount();
     virtual OGRLayer    *GetLayer(int iLayer);
-
-    virtual bool        IsLayerPrivate(int iLayer) const;
 
     /** Class returned by GetLayers() that acts as a range of layers.
      * @since GDAL 2.3
@@ -1086,7 +1082,6 @@ class GDALAbstractBandBlockCache
 
         int               m_nInitialDirtyBlocksInFlushCache = 0;
         int               m_nLastTick = -1;
-        bool              m_bWriteDirtyBlocks = true;
 
         void              FreeDanglingBlocks();
         void              UnreferenceBlockBase();
@@ -1103,7 +1098,6 @@ class GDALAbstractBandBlockCache
             void             AddBlockToFreeList( GDALRasterBlock * );
             void             IncDirtyBlocks(int nInc);
             void             WaitCompletionPendingTasks();
-            void             DisableDirtyBlockWriting() { m_bWriteDirtyBlocks = false; }
 
             virtual bool             Init() = 0;
             virtual bool             IsInitOK() = 0;
@@ -1213,6 +1207,8 @@ class CPL_DLL GDALRasterBand : public GDALMajorObject
     void           AddBlockToFreeList( GDALRasterBlock * );
 //! @endcond
 
+    GDALRasterBlock *TryGetLockedBlockRef( int nXBlockOff, int nYBlockYOff );
+
   public:
                 GDALRasterBand();
     explicit    GDALRasterBand(int bForceCachedIO);
@@ -1242,7 +1238,6 @@ class CPL_DLL GDALRasterBand : public GDALMajorObject
 
     GDALRasterBlock *GetLockedBlockRef( int nXBlockOff, int nYBlockOff,
                                         int bJustInitialize = FALSE ) CPL_WARN_UNUSED_RESULT;
-    GDALRasterBlock *TryGetLockedBlockRef( int nXBlockOff, int nYBlockYOff ) CPL_WARN_UNUSED_RESULT;
     CPLErr      FlushBlock( int, int, int bWriteDirtyBlock = TRUE );
 
     unsigned char*  GetIndexColorTranslationTo(/* const */ GDALRasterBand* poReferenceBand,
@@ -1251,7 +1246,7 @@ class CPL_DLL GDALRasterBand : public GDALMajorObject
 
     // New OpengIS CV_SampleDimension stuff.
 
-    virtual CPLErr FlushCache(bool bAtClosing = false);
+    virtual CPLErr FlushCache();
     virtual char **GetCategoryNames();
     virtual double GetNoDataValue( int *pbSuccess = nullptr );
     virtual double GetMinimum( int *pbSuccess = nullptr );
@@ -1499,7 +1494,7 @@ class CPL_DLL GDALDriver : public GDALMajorObject
 /* -------------------------------------------------------------------- */
     GDALDataset         *Create( const char * pszName,
                                  int nXSize, int nYSize, int nBands,
-                                 GDALDataType eType, CSLConstList papszOptions ) CPL_WARN_UNUSED_RESULT;
+                                 GDALDataType eType, char ** papszOptions ) CPL_WARN_UNUSED_RESULT;
 
     GDALDataset         *CreateMultiDimensional( const char * pszName,
                                                  CSLConstList papszRootGroupOptions,
@@ -1512,7 +1507,7 @@ class CPL_DLL GDALDriver : public GDALMajorObject
                                    const char * pszOldName );
 
     GDALDataset         *CreateCopy( const char *, GDALDataset *,
-                                     int, CSLConstList papszOptions,
+                                     int, char **,
                                      GDALProgressFunc pfnProgress,
                                      void * pProgressData ) CPL_WARN_UNUSED_RESULT;
 
@@ -1580,7 +1575,7 @@ class CPL_DLL GDALDriver : public GDALMajorObject
 /* -------------------------------------------------------------------- */
 //! @cond Doxygen_Suppress
     GDALDataset         *DefaultCreateCopy( const char *, GDALDataset *,
-                                            int, CSLConstList papszOptions,
+                                            int, char **,
                                             GDALProgressFunc pfnProgress,
                                             void * pProgressData ) CPL_WARN_UNUSED_RESULT;
 
@@ -1603,7 +1598,7 @@ class CPL_DLL GDALDriver : public GDALMajorObject
                                            void * pProgressData );
 //! @endcond
     static CPLErr       QuietDelete( const char * pszName,
-                                     CSLConstList papszAllowedDrivers = nullptr);
+                                     const char *const *papszAllowedDrivers = nullptr);
 
 //! @cond Doxygen_Suppress
     static CPLErr       DefaultRename( const char * pszNewName,
@@ -1814,8 +1809,7 @@ public:
     static GDALExtendedDataType Create(const std::string& osName,
                                        size_t nTotalSize,
                                        std::vector<std::unique_ptr<GDALEDTComponent>>&& components);
-    static GDALExtendedDataType CreateString(size_t nMaxStringLength = 0,
-                                             GDALExtendedDataTypeSubType eSubType = GEDTST_NONE);
+    static GDALExtendedDataType CreateString(size_t nMaxStringLength = 0);
 
     bool operator== (const GDALExtendedDataType& ) const;
     /** Non-equality operator */
@@ -1838,14 +1832,6 @@ public:
      * This is the same as the C function GDALExtendedDataTypeGetNumericDataType()
      */
     GDALDataType              GetNumericDataType() const { return m_eNumericDT;  }
-
-    /** Return subtype.
-     *
-     * This is the same as the C function GDALExtendedDataTypeGetSubType()
-     *
-     * @since 3.4
-     */
-    GDALExtendedDataTypeSubType GetSubType() const { return m_eSubType; }
 
     /** Return the components of the data type (only valid when GetClass() == GEDTC_COMPOUND)
      *
@@ -1878,7 +1864,7 @@ public:
                      void* pDst, const GDALExtendedDataType& dstType);
 
 private:
-    GDALExtendedDataType(size_t nMaxStringLength, GDALExtendedDataTypeSubType eSubType);
+    explicit GDALExtendedDataType(size_t nMaxStringLength = 0);
     explicit  GDALExtendedDataType(GDALDataType eType);
     GDALExtendedDataType(const std::string& osName,
                          size_t nTotalSize,
@@ -1886,7 +1872,6 @@ private:
 
     std::string m_osName{};
     GDALExtendedDataTypeClass m_eClass = GEDTC_NUMERIC;
-    GDALExtendedDataTypeSubType m_eSubType = GEDTST_NONE;
     GDALDataType m_eNumericDT = GDT_Unknown;
     std::vector<std::unique_ptr<GDALEDTComponent>> m_aoComponents{};
     size_t m_nSize = 0;
@@ -1968,7 +1953,7 @@ public:
 /* ******************************************************************** */
 
 /**
- * Class modeling a named container of GDALAttribute, GDALMDArray, OGRLayer or other
+ * Class modeling a named container of GDALAttribute, GDALMDArray or other
  * GDALGroup. Hence GDALGroup can describe a hierarchy of objects.
  *
  * This is based on the <a href="https://portal.opengeospatial.org/files/81716#_hdf5_group">HDF5 group concept</a>
@@ -2011,10 +1996,6 @@ public:
     virtual std::vector<std::string> GetGroupNames(CSLConstList papszOptions = nullptr) const;
     virtual std::shared_ptr<GDALGroup> OpenGroup(const std::string& osName,
                                                  CSLConstList papszOptions = nullptr) const;
-
-    virtual std::vector<std::string> GetVectorLayerNames(CSLConstList papszOptions = nullptr) const;
-    virtual OGRLayer* OpenVectorLayer(const std::string& osName,
-                                      CSLConstList papszOptions = nullptr) const;
 
     virtual std::vector<std::shared_ptr<GDALDimension>> GetDimensions(CSLConstList papszOptions = nullptr) const;
 
@@ -2060,8 +2041,6 @@ public:
 
     std::shared_ptr<GDALDimension> OpenDimensionFromFullname(
                                         const std::string& osFullName) const;
-
-    virtual void ClearStatistics();
 
 //! @cond Doxygen_Suppress
     static constexpr GUInt64 COPY_COST = 1000;
@@ -2171,7 +2150,7 @@ public:
                                  FuncProcessPerChunkType pfnFunc,
                                  void* pUserData);
 
-    virtual bool Read(const GUInt64* arrayStartIdx,     // array of size GetDimensionCount()
+    bool Read(const GUInt64* arrayStartIdx,     // array of size GetDimensionCount()
                       const size_t* count,                 // array of size GetDimensionCount()
                       const GInt64* arrayStep,        // step in elements
                       const GPtrDiff_t* bufferStride, // stride in elements
@@ -2311,8 +2290,7 @@ protected:
 public:
     GDALAttributeString(const std::string& osParentName,
                   const std::string& osName,
-                  const std::string& osValue,
-                  GDALExtendedDataTypeSubType eSubType = GEDTST_NONE);
+                  const std::string& osValue);
 
     const std::vector<std::shared_ptr<GDALDimension>>& GetDimensions() const override;
 
@@ -2373,7 +2351,6 @@ public:
  */
 class CPL_DLL GDALMDArray: virtual public GDALAbstractMDArray, public GDALIHasAttribute
 {
-    friend class GDALMDArrayResampled;
     std::shared_ptr<GDALMDArray> GetView(const std::vector<GUInt64>& indices) const;
 
     inline std::shared_ptr<GDALMDArray> atInternal(std::vector<GUInt64>& indices) const
@@ -2390,28 +2367,19 @@ class CPL_DLL GDALMDArray: virtual public GDALAbstractMDArray, public GDALIHasAt
         return atInternal(indices, tail...);
     }
 
-    mutable bool m_bHasTriedCachedArray = false;
-    mutable std::shared_ptr<GDALMDArray> m_poCachedArray{};
+    bool SetStatistics( GDALDataset* poDS,
+                        bool bApproxStats,
+                        double dfMin, double dfMax,
+                        double dfMean, double dfStdDev,
+                        GUInt64 nValidCount );
 
 protected:
 //! @cond Doxygen_Suppress
     GDALMDArray(const std::string& osParentName, const std::string& osName);
 
     virtual bool IAdviseRead(const GUInt64* arrayStartIdx,
-                             const size_t* count,
-                             CSLConstList papszOptions) const;
+                             const size_t* count) const;
 
-    virtual bool IsCacheable() const { return true; }
-
-    virtual bool SetStatistics( bool bApproxStats,
-                                double dfMin, double dfMax,
-                                double dfMean, double dfStdDev,
-                                GUInt64 nValidCount );
-
-    static std::string MassageName(const std::string& inputName);
-
-    std::shared_ptr<GDALGroup> GetCacheRootGroup(bool bCanCreate,
-                                                 std::string& osCacheFilenameOut) const;
 //! @endcond
 
 public:
@@ -2426,18 +2394,8 @@ public:
                           GDALProgressFunc pfnProgress,
                           void * pProgressData);
 
-    /** Return whether an array is writable. */
+    /** Return whether an array is writable; */
     virtual bool IsWritable() const = 0;
-
-    /** Return the filename that contains that array.
-     *
-     * This is used in particular for caching.
-     *
-     * Might be empty if the array is not linked to a file.
-     *
-     * @since GDAL 3.4
-     */
-    virtual const std::string& GetFilename() const = 0;
 
     virtual CSLConstList GetStructuralInfo() const;
 
@@ -2478,10 +2436,7 @@ public:
     * ar->at(0,3,2)
     * \endcode
     */
-    // sphinx 4.1.0 / breathe 4.30.0 don't like typename...
-//! @cond Doxygen_Suppress
     template<typename... GUInt64VarArg>
-//! @endcond
     // cppcheck-suppress functionStatic
     std::shared_ptr<GDALMDArray> at(GUInt64 idx, GUInt64VarArg... tail) const
     {
@@ -2496,49 +2451,24 @@ public:
 
     virtual std::shared_ptr<GDALMDArray> GetMask(CSLConstList papszOptions) const;
 
-    std::shared_ptr<GDALMDArray>
-        GetResampled( const std::vector<std::shared_ptr<GDALDimension>>& apoNewDims,
-                      GDALRIOResampleAlg resampleAlg,
-                      const OGRSpatialReference* poTargetSRS,
-                      CSLConstList papszOptions ) const;
-
     virtual GDALDataset* AsClassicDataset(size_t iXDim, size_t iYDim) const;
 
-    virtual CPLErr GetStatistics( bool bApproxOK, bool bForce,
+    virtual CPLErr GetStatistics( GDALDataset* poDS,
+                                  bool bApproxOK, bool bForce,
                                   double *pdfMin, double *pdfMax,
                                   double *pdfMean, double *padfStdDev,
                                   GUInt64* pnValidCount,
                                   GDALProgressFunc pfnProgress, void *pProgressData );
 
-    virtual bool ComputeStatistics( bool bApproxOK,
+    virtual bool ComputeStatistics( GDALDataset* poDS,
+                                    bool bApproxOK,
                                     double *pdfMin, double *pdfMax,
                                     double *pdfMean, double *pdfStdDev,
                                     GUInt64* pnValidCount,
                                     GDALProgressFunc, void *pProgressData );
 
-    virtual void ClearStatistics();
-
-    virtual std::vector<std::shared_ptr<GDALMDArray>> GetCoordinateVariables() const;
-
     bool AdviseRead(const GUInt64* arrayStartIdx,
-                    const size_t* count,
-                    CSLConstList papszOptions = nullptr) const;
-
-    bool IsRegularlySpaced(double& dfStart, double& dfIncrement) const;
-
-    bool GuessGeoTransform(size_t nDimX, size_t nDimY, bool bPixelIsPoint,
-                           double adfGeoTransform[6]) const;
-
-    bool Cache( CSLConstList papszOptions = nullptr ) const;
-
-    bool Read(const GUInt64* arrayStartIdx,     // array of size GetDimensionCount()
-                      const size_t* count,                 // array of size GetDimensionCount()
-                      const GInt64* arrayStep,        // step in elements
-                      const GPtrDiff_t* bufferStride, // stride in elements
-                      const GDALExtendedDataType& bufferDataType,
-                      void* pDstBuffer,
-                      const void* pDstBufferAllocStart = nullptr,
-                      size_t nDstBufferAllocSize = 0) const override final;
+                    const size_t* count) const;
 
 //! @cond Doxygen_Suppress
     static constexpr GUInt64 COPY_COST = 1000;
@@ -2573,18 +2503,6 @@ public:
 //! @endcond
 };
 
-//! @cond Doxygen_Suppress
-bool GDALMDRasterIOFromBand(GDALRasterBand* poBand,
-                            GDALRWFlag eRWFlag,
-                            size_t iDimX,
-                            size_t iDimY,
-                            const GUInt64* arrayStartIdx,
-                            const size_t* count,
-                            const GInt64* arrayStep,
-                            const GPtrDiff_t* bufferStride,
-                            const GDALExtendedDataType& bufferDataType,
-                            void* pBuffer);
-//! @endcond
 
 /************************************************************************/
 /*                     GDALMDArrayRegularlySpaced                       */
@@ -2599,7 +2517,6 @@ class CPL_DLL GDALMDArrayRegularlySpaced: public GDALMDArray
     GDALExtendedDataType m_dt = GDALExtendedDataType::Create(GDT_Float64);
     std::vector<std::shared_ptr<GDALDimension>> m_dims;
     std::vector<std::shared_ptr<GDALAttribute>> m_attributes{};
-    std::string m_osEmptyFilename{};
 
 protected:
 
@@ -2619,8 +2536,6 @@ public:
                 double dfOffsetInIncrement);
 
     bool IsWritable() const override { return false; }
-
-    const std::string& GetFilename() const override { return m_osEmptyFilename; }
 
     const std::vector<std::shared_ptr<GDALDimension>>& GetDimensions() const override;
 
@@ -2734,30 +2649,6 @@ public:
     bool SetIndexingVariable(std::shared_ptr<GDALMDArray> poIndexingVariable) override;
 };
 //! @endcond
-
-/************************************************************************/
-/*                       GDALAntiRecursionGuard                         */
-/************************************************************************/
-
-//! @cond Doxygen_Suppress
-struct GDALAntiRecursionStruct;
-class GDALAntiRecursionGuard
-{
-    GDALAntiRecursionStruct* m_psAntiRecursionStruct;
-    std::string m_osIdentifier;
-    int m_nDepth;
-
-    GDALAntiRecursionGuard(const GDALAntiRecursionGuard&) = delete;
-    GDALAntiRecursionGuard& operator= (const GDALAntiRecursionGuard&) = delete;
-
-public:
-    explicit GDALAntiRecursionGuard(const std::string& osIdentifier);
-             GDALAntiRecursionGuard(const GDALAntiRecursionGuard& other, const std::string& osIdentifier);
-    ~GDALAntiRecursionGuard();
-    int GetCallDepth() const { return m_nDepth; }
-};
-//! @endcond
-
 
 /* ==================================================================== */
 /*      An assortment of overview related stuff.                        */
@@ -2926,21 +2817,6 @@ int GDALCanFileAcceptSidecarFile(const char* pszFilename);
 bool GDALCanReliablyUseSiblingFileList(const char* pszFilename);
 
 bool CPL_DLL GDALIsDriverDeprecatedForGDAL35StillEnabled(const char* pszDriverName, const char* pszExtraMsg = "");
-
-typedef enum
-{
-    GSF_UNSIGNED_INT,
-    GSF_SIGNED_INT,
-    GSF_FLOATING_POINT,
-} GDALBufferSampleFormat;
-
-bool CPL_DLL GDALBufferHasOnlyNoData(const void* pBuffer,
-                                     double dfNoDataValue,
-                                     size_t nWidth, size_t nHeight,
-                                     size_t nLineStride,
-                                     size_t nComponents,
-                                     int nBitsPerSample,
-                                     GDALBufferSampleFormat nSampleFormat);
 
 //! @endcond
 

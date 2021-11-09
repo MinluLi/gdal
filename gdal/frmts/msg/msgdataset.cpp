@@ -53,7 +53,7 @@ const double MSGDataset::rA[12] = {-1, -1, -1, 0.9959, 0.9963, 0.9991, 0.9996, 0
 const double MSGDataset::rB[12] = {-1, -1, -1, 3.471, 2.219, 0.485, 0.181, 0.060, 0.627, 0.397, 0.576, -1};
 const int MSGDataset::iCentralPixelVIS_IR = 1856; // center pixel VIS and IR
 const int MSGDataset::iCentralPixelHRV = 5566; // center pixel HRV
-int MSGDataset::iCurrentSatelliteHint = 1;     // satellite number hint 1,2,3,4 for MSG1, MSG2, MSG3 and MSG4
+int MSGDataset::iCurrentSatellite = 1; // satellite number 1,2,3,4 for MSG1, MSG2, MSG3 and MSG4
 const char *MSGDataset::metadataDomain = "msg"; // the metadata domain
 
 #define MAX_SATELLITES 4
@@ -65,6 +65,7 @@ const char *MSGDataset::metadataDomain = "msg"; // the metadata domain
 MSGDataset::MSGDataset()
 
 {
+  poTransform = nullptr;
   pszProjection = CPLStrdup("");
   adfGeoTransform[0] = 0.0;
   adfGeoTransform[1] = 1.0;
@@ -81,7 +82,8 @@ MSGDataset::MSGDataset()
 MSGDataset::~MSGDataset()
 
 {
-  delete poTransform;
+  if( poTransform != nullptr )
+    delete poTransform;
 
   CPLFree( pszProjection );
 }
@@ -149,26 +151,34 @@ GDALDataset *MSGDataset::Open( GDALOpenInfo * poOpenInfo )
 /* -------------------------------------------------------------------- */
     Prologue pp;
 
-    int iCurrentSatellite = iCurrentSatelliteHint; // Start with the hint. It is nice to have but don't rely on it...
-
     std::string sPrologueFileName = command.sPrologueFileName(iCurrentSatellite, 1);
     bool fPrologueExists = (access(sPrologueFileName.c_str(), 0) == 0);
 
-    // Make sure we're testing for MSG1,2,3 or 4 exactly once, start with the hint which is the most recently used.
-    int iTries = 1;
-    while (!fPrologueExists && (iTries < MAX_SATELLITES))
+    // Make sure we're testing for MSG1,2,3 or 4 exactly once, start with the most recently used, and remember it in the static member for the next round.
+    if (!fPrologueExists)
     {
       iCurrentSatellite = 1 + iCurrentSatellite % MAX_SATELLITES;
       sPrologueFileName = command.sPrologueFileName(iCurrentSatellite, 1);
       fPrologueExists = (access(sPrologueFileName.c_str(), 0) == 0);
-      ++iTries;
+      int iTries = 2;
+      while (!fPrologueExists && (iTries < MAX_SATELLITES))
+      {
+        iCurrentSatellite = 1 + iCurrentSatellite % MAX_SATELLITES;
+        sPrologueFileName = command.sPrologueFileName(iCurrentSatellite, 1);
+        fPrologueExists = (access(sPrologueFileName.c_str(), 0) == 0);
+        ++iTries;
+      }
+      if (!fPrologueExists) // assume missing prologue file, keep original satellite number
+      {
+        iCurrentSatellite = 1 + iCurrentSatellite % MAX_SATELLITES;
+        sPrologueFileName = command.sPrologueFileName(iCurrentSatellite, 1);
+      }
     }
 
     if (fPrologueExists)
     {
-      iCurrentSatelliteHint = iCurrentSatellite; // set the hint
-      std::ifstream p_file(sPrologueFileName.c_str(), std::ios::in | std::ios::binary);
-      XRITHeaderParser xhp(p_file);
+      std::ifstream p_file(sPrologueFileName.c_str(), std::ios::in|std::ios::binary);
+      XRITHeaderParser xhp (p_file);
       if (xhp.isValid() && xhp.isPrologue())
         pp.read(p_file);
       p_file.close();
@@ -190,15 +200,9 @@ GDALDataset *MSGDataset::Open( GDALOpenInfo * poOpenInfo )
     MSGDataset *poDS = new MSGDataset();
     poDS->command = command; // copy it
 
-    /* -------------------------------------------------------------------- */
-    /*      Set the current satellite for this DS                           */
-    /* -------------------------------------------------------------------- */
-
-    poDS->iCurrentSatellite = iCurrentSatellite; // copy it
-
-    /* -------------------------------------------------------------------- */
-    /*      Capture raster size from MSG prologue and submit it to GDAL     */
-    /* -------------------------------------------------------------------- */
+/* -------------------------------------------------------------------- */
+/*      Capture raster size from MSG prologue and submit it to GDAL     */
+/* -------------------------------------------------------------------- */
 
     if (command.channel[11] != 0) // the HRV band
     {
@@ -341,22 +345,31 @@ MSGRasterBand::MSGRasterBand( MSGDataset *poDSIn, int nBandIn )
     // Find if we're dealing with MSG1, MSG2, MSG3 or MSG4
     // Doing this per band is the only way to guarantee time-series when the satellite is changed
 
-    int iCurrentSatellite = poDSIn->iCurrentSatellite; // Start with the satellite selected by the dataset
-
-    std::string sPrologueFileName = poDSIn->command.sPrologueFileName(iCurrentSatellite, 1);
+    std::string sPrologueFileName = poDSIn->command.sPrologueFileName(poDSIn->iCurrentSatellite, nBand);
     bool fPrologueExists = (access(sPrologueFileName.c_str(), 0) == 0);
 
-    // Make sure we're testing for MSG1,2,3 or 4 exactly once, start with the one of the dataset
-    int iTries = 1;
-    while (!fPrologueExists && (iTries < MAX_SATELLITES))
+    // Make sure we're testing for MSG1,2,3 or 4 exactly once, start with the most recently used, and remember it in the static member for the next round.
+    if (!fPrologueExists)
     {
-      iCurrentSatellite = 1 + iCurrentSatellite % MAX_SATELLITES;
-      sPrologueFileName = poDSIn->command.sPrologueFileName(iCurrentSatellite, 1);
+      poDSIn->iCurrentSatellite = 1 + poDSIn->iCurrentSatellite % MAX_SATELLITES;
+      sPrologueFileName = poDSIn->command.sPrologueFileName(poDSIn->iCurrentSatellite, nBand);
       fPrologueExists = (access(sPrologueFileName.c_str(), 0) == 0);
-      ++iTries;
+      int iTries = 2;
+      while (!fPrologueExists && (iTries < MAX_SATELLITES))
+      {
+        poDSIn->iCurrentSatellite = 1 + poDSIn->iCurrentSatellite % MAX_SATELLITES;
+        sPrologueFileName = poDSIn->command.sPrologueFileName(poDSIn->iCurrentSatellite, nBand);
+        fPrologueExists = (access(sPrologueFileName.c_str(), 0) == 0);
+        ++iTries;
+      }
+      if (!fPrologueExists) // assume missing prologue file, keep original satellite number
+      {
+        poDSIn->iCurrentSatellite = 1 + poDSIn->iCurrentSatellite % MAX_SATELLITES;
+        sPrologueFileName = poDSIn->command.sPrologueFileName(poDSIn->iCurrentSatellite, nBand);
+      }
     }
 
-    iSatellite = iCurrentSatellite; // From here on, the satellite that corresponds to this band is settled to the current satellite
+    iSatellite = poDSIn->iCurrentSatellite; // From here on, the satellite that corresponds to this band is settled to the current satellite
 
     nBlockXSize = poDSIn->GetRasterXSize();
     nBlockYSize = poDSIn->GetRasterYSize();
@@ -516,9 +529,9 @@ CPLErr MSGRasterBand::IReadBlock( int /*nBlockXOff*/, int nBlockYOff,
         if (xhp.isValid())
         {
           std::vector <short> QualityInfo;
-          unsigned short chunk_height = static_cast<unsigned short>(xhp.nrRows());
-          unsigned short chunk_bpp = static_cast<unsigned short>(xhp.nrBitsPerPixel());
-          unsigned short chunk_width = static_cast<unsigned short>(xhp.nrColumns());
+          unsigned short chunk_height = xhp.nrRows();
+          unsigned short chunk_bpp = xhp.nrBitsPerPixel();
+          unsigned short chunk_width = xhp.nrColumns();
           unsigned __int8 NR = (unsigned __int8)chunk_bpp;
           unsigned int nb_ibytes = static_cast<unsigned int>(xhp.dataSize());
           int iShift = 0;
@@ -597,12 +610,12 @@ CPLErr MSGRasterBand::IReadBlock( int /*nBlockXOff*/, int nBlockYOff,
               if (poGDS->command.cDataConversion == 'B')
               {
                 for( int i = 0; i < nBlockSize; ++i )
-                    ((GByte *)pImage)[i] = static_cast<GByte>(cimg.Get()[y+=iStep] / 4);
+                    ((GByte *)pImage)[i] = cimg.Get()[y+=iStep] / 4;
               }
               else
               {
                 for( int i = 0; i < nBlockSize; ++i )
-                    ((GByte *)pImage)[i] = static_cast<GByte>(cimg.Get()[y+=iStep]);
+                    ((GByte *)pImage)[i] = cimg.Get()[y+=iStep];
               }
             }
             else
@@ -618,7 +631,7 @@ CPLErr MSGRasterBand::IReadBlock( int /*nBlockXOff*/, int nBlockYOff,
                   if (fSplitStrip && (j >= iSplitRow)) // In splitstrip, below splitline, thus do not shift!!
                     iXOffset -= iShift;
                   for (int i = 0; i < chunk_width; ++i)
-                    ((GByte *)pImage)[++iXOffset] = static_cast<GByte>(cimg.Get()[y+=iStep] / 4);
+                    ((GByte *)pImage)[++iXOffset] = cimg.Get()[y+=iStep] / 4;
                 }
               }
               else
@@ -630,7 +643,7 @@ CPLErr MSGRasterBand::IReadBlock( int /*nBlockXOff*/, int nBlockYOff,
                   if (fSplitStrip && (j >= iSplitRow)) // In splitstrip, below splitline, thus do not shift!!
                     iXOffset -= iShift;
                   for (int i = 0; i < chunk_width; ++i)
-                    ((GByte *)pImage)[++iXOffset] = static_cast<GByte>(cimg.Get()[y+=iStep]);
+                    ((GByte *)pImage)[++iXOffset] = cimg.Get()[y+=iStep];
                 }
               }
             }

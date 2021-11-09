@@ -274,6 +274,7 @@ struct ColumnBuilder {
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
+  ColumnBuilder &operator=(const ColumnBuilder &);
   flatbuffers::Offset<Column> Finish() {
     const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<Column>(end);
@@ -413,6 +414,7 @@ struct CrsBuilder {
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
+  CrsBuilder &operator=(const CrsBuilder &);
   flatbuffers::Offset<Crs> Finish() {
     const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<Crs>(end);
@@ -467,10 +469,10 @@ struct Header FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_NAME = 4,
     VT_ENVELOPE = 6,
     VT_GEOMETRY_TYPE = 8,
-    VT_HAS_Z = 10,
-    VT_HAS_M = 12,
-    VT_HAS_T = 14,
-    VT_HAS_TM = 16,
+    VT_HASZ = 10,
+    VT_HASM = 12,
+    VT_HAST = 14,
+    VT_HASTM = 16,
     VT_COLUMNS = 18,
     VT_FEATURES_COUNT = 20,
     VT_INDEX_NODE_SIZE = 22,
@@ -488,17 +490,17 @@ struct Header FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   FlatGeobuf::GeometryType geometry_type() const {
     return static_cast<FlatGeobuf::GeometryType>(GetField<uint8_t>(VT_GEOMETRY_TYPE, 0));
   }
-  bool has_z() const {
-    return GetField<uint8_t>(VT_HAS_Z, 0) != 0;
+  bool hasZ() const {
+    return GetField<uint8_t>(VT_HASZ, 0) != 0;
   }
-  bool has_m() const {
-    return GetField<uint8_t>(VT_HAS_M, 0) != 0;
+  bool hasM() const {
+    return GetField<uint8_t>(VT_HASM, 0) != 0;
   }
-  bool has_t() const {
-    return GetField<uint8_t>(VT_HAS_T, 0) != 0;
+  bool hasT() const {
+    return GetField<uint8_t>(VT_HAST, 0) != 0;
   }
-  bool has_tm() const {
-    return GetField<uint8_t>(VT_HAS_TM, 0) != 0;
+  bool hasTM() const {
+    return GetField<uint8_t>(VT_HASTM, 0) != 0;
   }
   const flatbuffers::Vector<flatbuffers::Offset<FlatGeobuf::Column>> *columns() const {
     return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<FlatGeobuf::Column>> *>(VT_COLUMNS);
@@ -528,10 +530,10 @@ struct Header FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            VerifyOffset(verifier, VT_ENVELOPE) &&
            verifier.VerifyVector(envelope()) &&
            VerifyField<uint8_t>(verifier, VT_GEOMETRY_TYPE) &&
-           VerifyField<uint8_t>(verifier, VT_HAS_Z) &&
-           VerifyField<uint8_t>(verifier, VT_HAS_M) &&
-           VerifyField<uint8_t>(verifier, VT_HAS_T) &&
-           VerifyField<uint8_t>(verifier, VT_HAS_TM) &&
+           VerifyField<uint8_t>(verifier, VT_HASZ) &&
+           VerifyField<uint8_t>(verifier, VT_HASM) &&
+           VerifyField<uint8_t>(verifier, VT_HAST) &&
+           VerifyField<uint8_t>(verifier, VT_HASTM) &&
            VerifyOffset(verifier, VT_COLUMNS) &&
            verifier.VerifyVector(columns()) &&
            verifier.VerifyVectorOfTables(columns()) &&
@@ -562,17 +564,17 @@ struct HeaderBuilder {
   void add_geometry_type(FlatGeobuf::GeometryType geometry_type) {
     fbb_.AddElement<uint8_t>(Header::VT_GEOMETRY_TYPE, static_cast<uint8_t>(geometry_type), 0);
   }
-  void add_has_z(bool has_z) {
-    fbb_.AddElement<uint8_t>(Header::VT_HAS_Z, static_cast<uint8_t>(has_z), 0);
+  void add_hasZ(bool hasZ) {
+    fbb_.AddElement<uint8_t>(Header::VT_HASZ, static_cast<uint8_t>(hasZ), 0);
   }
-  void add_has_m(bool has_m) {
-    fbb_.AddElement<uint8_t>(Header::VT_HAS_M, static_cast<uint8_t>(has_m), 0);
+  void add_hasM(bool hasM) {
+    fbb_.AddElement<uint8_t>(Header::VT_HASM, static_cast<uint8_t>(hasM), 0);
   }
-  void add_has_t(bool has_t) {
-    fbb_.AddElement<uint8_t>(Header::VT_HAS_T, static_cast<uint8_t>(has_t), 0);
+  void add_hasT(bool hasT) {
+    fbb_.AddElement<uint8_t>(Header::VT_HAST, static_cast<uint8_t>(hasT), 0);
   }
-  void add_has_tm(bool has_tm) {
-    fbb_.AddElement<uint8_t>(Header::VT_HAS_TM, static_cast<uint8_t>(has_tm), 0);
+  void add_hasTM(bool hasTM) {
+    fbb_.AddElement<uint8_t>(Header::VT_HASTM, static_cast<uint8_t>(hasTM), 0);
   }
   void add_columns(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<FlatGeobuf::Column>>> columns) {
     fbb_.AddOffset(Header::VT_COLUMNS, columns);
@@ -599,6 +601,7 @@ struct HeaderBuilder {
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
+  HeaderBuilder &operator=(const HeaderBuilder &);
   flatbuffers::Offset<Header> Finish() {
     const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<Header>(end);
@@ -611,10 +614,10 @@ inline flatbuffers::Offset<Header> CreateHeader(
     flatbuffers::Offset<flatbuffers::String> name = 0,
     flatbuffers::Offset<flatbuffers::Vector<double>> envelope = 0,
     FlatGeobuf::GeometryType geometry_type = FlatGeobuf::GeometryType::Unknown,
-    bool has_z = false,
-    bool has_m = false,
-    bool has_t = false,
-    bool has_tm = false,
+    bool hasZ = false,
+    bool hasM = false,
+    bool hasT = false,
+    bool hasTM = false,
     flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<FlatGeobuf::Column>>> columns = 0,
     uint64_t features_count = 0,
     uint16_t index_node_size = 16,
@@ -632,10 +635,10 @@ inline flatbuffers::Offset<Header> CreateHeader(
   builder_.add_envelope(envelope);
   builder_.add_name(name);
   builder_.add_index_node_size(index_node_size);
-  builder_.add_has_tm(has_tm);
-  builder_.add_has_t(has_t);
-  builder_.add_has_m(has_m);
-  builder_.add_has_z(has_z);
+  builder_.add_hasTM(hasTM);
+  builder_.add_hasT(hasT);
+  builder_.add_hasM(hasM);
+  builder_.add_hasZ(hasZ);
   builder_.add_geometry_type(geometry_type);
   return builder_.Finish();
 }
@@ -645,10 +648,10 @@ inline flatbuffers::Offset<Header> CreateHeaderDirect(
     const char *name = nullptr,
     const std::vector<double> *envelope = nullptr,
     FlatGeobuf::GeometryType geometry_type = FlatGeobuf::GeometryType::Unknown,
-    bool has_z = false,
-    bool has_m = false,
-    bool has_t = false,
-    bool has_tm = false,
+    bool hasZ = false,
+    bool hasM = false,
+    bool hasT = false,
+    bool hasTM = false,
     const std::vector<flatbuffers::Offset<FlatGeobuf::Column>> *columns = nullptr,
     uint64_t features_count = 0,
     uint16_t index_node_size = 16,
@@ -667,10 +670,10 @@ inline flatbuffers::Offset<Header> CreateHeaderDirect(
       name__,
       envelope__,
       geometry_type,
-      has_z,
-      has_m,
-      has_t,
-      has_tm,
+      hasZ,
+      hasM,
+      hasT,
+      hasTM,
       columns__,
       features_count,
       index_node_size,

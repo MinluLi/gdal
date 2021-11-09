@@ -4,7 +4,7 @@ include ../../../GDALmake.opt
 
 OBJ	=	ogrcswdataset.o
 
-CPPFLAGS	:=	-iquote .. -iquote ../.. -iquote ../gml -iquote ../wfs  $(CPPFLAGS)
+CPPFLAGS	:=	-I.. -I../.. -I../gml -I../wfs  $(CPPFLAGS)
 
 default:	$(O_OBJ:.o=.$(OBJ_EXT))
 

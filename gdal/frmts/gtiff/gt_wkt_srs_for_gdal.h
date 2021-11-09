@@ -32,7 +32,6 @@
 
 #include "cpl_port.h"
 #include "gdal.h"
-#include "ogr_srs_api.h"
 
 CPL_C_START
 
@@ -41,7 +40,7 @@ CPLErr CPL_DLL GTIFMemBufFromWkt( const char *pszWKT,
                                   int nGCPCount, const GDAL_GCP *pasGCPList,
                                   int *pnSize, unsigned char **ppabyBuffer );
 
-CPLErr GTIFMemBufFromSRS( OGRSpatialReferenceH hSRS,
+CPLErr GTIFMemBufFromWktEx( const char *pszWKT,
                             const double *padfGeoTransform,
                             int nGCPCount, const GDAL_GCP *pasGCPList,
                             int *pnSize, unsigned char **ppabyBuffer,
@@ -52,7 +51,7 @@ CPLErr CPL_DLL GTIFWktFromMemBuf( int nSize, unsigned char *pabyBuffer,
                           int *pnGCPCount, GDAL_GCP **ppasGCPList );
 
 CPLErr GTIFWktFromMemBufEx( int nSize, unsigned char *pabyBuffer,
-                            OGRSpatialReferenceH* phSRS, double *padfGeoTransform,
+                            char **ppszWKT, double *padfGeoTransform,
                             int *pnGCPCount, GDAL_GCP **ppasGCPList,
                             int *pbPixelIsPoint, char*** ppapszRPCMD );
 

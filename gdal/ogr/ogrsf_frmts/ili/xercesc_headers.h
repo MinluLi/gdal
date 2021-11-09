@@ -42,6 +42,8 @@
 #include <util/XMLString.hpp>
 #include <sax2/Attributes.hpp>
 
-using namespace XERCES_CPP_NAMESPACE;
+#ifdef XERCES_CPP_NAMESPACE_USE
+XERCES_CPP_NAMESPACE_USE
+#endif
 
 #endif /* XERCESC_HEADERS_H */

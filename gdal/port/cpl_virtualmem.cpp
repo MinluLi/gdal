@@ -201,7 +201,6 @@ typedef struct
     int              pipefd_wait_thread[2];
     CPLJoinableThread *hHelperThread;
 
-    // Using sigaction without testing HAVE_SIGACTION since we are in a Linux specific code path
     struct sigaction oldact;
 } CPLVirtualMemManager;
 

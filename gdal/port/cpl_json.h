@@ -133,7 +133,6 @@ public:
 
     //
     void Delete(const std::string &osName);
-    void DeleteNoSplitName(const std::string &osName);
     CPLJSONArray GetArray(const std::string &osName) const;
     CPLJSONObject GetObj(const std::string &osName) const;
     CPLJSONObject operator[](const std::string &osName) const;
@@ -217,8 +216,6 @@ public:
     ~CPLJSONDocument();
     CPLJSONDocument(const CPLJSONDocument &other);
     CPLJSONDocument& operator=(const CPLJSONDocument &other);
-    CPLJSONDocument(CPLJSONDocument &&other);
-    CPLJSONDocument& operator=(CPLJSONDocument &&other);
 /*! @endcond */
 
     bool Save(const std::string &osPath) const;
@@ -226,7 +223,6 @@ public:
 
     CPLJSONObject GetRoot();
     const CPLJSONObject GetRoot() const;
-    void SetRoot(const CPLJSONObject& oRoot);
     bool Load(const std::string &osPath);
     bool LoadMemory(const std::string &osStr);
     bool LoadMemory(const GByte *pabyData, int nLength = -1);

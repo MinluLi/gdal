@@ -143,8 +143,6 @@ void RegisterOGRFlatGeobuf()
 "  <Option name='VERIFY_BUFFERS' type='boolean' description='Verify flatbuffers integrity' default='YES'/>"
 "</OpenOptionList>");
 
-    poDriver->SetMetadataItem( GDAL_DCAP_COORDINATE_EPOCH, "YES" );
-
     poDriver->pfnOpen = OGRFlatGeobufDataset::Open;
     poDriver->pfnCreate = OGRFlatGeobufDataset::Create;
     poDriver->pfnIdentify = OGRFlatGeobufDriverIdentify;

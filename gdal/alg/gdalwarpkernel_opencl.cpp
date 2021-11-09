@@ -45,22 +45,22 @@
 
 CPL_CVSID("$Id$")
 
-#define handleErr(err) do { if((err) != CL_SUCCESS) { \
+#define handleErr(err) if((err) != CL_SUCCESS) { \
     CPLError(CE_Failure, CPLE_AppDefined, "Error at file %s line %d: %s", __FILE__, __LINE__, getCLErrorString(err)); \
     return err; \
-} } while(0)
+}
 
-#define handleErrRetNULL(err) do { if((err) != CL_SUCCESS) { \
+#define handleErrRetNULL(err) if((err) != CL_SUCCESS) { \
     (*clErr) = err; \
     CPLError(CE_Failure, CPLE_AppDefined, "Error at file %s line %d: %s", __FILE__, __LINE__, getCLErrorString(err)); \
     return nullptr; \
-} } while(0)
+}
 
-#define handleErrGoto(err, goto_label) do { if((err) != CL_SUCCESS) { \
+#define handleErrGoto(err, goto_label) if((err) != CL_SUCCESS) { \
     (*clErr) = err; \
     CPLError(CE_Failure, CPLE_AppDefined, "Error at file %s line %d: %s", __FILE__, __LINE__, getCLErrorString(err)); \
     goto goto_label; \
-} } while(0)
+}
 
 #define freeCLMem(clMem, fallBackMem)  do { \
     if ((clMem) != nullptr) { \
@@ -618,14 +618,12 @@ cl_kernel get_kernel(struct oclWarper *warper, char useVec,
     cl_program program;
     cl_kernel kernel;
     cl_int err = CL_SUCCESS;
-    constexpr int PROGBUF_SIZE = 128000;
-    std::string buffer;
-    buffer.resize(PROGBUF_SIZE);
-    std::string progBuf;
-    progBuf.resize(PROGBUF_SIZE);
+#define PROGBUF_SIZE 128000
+    char *buffer = static_cast<char *>(CPLCalloc(PROGBUF_SIZE, sizeof(char)));
+    char *progBuf = static_cast<char *>(CPLCalloc(PROGBUF_SIZE, sizeof(char)));
     float dstMinVal = 0.f, dstMaxVal = 0.0;
 
-    const char *outType = "";
+    const char *outType;
     const char *dUseVec = "";
     const char *dVecf = "float";
     const char *kernGenFuncs = R""""(
@@ -1314,11 +1312,6 @@ __kernel void resamp(__read_only image2d_t srcCoords,
             dstMaxVal = 65535.0;
             outType = "ushort";
             break;
-        default:
-            CPLError(CE_Failure, CPLE_AppDefined,
-                     "Unhandled imageFormat = %d",
-                     warper->imageFormat);
-            return nullptr;
     }
 
     //Use vector format?
@@ -1330,21 +1323,21 @@ __kernel void resamp(__read_only image2d_t srcCoords,
     //Assemble the kernel from parts. The compiler is unable to handle multiple
     //kernels in one string with more than a few __constant modifiers each.
     if (warper->resampAlg == OCL_Bilinear)
-        snprintf(&progBuf[0], PROGBUF_SIZE, "%s\n%s", kernGenFuncs, kernBilinear);
+        snprintf(progBuf, PROGBUF_SIZE, "%s\n%s", kernGenFuncs, kernBilinear);
     else if (warper->resampAlg == OCL_Cubic)
-        snprintf(&progBuf[0], PROGBUF_SIZE, "%s\n%s", kernGenFuncs, kernCubic);
+        snprintf(progBuf, PROGBUF_SIZE, "%s\n%s", kernGenFuncs, kernCubic);
     else
-        snprintf(&progBuf[0], PROGBUF_SIZE, "%s\n%s", kernGenFuncs, kernResampler);
+        snprintf(progBuf, PROGBUF_SIZE, "%s\n%s", kernGenFuncs, kernResampler);
 
     //Actually make the program from assembled source
-    const char* pszProgBuf = progBuf.c_str();
+    const char* pszProgBuf = progBuf;
     program = clCreateProgramWithSource(warper->context, 1,
                                         &pszProgBuf,
                                         nullptr, &err);
     handleErrGoto(err, error_final);
 
     //Assemble the compiler arg string for speed. All invariants should be defined here.
-    snprintf(&buffer[0], PROGBUF_SIZE,
+    snprintf(buffer, PROGBUF_SIZE,
              "-cl-fast-relaxed-math -Werror -D FALSE=0 -D TRUE=1 "
             "%s"
             "-D iSrcWidth=%d -D iSrcHeight=%d -D iDstWidth=%d -D iDstHeight=%d "
@@ -1365,22 +1358,20 @@ __kernel void resamp(__read_only image2d_t srcCoords,
             dVecf, dUseVec, warper->resampAlg == OCL_CubicSpline,
             warper->nBandSrcValidCL != nullptr, warper->coordMult);
 
-    (*clErr) = err = clBuildProgram(program, 1, &(warper->dev), buffer.data(), nullptr, nullptr);
+    (*clErr) = err = clBuildProgram(program, 1, &(warper->dev), buffer, nullptr, nullptr);
 
     //Detailed debugging info
     if (err != CL_SUCCESS)
     {
         const char* pszStatus = "unknown_status";
         err = clGetProgramBuildInfo(program, warper->dev, CL_PROGRAM_BUILD_LOG,
-                                    PROGBUF_SIZE, &buffer[0], nullptr);
+                                    128000*sizeof(char), buffer, nullptr);
         handleErrGoto(err, error_free_program);
 
-        CPLError(CE_Failure, CPLE_AppDefined,
-                 "Error: Failed to build program executable!\nBuild Log:\n%s",
-                 buffer.c_str());
+        CPLError(CE_Failure, CPLE_AppDefined, "Error: Failed to build program executable!\nBuild Log:\n%s", buffer);
 
         err = clGetProgramBuildInfo(program, warper->dev, CL_PROGRAM_BUILD_STATUS,
-                                    PROGBUF_SIZE, &buffer[0], nullptr);
+                                    128000*sizeof(char), buffer, nullptr);
         handleErrGoto(err, error_free_program);
 
         if(buffer[0] == CL_BUILD_NONE)
@@ -1392,7 +1383,7 @@ __kernel void resamp(__read_only image2d_t srcCoords,
         else if(buffer[0] == CL_BUILD_IN_PROGRESS)
             pszStatus = "CL_BUILD_IN_PROGRESS";
 
-        CPLDebug("OpenCL", "Build Status: %s\nProgram Source:\n%s", pszStatus, progBuf.c_str());
+        CPLDebug("OpenCL", "Build Status: %s\nProgram Source:\n%s", pszStatus, progBuf);
         goto error_free_program;
     }
 
@@ -1402,12 +1393,16 @@ __kernel void resamp(__read_only image2d_t srcCoords,
     err = clReleaseProgram(program);
     handleErrGoto(err, error_final);
 
+    CPLFree(buffer);
+    CPLFree(progBuf);
     return kernel;
 
 error_free_program:
     err = clReleaseProgram(program);
 
 error_final:
+    CPLFree(buffer);
+    CPLFree(progBuf);
     return nullptr;
 }
 
@@ -1972,8 +1967,6 @@ cl_int set_img_data(struct oclWarper *warper, void *srcImgData,
             }
         }
     } else {
-        assert(dstImag);
-
         //Copy, deinterleave, & space interleaved data
         for( iSrcY = 0; iSrcY < height; iSrcY++ )
         {
@@ -2170,12 +2163,9 @@ struct oclWarper* GDALWarpKernelOpenCL_createEnv(int srcWidth, int srcHeight,
         sz = warper->numBands * ((31 + warper->srcWidth * warper->srcHeight) >> 5);
 
         //Allocate some space for the validity of the validity mask
-        void* useBandSrcValidTab[1];
-        cl_mem useBandSrcValidCLTab[1];
         err = alloc_pinned_mem(warper, 0, warper->numBands*sizeof(char),
-                               useBandSrcValidTab, useBandSrcValidCLTab);
-        warper->useBandSrcValid = static_cast<char*>(useBandSrcValidTab[0]);
-        warper->useBandSrcValidCL = useBandSrcValidCLTab[0];
+                               reinterpret_cast<void **>(&(warper->useBandSrcValid)),
+                               &(warper->useBandSrcValidCL));
         handleErrGoto(err, error_label);
 
         for (i = 0; i < warper->numBands; ++i)
@@ -2183,23 +2173,17 @@ struct oclWarper* GDALWarpKernelOpenCL_createEnv(int srcWidth, int srcHeight,
 
         // Allocate one array for all the band validity masks.
         // Remember that the masks don't use much memory (they're bitwise).
-        void* nBandSrcValidTab[1];
-        cl_mem nBandSrcValidCLTab[1];
         err = alloc_pinned_mem(warper, 0, sz * sizeof(int),
-                               nBandSrcValidTab, nBandSrcValidCLTab);
-        warper->nBandSrcValid = static_cast<float*>(nBandSrcValidTab[0]);
-        warper->nBandSrcValidCL = nBandSrcValidCLTab[0];
+                               reinterpret_cast<void **>(&(warper->nBandSrcValid)),
+                               &(warper->nBandSrcValidCL));
         handleErrGoto(err, error_label);
     }
 
     //Make space for the per-band
     if (dfDstNoDataReal != nullptr) {
-        void* fDstNoDataRealTab[1];
-        cl_mem fDstNoDataRealCLTab[1];
         alloc_pinned_mem(warper, 0, warper->numBands,
-                         fDstNoDataRealTab, fDstNoDataRealCLTab);
-        warper->fDstNoDataReal = static_cast<float*>(fDstNoDataRealTab[0]);
-        warper->fDstNoDataRealCL = fDstNoDataRealCLTab[0];
+                         reinterpret_cast<void **>(&(warper->fDstNoDataReal)),
+                         &(warper->fDstNoDataRealCL));
 
         //Copy over values
         for (i = 0; i < warper->numBands; ++i)
@@ -2239,11 +2223,8 @@ struct oclWarper* GDALWarpKernelOpenCL_createEnv(int srcWidth, int srcHeight,
 
     //Alloc coord memory
     sz = sizeof(float) * warper->xyChSize * warper->xyWidth * warper->xyHeight;
-    void* xyWorkTab[1];
-    cl_mem xyWorkCLTab[1];
-    err = alloc_pinned_mem(warper, 0, sz, xyWorkTab, xyWorkCLTab);
-    warper->xyWork = static_cast<float*>(xyWorkTab[0]);
-    warper->xyWorkCL = xyWorkCLTab[0];
+    err = alloc_pinned_mem(warper, 0, sz, reinterpret_cast<void **>(&(warper->xyWork)),
+                           &(warper->xyWorkCL));
     handleErrGoto(err, error_label);
 
     //Ensure everything is finished allocating, copying, & mapping

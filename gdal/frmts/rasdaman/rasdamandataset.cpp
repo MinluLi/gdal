@@ -174,7 +174,7 @@ RasdamanDataset::~RasdamanDataset()
     transaction.commit();
   }
   database.close();
-  FlushCache(true);
+  FlushCache();
 }
 
 CPLErr RasdamanDataset::IRasterIO( GDALRWFlag eRWFlag,

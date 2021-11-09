@@ -58,6 +58,8 @@ class CTable2Dataset final: public RawDataset
     const OGRSpatialReference* GetSpatialRef() const override {
         return GetSpatialRefFromOldGetProjectionRef();
     }
+    void   FlushCache(void) override;
+
     static GDALDataset *Open( GDALOpenInfo * );
     static int          Identify( GDALOpenInfo * );
     static GDALDataset *Create( const char * pszFilename,
@@ -88,7 +90,7 @@ CTable2Dataset::CTable2Dataset() :
 CTable2Dataset::~CTable2Dataset()
 
 {
-    CTable2Dataset::FlushCache(true);
+    CTable2Dataset::FlushCache();
 
     if( fpImage != nullptr )
     {
@@ -97,6 +99,16 @@ CTable2Dataset::~CTable2Dataset()
             CPLError(CE_Failure, CPLE_FileIO, "I/O error");
         }
     }
+}
+
+/************************************************************************/
+/*                             FlushCache()                             */
+/************************************************************************/
+
+void CTable2Dataset::FlushCache()
+
+{
+    RawDataset::FlushCache();
 }
 
 /************************************************************************/

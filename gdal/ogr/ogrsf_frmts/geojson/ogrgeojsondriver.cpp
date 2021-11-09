@@ -522,24 +522,19 @@ GDALDataset* OGRGeoJSONDriverOpenInternal( GDALOpenInfo* poOpenInfo,
         poDS = nullptr;
     }
 
-    if( poDS != nullptr && poDS->HasOtherPages() )
+    if( poDS != nullptr && poDS->HasOtherPages() &&
+        (STARTS_WITH(poOpenInfo->pszFilename, "http") ||
+         STARTS_WITH(poOpenInfo->pszFilename, "/vsimem/")) )
     {
-        const char* pszFilename = poOpenInfo->pszFilename;
-        if( STARTS_WITH_CI(pszFilename, "ESRIJSON:") )
-            pszFilename += strlen("ESRIJSON:");
-        if( STARTS_WITH(pszFilename, "http") ||
-            STARTS_WITH(pszFilename, "/vsimem/") )
+        const char* pszFSP = CSLFetchNameValue(poOpenInfo->papszOpenOptions,
+                                               "FEATURE_SERVER_PAGING");
+        const bool bHasResultOffset =
+          !CPLURLGetValue(poOpenInfo->pszFilename, "resultOffset").empty();
+        if( (!bHasResultOffset && (pszFSP == nullptr || CPLTestBool(pszFSP))) ||
+            (bHasResultOffset && pszFSP != nullptr && CPLTestBool(pszFSP)) )
         {
-            const char* pszFSP = CSLFetchNameValue(poOpenInfo->papszOpenOptions,
-                                                   "FEATURE_SERVER_PAGING");
-            const bool bHasResultOffset =
-              !CPLURLGetValue(pszFilename, "resultOffset").empty();
-            if( (!bHasResultOffset && (pszFSP == nullptr || CPLTestBool(pszFSP))) ||
-                (bHasResultOffset && pszFSP != nullptr && CPLTestBool(pszFSP)) )
-            {
-                return new OGRESRIFeatureServiceDataset(pszFilename,
-                                                        poDS);
-            }
+            return new OGRESRIFeatureServiceDataset(poOpenInfo->pszFilename,
+                                                    poDS);
         }
     }
 

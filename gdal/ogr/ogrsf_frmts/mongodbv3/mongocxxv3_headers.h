@@ -33,7 +33,6 @@
 #pragma GCC system_header
 #endif
 
-#include <bsoncxx/config/version.hpp>
 #include <bsoncxx/builder/basic/document.hpp>
 #include <bsoncxx/builder/basic/kvp.hpp>
 #include <bsoncxx/json.hpp>

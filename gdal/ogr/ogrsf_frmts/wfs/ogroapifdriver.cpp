@@ -570,7 +570,8 @@ bool OGROAPIFDataset::LoadJSONCollection(const CPLJSONObject& oCollection)
 #endif
     CPLJSONArray oCRS = oCollection.GetArray("crs");
     const auto oLinks = oCollection.GetArray("links");
-    auto poLayer = cpl::make_unique<OGROAPIFLayer>(this, osName, oBBOX, oCRS, oLinks);
+    std::unique_ptr<OGROAPIFLayer> poLayer( new
+        OGROAPIFLayer(this, osName, oBBOX, oCRS, oLinks) );
     if( !osTitle.empty() )
         poLayer->SetMetadataItem("TITLE", osTitle.c_str());
     if( !osDescription.empty() )
@@ -1142,9 +1143,9 @@ void OGROAPIFLayer::GetSchema()
                 const OGRFieldType eFType = GML_GetOGRFieldType(poProperty->GetType(), eSubType);
 
                 const char* pszName = poProperty->GetName() + (bAllPrefixed ? osPropertyNamePrefix.size() : 0);
-                auto poField = cpl::make_unique<OGRFieldDefn>( pszName, eFType );
-                poField->SetSubType(eSubType);
-                m_apoFieldsFromSchema.emplace_back(std::move(poField));
+                std::unique_ptr<OGRFieldDefn> oField(new OGRFieldDefn( pszName, eFType ));
+                oField->SetSubType(eSubType);
+                m_apoFieldsFromSchema.emplace_back(std::move(oField));
             }
         }
 
@@ -1217,9 +1218,9 @@ void OGROAPIFLayer::GetSchema()
                             }
                         }
 
-                        auto poField = cpl::make_unique<OGRFieldDefn>( oProp.GetName().c_str(), eType );
-                        poField->SetSubType(eSubType);
-                        m_apoFieldsFromSchema.emplace_back(std::move(poField));
+                        std::unique_ptr<OGRFieldDefn> oField(new OGRFieldDefn( oProp.GetName().c_str(), eType ));
+                        oField->SetSubType(eSubType);
+                        m_apoFieldsFromSchema.emplace_back(std::move(oField));
                     }
                 }
             }
@@ -1259,7 +1260,7 @@ void OGROAPIFLayer::EstablishFeatureDefn()
     CPLString osTmpFilename(CPLSPrintf("/vsimem/oapif_%p.json", this));
     oDoc.Save(osTmpFilename);
     std::unique_ptr<GDALDataset> poDS(
-      GDALDataset::FromHandle(
+      reinterpret_cast<GDALDataset*>(
         GDALOpenEx(osTmpFilename, GDAL_OF_VECTOR | GDAL_OF_INTERNAL,
                    nullptr, nullptr, nullptr)));
     VSIUnlink(osTmpFilename);
@@ -1429,7 +1430,7 @@ OGRFeature* OGROAPIFLayer::GetNextRawFeature()
             CPLString osTmpFilename(CPLSPrintf("/vsimem/oapif_%p.json", this));
             m_oCurDoc.Save(osTmpFilename);
             m_poUnderlyingDS = std::unique_ptr<GDALDataset>(
-              GDALDataset::FromHandle(
+            reinterpret_cast<GDALDataset*>(
                 GDALOpenEx(osTmpFilename, GDAL_OF_VECTOR | GDAL_OF_INTERNAL,
                         nullptr, nullptr, nullptr)));
             VSIUnlink(osTmpFilename);
@@ -2458,7 +2459,7 @@ static GDALDataset *OGROAPIFDriverOpen( GDALOpenInfo* poOpenInfo )
 {
     if( !OGROAPIFDriverIdentify(poOpenInfo) || poOpenInfo->eAccess == GA_Update )
         return nullptr;
-    auto poDataset = cpl::make_unique<OGROAPIFDataset>();
+    std::unique_ptr<OGROAPIFDataset> poDataset(new OGROAPIFDataset());
     if( !poDataset->Open(poOpenInfo) )
         return nullptr;
     return poDataset.release();

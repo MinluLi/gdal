@@ -4,7 +4,7 @@ include ../../../GDALmake.opt
 
 OBJ	=	ogrmongodbdriver.o
 
-CPPFLAGS	:=	-iquote ../generic  $(MONGODB_INC) $(CPPFLAGS)
+CPPFLAGS	:=	-I../generic  $(MONGODB_INC) $(CPPFLAGS)
 # Does not even solve runtime problems
 #-DDO_NOT_USE_DEBUG_BOOL
 

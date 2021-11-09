@@ -41,20 +41,6 @@
 
 CPL_CVSID("$Id$")
 
-SQLResult::SQLResult(char** result, int nRow, int nCol)
-    : papszResult(result), nRowCount(nRow), nColCount(nCol) {
-}
-
-SQLResult::~SQLResult () {
-    if (papszResult) {
-        sqlite3_free_table(papszResult);
-    }
-}
-
-void SQLResult::LimitRowCount(int nLimit) {
-    nRowCount = nLimit;
-}
-
 /* Runs a SQL command and ignores the result (good for INSERT/UPDATE/CREATE) */
 OGRErr SQLCommand(sqlite3 * poDb, const char * pszSQL)
 {
@@ -79,52 +65,73 @@ OGRErr SQLCommand(sqlite3 * poDb, const char * pszSQL)
     return OGRERR_NONE;
 }
 
-std::unique_ptr<SQLResult> SQLQuery(sqlite3 * poDb, const char * pszSQL)
+OGRErr SQLResultInit(SQLResult * poResult)
+{
+    poResult->papszResult = nullptr;
+    poResult->pszErrMsg = nullptr;
+    poResult->nRowCount = 0;
+    poResult->nColCount = 0;
+    poResult->rc = 0;
+    return OGRERR_NONE;
+}
+
+OGRErr SQLQuery(sqlite3 * poDb, const char * pszSQL, SQLResult * poResult)
 {
     CPLAssert( poDb != nullptr );
     CPLAssert( pszSQL != nullptr );
+    CPLAssert( poResult != nullptr );
+
+    SQLResultInit(poResult);
 
 #ifdef DEBUG_VERBOSE
     CPLDebug("GPKG", "get_table(%s)", pszSQL);
 #endif
-
-    char** papszResult = nullptr;
-    char* pszErrMsg = nullptr;
-    int nRowCount, nColCount;
-    int rc = sqlite3_get_table(
+    poResult->rc = sqlite3_get_table(
         poDb, pszSQL,
-        &(papszResult),
-        &(nRowCount),
-        &(nColCount),
-        &(pszErrMsg) );
+        &(poResult->papszResult),
+        &(poResult->nRowCount),
+        &(poResult->nColCount),
+        &(poResult->pszErrMsg) );
 
-    if( rc != SQLITE_OK )
+    if( poResult->rc != SQLITE_OK )
     {
         CPLError( CE_Failure, CPLE_AppDefined,
-                  "sqlite3_get_table(%s) failed: %s", pszSQL, pszErrMsg );
-        sqlite3_free(pszErrMsg);
-        return nullptr;
+                  "sqlite3_get_table(%s) failed: %s", pszSQL, poResult->pszErrMsg );
+        return OGRERR_FAILURE;
     }
 
-    return cpl::make_unique<SQLResult>(papszResult, nRowCount, nColCount);
+    return OGRERR_NONE;
 }
 
-const char* SQLResult::GetValue(int iColNum, int iRowNum) const
+OGRErr SQLResultFree(SQLResult * poResult)
 {
-    const int nCols = nColCount;
+    if ( poResult->papszResult )
+        sqlite3_free_table(poResult->papszResult);
+
+    if ( poResult->pszErrMsg )
+        sqlite3_free(poResult->pszErrMsg);
+
+    return OGRERR_NONE;
+}
+
+const char* SQLResultGetValue(const SQLResult * poResult, int iColNum, int iRowNum)
+{
+    CPLAssert( poResult != nullptr );
+
+    const int nCols = poResult->nColCount;
 #ifdef DEBUG
-    const int nRows = nRowCount;
+    const int nRows = poResult->nRowCount;
     CPL_IGNORE_RET_VAL(nRows);
 
     CPLAssert( iColNum >= 0 && iColNum < nCols );
     CPLAssert( iRowNum >= 0 && iRowNum < nRows );
 #endif
-    return papszResult[ nCols + iRowNum * nCols + iColNum ];
+    return poResult->papszResult[ nCols + iRowNum * nCols + iColNum ];
 }
 
-int SQLResult::GetValueAsInteger(int iColNum, int iRowNum) const
+int SQLResultGetValueAsInteger(const SQLResult * poResult, int iColNum, int iRowNum)
 {
-    const char *pszValue = GetValue(iColNum, iRowNum);
+    const char *pszValue = SQLResultGetValue(poResult, iColNum, iRowNum);
     if ( ! pszValue )
         return 0;
 
@@ -365,23 +372,28 @@ std::set<std::string> SQLGetUniqueFieldUCConstraints(sqlite3* poDb,
         char* pszTableDefinitionSQL = sqlite3_mprintf(
             "SELECT sql, type FROM sqlite_master "
             "WHERE type IN ('table', 'view') AND UPPER(name)='%q'", upperTableName.c_str() );
-        auto oResultTable = SQLQuery(poDb, pszTableDefinitionSQL);
+        SQLResult oResultTable;
+        OGRErr err = SQLQuery(poDb, pszTableDefinitionSQL, &oResultTable);
         sqlite3_free(pszTableDefinitionSQL);
 
-        if ( !oResultTable || oResultTable->RowCount() == 0 )
+        if ( err != OGRERR_NONE || oResultTable.nRowCount == 0 )
         {
-            if( oResultTable )
+            if( oResultTable.pszErrMsg != nullptr )
+                CPLError( CE_Failure, CPLE_AppDefined, "%s", oResultTable.pszErrMsg );
+            else
                 CPLError( CE_Failure, CPLE_AppDefined, "Cannot find table %s", pszTableName );
 
+            SQLResultFree(&oResultTable);
             return uniqueFieldsUC;
         }
-        if( std::string(oResultTable->GetValue(1, 0)) == "view" )
+        if( std::string(SQLResultGetValue(&oResultTable, 1, 0)) == "view" )
         {
+            SQLResultFree(&oResultTable);
             return uniqueFieldsUC;
         }
 
         // Match identifiers with ", ', or ` or no delimiter (and no spaces).
-        std::string tableDefinition { oResultTable->GetValue(0, 0) };
+        std::string tableDefinition { SQLResultGetValue(&oResultTable, 0, 0) };
         tableDefinition = tableDefinition.substr(tableDefinition.find('('), tableDefinition.rfind(')') );
         std::stringstream tableDefinitionStream { tableDefinition };
         std::smatch uniqueFieldMatch;
@@ -401,25 +413,31 @@ std::set<std::string> SQLGetUniqueFieldUCConstraints(sqlite3* poDb,
                 }
             }
         }
+        SQLResultFree(&oResultTable);
 
         // Search indexes:
         pszTableDefinitionSQL = sqlite3_mprintf(
             "SELECT sql FROM sqlite_master WHERE type='index' AND"
             " UPPER(tbl_name)=UPPER('%q') AND UPPER(sql) "
             "LIKE 'CREATE UNIQUE INDEX%%'", upperTableName.c_str() );
-        oResultTable = SQLQuery(poDb, pszTableDefinitionSQL);
+        err = SQLQuery(poDb, pszTableDefinitionSQL, &oResultTable);
         sqlite3_free(pszTableDefinitionSQL);
 
-        if ( !oResultTable  )
+        if ( err != OGRERR_NONE  )
         {
-            CPLError( CE_Failure, CPLE_AppDefined,
-                      "Error searching indexes for table %s", pszTableName );
+            if( oResultTable.pszErrMsg != nullptr )
+                CPLError( CE_Failure, CPLE_AppDefined,
+                            "%s", oResultTable.pszErrMsg );
+            else
+                CPLError( CE_Failure, CPLE_AppDefined,
+                            "Error searching indexes for table %s", pszTableName );
+
         }
-        else if (oResultTable->RowCount() >= 0 )
+        else if (oResultTable.nRowCount >= 0 )
         {
-            for( int rowCnt = 0; rowCnt < oResultTable->RowCount(); ++rowCnt )
+            for( int rowCnt = 0; rowCnt < oResultTable.nRowCount; ++rowCnt )
             {
-                std::string indexDefinition { oResultTable->GetValue(0, rowCnt) };
+                std::string indexDefinition { SQLResultGetValue(&oResultTable, 0, rowCnt) };
                 if ( CPLString (indexDefinition ).toupper().find( "UNIQUE" ) != std::string::npos )
                 {
                     indexDefinition = indexDefinition.substr(
@@ -434,6 +452,7 @@ std::set<std::string> SQLGetUniqueFieldUCConstraints(sqlite3* poDb,
                 }
             }
         }
+        SQLResultFree(&oResultTable);
     }
     catch( const std::regex_error& e )
     {

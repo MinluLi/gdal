@@ -751,7 +751,7 @@ OGRErr OGRLIBKMLLayer::CreateField(
 
 OGRErr OGRLIBKMLLayer::SyncToDisk()
 {
-    m_poOgrDS->FlushCache(false);
+    m_poOgrDS->FlushCache();
     return OGRERR_NONE;
 }
 

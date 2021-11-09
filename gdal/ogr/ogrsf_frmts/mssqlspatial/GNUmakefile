@@ -4,7 +4,7 @@ include ../../../GDALmake.opt
 
 OBJ	=	ogrmssqlspatialdatasource.o ogrmssqlspatiallayer.o ogrmssqlspatialtablelayer.o ogrmssqlspatialselectlayer.o ogrmssqlspatialdriver.o ogrmssqlgeometryparser.o ogrmssqlgeometryvalidator.o ogrmssqlgeometrywriter.o
 
-CPPFLAGS	:=	 -iquote .. -iquote ../.. $(CPPFLAGS)
+CPPFLAGS	:=	 -I.. -I../.. $(CPPFLAGS)
 
 default:	$(O_OBJ:.o=.$(OBJ_EXT))
 

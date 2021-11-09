@@ -134,10 +134,6 @@ public:
                                     CSLConstList papszMetadata,
                                     const char* pszDomain,
                                     CSLConstList papszOptions );
-
-    virtual bool    AbortPendingUploads(const char* /*pszFilename*/) { return true;}
-
-    virtual std::string GetStreamingFilename(const std::string& osFilename) const { return osFilename; }
 };
 #endif /* #ifndef DOXYGEN_SKIP */
 

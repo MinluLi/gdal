@@ -202,7 +202,7 @@ public:
 
     char **GetMetadataDomainList() override;
     char **GetMetadata( const char* pszDomain ) override;
-    void FlushCache(bool bAtClosing) override;
+    void FlushCache() override;
     CPLErr IRasterIO( GDALRWFlag eRWFlag,
                       int nXOff, int nYOff, int nXSize, int nYSize,
                       void *pData, int nBufXSize, int nBufYSize,

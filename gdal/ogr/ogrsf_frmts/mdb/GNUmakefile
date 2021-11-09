@@ -5,7 +5,7 @@ include ../../../GDALmake.opt
 OBJ	=	ogrmdbdatasource.o ogrmdblayer.o ogrmdbdriver.o \
 		ogrmdbjackcess.o
 
-CPPFLAGS	:=	-iquote ..  $(JAVA_INC) $(CPPFLAGS)
+CPPFLAGS	:=	-I..  $(JAVA_INC) $(CPPFLAGS)
 
 default:	$(O_OBJ:.o=.$(OBJ_EXT))
 

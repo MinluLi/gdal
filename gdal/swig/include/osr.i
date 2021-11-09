@@ -389,18 +389,6 @@ public:
     return OSRIsVertical(self);
   }
 
-  bool IsDynamic() {
-    return OSRIsDynamic(self);
-  }
-
-  double GetCoordinateEpoch() {
-    return OSRGetCoordinateEpoch(self);
-  }
-
-  void SetCoordinateEpoch(double coordinateEpoch) {
-    OSRSetCoordinateEpoch(self, coordinateEpoch);
-  }
-
   int EPSGTreatsAsLatLong() {
     return OSREPSGTreatsAsLatLong(self);
   }
@@ -1160,7 +1148,7 @@ public:
  *  CoordinateTransformation Object
  *
  */
-
+ 
 %rename (CoordinateTransformationOptions) OGRCoordinateTransformationOptions;
 class OGRCoordinateTransformationOptions {
 private:
@@ -1175,7 +1163,7 @@ public:
   ~OGRCoordinateTransformationOptions() {
     OCTDestroyCoordinateTransformationOptions( self );
   }
-
+  
   bool SetAreaOfInterest( double westLongitudeDeg,
                           double southLatitudeDeg,
                           double eastLongitudeDeg,
@@ -1215,7 +1203,7 @@ public:
   }
 
   OSRCoordinateTransformationShadow( OSRSpatialReferenceShadow *src, OSRSpatialReferenceShadow *dst, OGRCoordinateTransformationOptions* options ) {
-    return (OSRCoordinateTransformationShadow*)
+    return (OSRCoordinateTransformationShadow*) 
         options ? OCTNewCoordinateTransformationEx( src, dst, options ) : OCTNewCoordinateTransformation(src, dst);
   }
 
@@ -1331,23 +1319,6 @@ public:
   %clear (double*);
 #endif
 
-void TransformBounds(
-    double argout[4], double minx, double miny, double maxx, double maxy, int densify_pts
-) {
-    argout[0] = HUGE_VAL;
-    argout[1] = HUGE_VAL;
-    argout[2] = HUGE_VAL;
-    argout[3] = HUGE_VAL;
-    if (self == NULL)
-        return;
-    OCTTransformBounds(
-        self,
-        minx, miny, maxx, maxy,
-        &argout[0], &argout[1], &argout[2], &argout[3],
-        densify_pts
-    );
-}
-
 } /*extend */
 };
 
@@ -1355,7 +1326,7 @@ void TransformBounds(
 %newobject CreateCoordinateTransformation;
 %inline %{
   OSRCoordinateTransformationShadow *CreateCoordinateTransformation( OSRSpatialReferenceShadow *src, OSRSpatialReferenceShadow *dst, OGRCoordinateTransformationOptions* options = NULL ) {
-    return (OSRCoordinateTransformationShadow*)
+    return (OSRCoordinateTransformationShadow*) 
         options ? OCTNewCoordinateTransformationEx( src, dst, options ) : OCTNewCoordinateTransformation(src, dst);
 }
 %}
@@ -1570,16 +1541,6 @@ int GetPROJVersionMicro()
     int num;
     OSRGetPROJVersion(NULL, NULL, &num);
     return num;
-}
-
-bool GetPROJEnableNetwork()
-{
-    return OSRGetPROJEnableNetwork();
-}
-
-void SetPROJEnableNetwork(bool enabled)
-{
-    OSRSetPROJEnableNetwork(enabled);
 }
 %}
 

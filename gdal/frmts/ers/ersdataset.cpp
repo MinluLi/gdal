@@ -89,7 +89,7 @@ class ERSDataset final: public RawDataset
     ERSDataset();
     ~ERSDataset() override;
 
-    void FlushCache(bool bAtClosing) override;
+    void FlushCache(void) override;
     CPLErr GetGeoTransform( double * padfTransform ) override;
     CPLErr SetGeoTransform( double *padfTransform ) override;
     const char *_GetProjectionRef(void) override;
@@ -160,7 +160,7 @@ ERSDataset::ERSDataset() :
 ERSDataset::~ERSDataset()
 
 {
-    ERSDataset::FlushCache(true);
+    ERSDataset::FlushCache();
 
     if( fpImage != nullptr )
     {
@@ -212,7 +212,7 @@ int ERSDataset::CloseDependentDatasets()
 /*                             FlushCache()                             */
 /************************************************************************/
 
-void ERSDataset::FlushCache(bool bAtClosing)
+void ERSDataset::FlushCache()
 
 {
     if( bHDRDirty )
@@ -233,7 +233,7 @@ void ERSDataset::FlushCache(bool bAtClosing)
         }
     }
 
-    RawDataset::FlushCache(bAtClosing);
+    RawDataset::FlushCache();
 }
 
 /************************************************************************/
@@ -840,13 +840,6 @@ int ERSDataset::Identify( GDALOpenInfo * poOpenInfo )
 /************************************************************************/
 
 namespace {
-
-static int& GetRecLevel()
-{
-    static thread_local int nRecLevel = 0;
-    return nRecLevel;
-}
-
 class ERSProxyRasterBand final : public GDALProxyRasterBand
 {
 public:
@@ -857,24 +850,12 @@ public:
         eDataType = poUnderlyingBand->GetRasterDataType();
     }
 
-    int GetOverviewCount() override;
-
 protected:
     GDALRasterBand* RefUnderlyingRasterBand() override { return m_poUnderlyingBand; }
 
 private:
     GDALRasterBand* m_poUnderlyingBand;
 };
-
-int ERSProxyRasterBand::GetOverviewCount()
-{
-    int& nRecLevel = GetRecLevel();
-    nRecLevel++;
-    int nRet = GDALProxyRasterBand::GetOverviewCount();
-    nRecLevel--;
-    return nRet;
-}
-
 
 } // namespace
 
@@ -885,13 +866,6 @@ int ERSProxyRasterBand::GetOverviewCount()
 GDALDataset *ERSDataset::Open( GDALOpenInfo * poOpenInfo )
 
 {
-    if( GetRecLevel() )
-    {
-        CPLError(CE_Failure, CPLE_AppDefined,
-                 "Attempt at recursively opening ERS dataset");
-        return nullptr;
-    }
-
     if( !Identify( poOpenInfo ) || poOpenInfo->fpL == nullptr )
         return nullptr;
 
@@ -1022,29 +996,27 @@ GDALDataset *ERSDataset::Open( GDALOpenInfo * poOpenInfo )
 /* -------------------------------------------------------------------- */
     if( EQUAL(poHeader->Find("DataSetType",""),"Translated") )
     {
-        int& nRecLevel = GetRecLevel();
-        nRecLevel++;
-        poDS->poDepFile = GDALDataset::FromHandle(
-            GDALOpen( osDataFilePath, poOpenInfo->eAccess ));
-        nRecLevel--;
+        static thread_local int nRecLevel = 0;
+        if( nRecLevel == 0 )
+        {
+            nRecLevel ++;
+            poDS->poDepFile = (GDALDataset *)
+                GDALOpen( osDataFilePath, poOpenInfo->eAccess );
+            nRecLevel --;
 
-        if( poDS->poDepFile != nullptr
-            && poDS->poDepFile->GetRasterXSize() == poDS->GetRasterXSize()
-            && poDS->poDepFile->GetRasterYSize() == poDS->GetRasterYSize()
-            && poDS->poDepFile->GetRasterCount() >= nBands )
-        {
-            for( int iBand = 0; iBand < nBands; iBand++ )
+            if( poDS->poDepFile != nullptr
+                && poDS->poDepFile->GetRasterXSize() == poDS->GetRasterXSize()
+                && poDS->poDepFile->GetRasterYSize() == poDS->GetRasterYSize()
+                && poDS->poDepFile->GetRasterCount() >= nBands )
             {
-                // Assume pixel interleaved.
-                poDS->SetBand( iBand+1,
-                    new ERSProxyRasterBand(
-                            poDS->poDepFile->GetRasterBand( iBand+1 )) );
+                for( int iBand = 0; iBand < nBands; iBand++ )
+                {
+                    // Assume pixel interleaved.
+                    poDS->SetBand( iBand+1,
+                        new ERSProxyRasterBand(
+                                poDS->poDepFile->GetRasterBand( iBand+1 )) );
+                }
             }
-        }
-        else
-        {
-            delete poDS->poDepFile;
-            poDS->poDepFile = nullptr;
         }
     }
 

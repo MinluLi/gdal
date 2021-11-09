@@ -54,9 +54,9 @@ class SRTMHGTDataset final: public GDALPamDataset
 {
     friend class SRTMHGTRasterBand;
 
-    VSILFILE*  fpImage = nullptr;
+    VSILFILE*  fpImage;
     double adfGeoTransform[6];
-    GByte* pabyBuffer = nullptr;
+    GInt16* panBuffer;
 
   public:
     SRTMHGTDataset();
@@ -98,7 +98,7 @@ class SRTMHGTRasterBand final: public GDALPamRasterBand
 
     virtual double  GetNoDataValue( int *pbSuccess = nullptr ) override;
 
-    virtual const char* GetUnitType() override;
+    virtual const char* GetUnitType() override { return "m"; }
 };
 
 /************************************************************************/
@@ -156,9 +156,9 @@ CPLErr SRTMHGTRasterBand::IWriteBlock(int /*nBlockXOff*/, int nBlockYOff, void* 
 #ifdef CPL_LSB
     if( nDTSize > 1 )
     {
-        memcpy(poGDS->pabyBuffer, pImage, nBlockXSize*nDTSize);
-        GDALSwapWords(poGDS->pabyBuffer, nDTSize, nBlockXSize, nDTSize);
-        VSIFWriteL( reinterpret_cast<unsigned char *>( poGDS->pabyBuffer ),
+        memcpy(poGDS->panBuffer, pImage, nBlockXSize*nDTSize);
+        GDALSwapWords(poGDS->panBuffer, nDTSize, nBlockXSize, nDTSize);
+        VSIFWriteL( reinterpret_cast<unsigned char *>( poGDS->panBuffer ),
                     nBlockXSize, nDTSize, poGDS->fpImage );
     }
     else
@@ -178,28 +178,10 @@ CPLErr SRTMHGTRasterBand::IWriteBlock(int /*nBlockXOff*/, int nBlockYOff, void* 
 double SRTMHGTRasterBand::GetNoDataValue( int * pbSuccess )
 
 {
-    if( eDataType == GDT_Byte )
-        return GDALPamRasterBand::GetNoDataValue(pbSuccess);
-
     if( pbSuccess )
         *pbSuccess = bNoDataSet;
 
     return dfNoDataValue;
-}
-
-/************************************************************************/
-/*                             GetUnitType()                            */
-/************************************************************************/
-
-const char* SRTMHGTRasterBand::GetUnitType()
-{
-    const char* pszExt = CPLGetExtension(poDS->GetDescription());
-    if( EQUAL(pszExt, "err") || EQUAL(pszExt, "img") ||
-        EQUAL(pszExt, "num") || EQUAL(pszExt, "swb") )
-    {
-        return "";
-    }
-    return "m";
 }
 
 /************************************************************************/
@@ -221,7 +203,9 @@ GDALColorInterp SRTMHGTRasterBand::GetColorInterpretation()
 /*                            SRTMHGTDataset()                              */
 /************************************************************************/
 
-SRTMHGTDataset::SRTMHGTDataset()
+SRTMHGTDataset::SRTMHGTDataset() :
+    fpImage(nullptr),
+    panBuffer(nullptr)
 {
   adfGeoTransform[0] = 0.0;
   adfGeoTransform[1] = 1.0;
@@ -237,10 +221,10 @@ SRTMHGTDataset::SRTMHGTDataset()
 
 SRTMHGTDataset::~SRTMHGTDataset()
 {
-  FlushCache(true);
+  FlushCache();
   if(fpImage != nullptr)
     VSIFCloseL(fpImage);
-  CPLFree(pabyBuffer);
+  CPLFree(panBuffer);
 }
 
 /************************************************************************/
@@ -310,15 +294,8 @@ int SRTMHGTDataset::Identify( GDALOpenInfo * poOpenInfo )
   }
 
 
-  // .hgts and .err files from https://e4ftl01.cr.usgs.gov/MEASURES/NASADEM_SHHP.001/2000.02.11/
-  // .img and .img.num files from https://e4ftl01.cr.usgs.gov/MEASURES/NASADEM_SIM.001/2000.02.11/
   if( !osLCFilename.endsWith(".hgt") &&
-      !osLCFilename.endsWith(".hgts") &&
-      !osLCFilename.endsWith(".err") &&
-      !osLCFilename.endsWith(".img") &&
-      !osLCFilename.endsWith(".num") && // .img.num or .num
       !osLCFilename.endsWith(".raw") &&
-      !osLCFilename.endsWith(".swb") && // https://e4ftl01.cr.usgs.gov/MEASURES/NASADEM_HGT.001/2000.02.11/
       !osLCFilename.endsWith(".hgt.gz") )
     return FALSE;
 
@@ -332,7 +309,6 @@ int SRTMHGTDataset::Identify( GDALOpenInfo * poOpenInfo )
       return FALSE;
   if(fileStat.st_size != 3601 * 3601 &&
      fileStat.st_size != 3601 * 3601 * 2 &&
-     fileStat.st_size != 3601 * 3601 * 4 && // .hgts
      fileStat.st_size != 1801 * 3601 * 2 &&
      fileStat.st_size != 1201 * 1201 * 2 )
       return FALSE;
@@ -436,10 +412,6 @@ GDALDataset* SRTMHGTDataset::Open(GDALOpenInfo* poOpenInfo)
   case 3601 * 3601 * 2:
     numPixels_x = numPixels_y = 3601;
     break;
-  case 3601 * 3601 * 4: // .hgts
-    numPixels_x = numPixels_y = 3601;
-    eDT = GDT_Float32;
-    break;
   case 1801 * 3601 * 2:
     numPixels_x = 1801;
     numPixels_y = 3601;
@@ -454,10 +426,10 @@ GDALDataset* SRTMHGTDataset::Open(GDALOpenInfo* poOpenInfo)
 
   poDS->eAccess = poOpenInfo->eAccess;
 #ifdef CPL_LSB
-  if(poDS->eAccess == GA_Update && eDT != GDT_Byte)
+  if(poDS->eAccess == GA_Update && eDT == GDT_Int16)
   {
-      poDS->pabyBuffer
-          = static_cast<GByte *>( CPLMalloc(numPixels_x * sizeof(eDT)) );
+      poDS->panBuffer
+          = reinterpret_cast<GInt16 *>( CPLMalloc(numPixels_x * sizeof(GInt16)) );
   }
 #endif
 

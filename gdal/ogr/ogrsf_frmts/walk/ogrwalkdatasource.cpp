@@ -63,7 +63,7 @@ OGRWalkDataSource::~OGRWalkDataSource()
 /*                              Open()                                  */
 /************************************************************************/
 
-int OGRWalkDataSource::Open(const char * pszNewName)
+int OGRWalkDataSource::Open( const char * pszNewName, int /* bUpdate */ )
 {
 /* -------------------------------------------------------------------- */
 /*      If this is the name of an MDB file, then construct the          */
@@ -89,27 +89,6 @@ int OGRWalkDataSource::Open(const char * pszNewName)
         {
            return FALSE;
         }
-    }
-
-    // check for WalkLayers table
-    {
-        bool bFoundWalkLayersTable = false;
-        CPLODBCStatement oTableList( &oSession );
-        if( oTableList.GetTables() )
-        {
-            while( oTableList.Fetch() )
-            {
-                const CPLString osTableName = CPLString( oTableList.GetColData(2, "") );
-                const CPLString osLCTableName(CPLString(osTableName).tolower());
-                if( osLCTableName == "walklayers" )
-                {
-                    bFoundWalkLayersTable = true;
-                    break;
-                }
-            }
-        }
-        if (!bFoundWalkLayersTable )
-            return FALSE;
     }
 
     pszName = CPLStrdup( pszNewName );

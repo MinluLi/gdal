@@ -271,7 +271,7 @@ MFFDataset::MFFDataset() :
 MFFDataset::~MFFDataset()
 
 {
-    FlushCache(true);
+    FlushCache();
     CSLDestroy( papszHdrLines );
     if( pafpBandFiles != nullptr )
     {
@@ -1611,7 +1611,7 @@ MFFDataset::CreateCopy( const char * pszFilename,
     {
         RawRasterBand *poDstBand = reinterpret_cast<RawRasterBand *>(
             poDS->GetRasterBand( iBand+1 ) );
-        poDstBand->FlushCache(false);
+        poDstBand->FlushCache();
     }
 
     if( !pfnProgress( 1.0, nullptr, pProgressData ) )

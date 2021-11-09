@@ -30,7 +30,7 @@
 #include "ogrgeojsonutils.h"
 #include "ogr_geojson.h"
 #include <json.h>  // JSON-C
-#include "ogr_api.h"
+#include <ogr_api.h>
 
 CPL_CVSID("$Id$")
 
@@ -426,10 +426,7 @@ static void ParseObject( const char* pszId,
 /*                        EstablishLayerDefn()                          */
 /************************************************************************/
 
-static void EstablishLayerDefn( std::vector<int>& anCurFieldIndices,
-                                std::map<std::string, int>& oMapFieldNameToIdx,
-                                std::vector<std::unique_ptr<OGRFieldDefn>>& apoFieldDefn,
-                                gdal::DirectedAcyclicGraph<int, std::string>& dag,
+static void EstablishLayerDefn( OGRFeatureDefn* poDefn,
                                 json_object* poObj,
                                 std::set<int>& aoSetUndeterminedTypeFields )
 {
@@ -442,25 +439,11 @@ static void EstablishLayerDefn( std::vector<int>& anCurFieldIndices,
         it.val = nullptr;
         it.entry = nullptr;
 
-        int nPrevFieldIdx = -1;
         json_object_object_foreachC( poObjProps, it )
         {
-            anCurFieldIndices.clear();
-            OGRGeoJSONReaderAddOrUpdateField(anCurFieldIndices,
-                                             oMapFieldNameToIdx,
-                                             apoFieldDefn,
-                                             it.key, it.val,
+            OGRGeoJSONReaderAddOrUpdateField(poDefn, it.key, it.val,
                                              false, 0, false, false,
                                              aoSetUndeterminedTypeFields);
-            for( int idx: anCurFieldIndices )
-            {
-                dag.addNode(idx, apoFieldDefn[idx]->GetNameRef());
-                if( nPrevFieldIdx != -1 )
-                {
-                    dag.addEdge(nPrevFieldIdx, idx);
-                }
-                nPrevFieldIdx = idx;
-            }
         }
     }
 }
@@ -517,11 +500,6 @@ static bool ParseObjectMain( const char* pszId, json_object* poObj,
                     const auto nGeometries =
                         json_object_array_length(poGeometries);
                     // First pass to establish schema.
-                    std::vector<int> anCurFieldIndices;
-                    std::map<std::string, int> oMapFieldNameToIdx;
-                    std::vector<std::unique_ptr<OGRFieldDefn>> apoFieldDefn;
-                    gdal::DirectedAcyclicGraph<int, std::string> dag;
-
                     for( auto i = decltype(nGeometries){0}; i < nGeometries;
                          i++ )
                     {
@@ -530,20 +508,9 @@ static bool ParseObjectMain( const char* pszId, json_object* poObj,
                         if( poGeom != nullptr &&
                             json_type_object == json_object_get_type( poGeom ) )
                         {
-                            EstablishLayerDefn(anCurFieldIndices,
-                                               oMapFieldNameToIdx,
-                                               apoFieldDefn,
-                                               dag,
-                                               poGeom,
+                            EstablishLayerDefn(poDefn, poGeom,
                                                aoSetUndeterminedTypeFields);
                         }
-                    }
-
-                    const auto sortedFields = dag.getTopologicalOrdering();
-                    CPLAssert( sortedFields.size() == apoFieldDefn.size() );
-                    for( int idx: sortedFields )
-                    {
-                        poDefn->AddFieldDefn(apoFieldDefn[idx].get());
                     }
 
                     // Second pass to build objects.
@@ -583,26 +550,9 @@ static bool ParseObjectMain( const char* pszId, json_object* poObj,
                                 GetLayerDefn()->AddFieldDefn( &fldDefn );
                         }
                     }
-                    std::vector<int> anCurFieldIndices;
-                    std::map<std::string, int> oMapFieldNameToIdx;
-                    std::vector<std::unique_ptr<OGRFieldDefn>> apoFieldDefn;
-                    gdal::DirectedAcyclicGraph<int, std::string> dag;
-
-                    EstablishLayerDefn(anCurFieldIndices,
-                                       oMapFieldNameToIdx,
-                                       apoFieldDefn,
-                                       dag,
-                                       poObj,
-                                       aoSetUndeterminedTypeFields);
                     OGRFeatureDefn* poDefn = (*ppoMainLayer)->GetLayerDefn();
-
-                    const auto sortedFields = dag.getTopologicalOrdering();
-                    CPLAssert( sortedFields.size() == apoFieldDefn.size() );
-                    for( int idx: sortedFields )
-                    {
-                        poDefn->AddFieldDefn(apoFieldDefn[idx].get());
-                    }
-
+                    EstablishLayerDefn(poDefn, poObj,
+                                       aoSetUndeterminedTypeFields);
                     bNeedSecondPass = true;
                 }
                 else

@@ -215,7 +215,7 @@ EnvisatDataset::EnvisatDataset() :
 EnvisatDataset::~EnvisatDataset()
 
 {
-    FlushCache(true);
+    FlushCache();
 
     if( hEnvisatFile != nullptr )
         EnvisatFile_Close( hEnvisatFile );
@@ -493,7 +493,7 @@ void EnvisatDataset::ScanForGCPs_MERIS()
 
     for( ; true; nMDSIndex++ )
     {
-        const char *pszDSType = nullptr;
+        char *pszDSType = nullptr;
         if( EnvisatFile_GetDatasetInfo( hEnvisatFile, nMDSIndex,
             nullptr, &pszDSType, nullptr, nullptr, nullptr, nullptr, nullptr ) == FAILURE )
         {
@@ -719,8 +719,7 @@ char **EnvisatDataset::GetMetadata( const char * pszDomain )
 void EnvisatDataset::CollectDSDMetadata()
 
 {
-    const char *pszDSName;
-    const char *pszFilename;
+    char *pszDSName, *pszFilename;
 
     for( int iDSD = 0;
          EnvisatFile_GetDatasetInfo( hEnvisatFile, iDSD, &pszDSName, nullptr,
@@ -733,32 +732,31 @@ void EnvisatDataset::CollectDSDMetadata()
             || STARTS_WITH_CI(pszFilename, "        "))
             continue;
 
-        std::string osKey("DS_");
-        osKey += pszDSName;
+        const int max_len = 128;
+        char szKey[max_len];
+
+        strcpy( szKey, "DS_");
+        strncat( szKey, pszDSName, max_len - strlen(szKey) - 1 );
+
         // strip trailing spaces.
-        {
-            const auto nPos = osKey.rfind(' ');
-            if( nPos != std::string::npos )
-                osKey.resize(nPos);
-        }
+        for( int i = static_cast<int>(strlen(szKey))-1; i && szKey[i] == ' '; i-- )
+            szKey[i] = '\0';
 
         // convert spaces into underscores.
-        for( char& ch: osKey )
+        for( int i = 0; szKey[i] != '\0'; i++ )
         {
-            if( ch == ' ' )
-                ch = '_';
+            if( szKey[i] == ' ' )
+                szKey[i] = '_';
         }
 
-        osKey += "_NAME";
+        strcat( szKey, "_NAME" );
 
-        std::string osTrimmedName(pszFilename);
-        {
-            const auto nPos = osTrimmedName.rfind(' ');
-            if( nPos != std::string::npos )
-                osTrimmedName.resize(nPos);
-        }
+        char szTrimmedName[max_len];
+        strcpy( szTrimmedName, pszFilename );
+        for( int i = static_cast<int>(strlen(szTrimmedName))-1; i && szTrimmedName[i] == ' '; i--)
+            szTrimmedName[i] = '\0';
 
-        SetMetadataItem( osKey.c_str(), osTrimmedName.c_str() );
+        SetMetadataItem( szKey, szTrimmedName );
     }
 }
 
@@ -771,9 +769,7 @@ void EnvisatDataset::CollectDSDMetadata()
 void EnvisatDataset::CollectADSMetadata()
 {
     int nNumDsr, nDSRSize;
-    const char *pszDSName;
-    const char *pszDSType;
-    const char *pszDSFilename;
+    const char *pszDSName, *pszDSType, *pszDSFilename;
 
     const char *pszProduct
         = EnvisatFile_GetKeyValueAsString( hEnvisatFile, MPH,
@@ -781,9 +777,9 @@ void EnvisatDataset::CollectADSMetadata()
 
     for( int nDSIndex = 0;
          EnvisatFile_GetDatasetInfo( hEnvisatFile, nDSIndex,
-                                     &pszDSName,
-                                     &pszDSType,
-                                     &pszDSFilename,
+                                     (char **) &pszDSName,
+                                     (char **) &pszDSType,
+                                     (char **) &pszDSFilename,
                                      nullptr, nullptr,
                                      &nNumDsr, &nDSRSize ) == SUCCESS;
          ++nDSIndex )
@@ -919,7 +915,7 @@ GDALDataset *EnvisatDataset::Open( GDALOpenInfo * poOpenInfo )
 /*      raster band.                                                    */
 /* -------------------------------------------------------------------- */
     int         dsr_size, num_dsr, ds_offset;
-    const char *pszDSType = nullptr;
+    char        *pszDSType = nullptr;
 
     int ds_index = 0;
     for( ; true; ds_index++ )
@@ -1054,7 +1050,7 @@ GDALDataset *EnvisatDataset::Open( GDALOpenInfo * poOpenInfo )
 
     for( ds_index = 0;
          EnvisatFile_GetDatasetInfo( hEnvisatFile, ds_index,
-                                     &pszDSName, nullptr, nullptr,
+                                     (char **) &pszDSName, nullptr, nullptr,
                                      &ds_offset, nullptr,
                                      &num_dsr2, &dsr_size2 ) == SUCCESS;
          ds_index++ )

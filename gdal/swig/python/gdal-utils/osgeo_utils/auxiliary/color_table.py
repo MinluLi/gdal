@@ -30,31 +30,35 @@
 
 import os
 import tempfile
-from typing import Optional, Union
+from typing import Optional
 
 from osgeo import gdal
 from osgeo_utils.auxiliary.base import PathLikeOrStr
 from osgeo_utils.auxiliary.util import open_ds, PathOrDS
-from osgeo_utils.auxiliary.color_palette import get_color_palette, ColorPaletteOrPathOrStrings, ColorPalette
-
-ColorTableLike = Union[gdal.ColorTable, ColorPaletteOrPathOrStrings]
+from osgeo_utils.auxiliary.color_palette import get_color_palette, ColorPaletteOrPathOrStrings
 
 
 def get_color_table_from_raster(path_or_ds: PathOrDS) -> Optional[gdal.ColorTable]:
     ds = open_ds(path_or_ds, silent_fail=True)
-    if ds is None:
-        return None
-    ct = ds.GetRasterBand(1).GetRasterColorTable()
-    if ct is None:
-        return None
-    return ct.Clone()
+    if ds is not None:
+        ct = ds.GetRasterBand(1).GetRasterColorTable()
+        return ct.Clone()
+    return None
 
 
-def color_table_from_color_palette(pal: ColorPalette, color_table: gdal.ColorTable,
-                                   fill_missing_colors=True, min_key=0, max_key=255) -> bool:
-    """ returns None if pal has no values, otherwise returns a gdal.ColorTable from the given ColorPalette"""
-    if not pal.pal or not pal.is_numeric():
-        raise Exception('palette has no values or not fully numeric')
+def get_color_table(color_palette_or_path_or_strings_or_ds: ColorPaletteOrPathOrStrings, min_key=0, max_key=255,
+                    fill_missing_colors=True) -> Optional[gdal.ColorTable]:
+    if (color_palette_or_path_or_strings_or_ds is None or
+       isinstance(color_palette_or_path_or_strings_or_ds, gdal.ColorTable)):
+        return color_palette_or_path_or_strings_or_ds
+
+    if isinstance(color_palette_or_path_or_strings_or_ds, gdal.Dataset):
+        return get_color_table_from_raster(color_palette_or_path_or_strings_or_ds)
+
+    pal = get_color_palette(color_palette_or_path_or_strings_or_ds)
+    if pal is None:
+        return get_color_table_from_raster(color_palette_or_path_or_strings_or_ds)
+    color_table = gdal.ColorTable()
     if fill_missing_colors:
         keys = sorted(list(pal.pal.keys()))
         if min_key is None:
@@ -69,26 +73,7 @@ def color_table_from_color_palette(pal: ColorPalette, color_table: gdal.ColorTab
     else:
         for key, col in pal.pal.items():
             color_table.SetColorEntry(key, pal.color_to_color_entry(col))  # set color for each key
-    return True
-
-
-def get_color_table(color_palette_or_path_or_strings_or_ds: Optional[ColorTableLike],
-                    **kwargs) -> Optional[gdal.ColorTable]:
-    if (color_palette_or_path_or_strings_or_ds is None or
-       isinstance(color_palette_or_path_or_strings_or_ds, gdal.ColorTable)):
-        return color_palette_or_path_or_strings_or_ds
-
-    if isinstance(color_palette_or_path_or_strings_or_ds, gdal.Dataset):
-        return get_color_table_from_raster(color_palette_or_path_or_strings_or_ds)
-
-    try:
-        pal = get_color_palette(color_palette_or_path_or_strings_or_ds)
-        color_table = gdal.ColorTable()
-        res = color_table_from_color_palette(pal, color_table, **kwargs)
-        return color_table if res else None
-    except:
-        # the input might be a filename of a raster file
-        return get_color_table_from_raster(color_palette_or_path_or_strings_or_ds)
+    return color_table
 
 
 def is_fixed_color_table(color_table: gdal.ColorTable, c=(0, 0, 0, 0)) -> bool:

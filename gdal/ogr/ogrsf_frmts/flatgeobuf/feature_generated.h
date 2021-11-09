@@ -106,6 +106,7 @@ struct GeometryBuilder {
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
+  GeometryBuilder &operator=(const GeometryBuilder &);
   flatbuffers::Offset<Geometry> Finish() {
     const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<Geometry>(end);
@@ -210,6 +211,7 @@ struct FeatureBuilder {
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
   }
+  FeatureBuilder &operator=(const FeatureBuilder &);
   flatbuffers::Offset<Feature> Finish() {
     const auto end = fbb_.EndTable(start_);
     auto o = flatbuffers::Offset<Feature>(end);

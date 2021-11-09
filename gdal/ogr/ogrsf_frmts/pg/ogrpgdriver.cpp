@@ -38,8 +38,7 @@ CPL_CVSID("$Id$")
 static int OGRPGDriverIdentify( GDALOpenInfo* poOpenInfo )
 {
     if( !STARTS_WITH_CI(poOpenInfo->pszFilename, "PGB:") &&
-        !STARTS_WITH_CI(poOpenInfo->pszFilename, "PG:")&&
-        !STARTS_WITH(poOpenInfo->pszFilename, "postgresql://")  )
+        !STARTS_WITH_CI(poOpenInfo->pszFilename, "PG:") )
         return FALSE;
     return TRUE;
 }
@@ -172,7 +171,6 @@ void RegisterOGRPG()
     poDriver->SetMetadataItem( GDAL_DCAP_DEFAULT_FIELDS, "YES" );
     poDriver->SetMetadataItem( GDAL_DCAP_UNIQUE_FIELDS, "YES" );
     poDriver->SetMetadataItem( GDAL_DCAP_NOTNULL_GEOMFIELDS, "YES" );
-    poDriver->SetMetadataItem( GDAL_DCAP_MULTIPLE_VECTOR_LAYERS, "YES" );
 
     poDriver->pfnOpen = OGRPGDriverOpen;
     poDriver->pfnIdentify = OGRPGDriverIdentify;

@@ -2,11 +2,11 @@ dnl $Id$
 dnl
 dnl @synopsis AX_LIB_XERCES([MINIMUM-VERSION])
 dnl
-dnl This macro provides tests of availability of Apache Xerces C++ Parser
+dnl This macro provides tests of availability of Apache Xerces C++ Parser 
 dnl of particular version or newer.
-dnl This macros checks for Apache Xerces C++ Parser headers and libraries
+dnl This macros checks for Apache Xerces C++ Parser headers and libraries 
 dnl and defines compilation flags
-dnl
+dnl 
 dnl Macro supports following options and their values:
 dnl 1) Single-option usage:
 dnl --with-xerces - yes, no or path to Xerces C++ Parser installation prefix
@@ -37,12 +37,12 @@ dnl
 AC_DEFUN([AX_LIB_XERCES],
 [
     AC_ARG_WITH([xerces],
-        AS_HELP_STRING([--with-xerces=@<:@ARG@:>@],
+        AC_HELP_STRING([--with-xerces=@<:@ARG@:>@],
             [use Xerces C++ Parser from given prefix (ARG=path); check standard prefixes (ARG=yes); disable (ARG=no)]
         ),
         [
         if test "$withval" = "yes"; then
-            if test -d /usr/local/include/xercesc ; then
+            if test -d /usr/local/include/xercesc ; then 
                 xerces_prefix=/usr/local
             elif test -d /usr/include/xercesc ; then
                 xerces_prefix=/usr
@@ -60,25 +60,25 @@ AC_DEFUN([AX_LIB_XERCES],
         ],
         [
         dnl Default behavior is implicit yes
-        if test -d /usr/local/include/xercesc ; then
+        if test -d /usr/local/include/xercesc ; then 
             xerces_prefix=/usr/local
         elif test -d /usr/include/xercesc ; then
             xerces_prefix=/usr
         else
-            xerces_prefix=""
+            xerces_prefix="" 
         fi
         ]
     )
 
     AC_ARG_WITH([xerces-inc],
-        AS_HELP_STRING([--with-xerces-inc=@<:@DIR@:>@],
+        AC_HELP_STRING([--with-xerces-inc=@<:@DIR@:>@],
             [path to Xerces C++ Parser headers]
         ),
         [xerces_include_dir="$withval"],
         [xerces_include_dir=""]
     )
     AC_ARG_WITH([xerces-lib],
-        AS_HELP_STRING([--with-xerces-lib=@<:@ARG@:>@],
+        AC_HELP_STRING([--with-xerces-lib=@<:@ARG@:>@],
             [link options for Xerces C++ Parser libraries]
         ),
         [xerces_lib_flags="$withval"],
@@ -91,7 +91,7 @@ AC_DEFUN([AX_LIB_XERCES],
 
     dnl
     dnl Collect include/lib paths and flags
-    dnl
+    dnl 
     run_xerces_test="no"
 
     if test -n "$xerces_prefix" -a -z "$xerces_include_dir" -a -z "$xerces_lib_flags"; then
@@ -148,7 +148,7 @@ AC_DEFUN([AX_LIB_XERCES],
             ]
         )
         AC_LANG_POP([C++])
-
+        
         dnl
         dnl Check Xerces libraries
         dnl
@@ -162,7 +162,9 @@ AC_DEFUN([AX_LIB_XERCES],
                     [[
 @%:@include <xercesc/util/XercesDefs.hpp>
 @%:@include <xercesc/util/PlatformUtils.hpp>
-using namespace XERCES_CPP_NAMESPACE;
+#if (_XERCES_VERSION >= 20200)
+XERCES_CPP_NAMESPACE_USE
+#endif
                     ]],
                     [[
 XMLPlatformUtils::Initialize();
@@ -204,7 +206,7 @@ XMLPlatformUtils::Initialize();
         if test "$HAVE_XERCES" = "yes"; then
 
             xerces_version_req=ifelse([$1], [], [], [$1])
-
+            
             if test  -n "$xerces_version_req"; then
 
                 AC_MSG_CHECKING([if Xerces C++ Parser version is >= $xerces_version_req])
@@ -228,7 +230,7 @@ XMLPlatformUtils::Initialize();
                     if test "x$xerces_version_req_revision" = "x"; then
                         xerces_version_req_revision="0"
                     fi
-
+                    
                     xerces_version_req_number=`expr $xerces_version_req_major \* 10000 \
                                                \+ $xerces_version_req_minor \* 100 \
                                                \+ $xerces_version_req_revision`

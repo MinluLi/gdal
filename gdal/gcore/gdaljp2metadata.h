@@ -151,7 +151,7 @@ public:
     double  adfGeoTransform[6];
     bool    bPixelIsPoint;
 
-    OGRSpatialReference m_oSRS{};
+    char   *pszProjection;
 
     int         nGCPCount;
     GDAL_GCP    *pasGCPList;
@@ -181,7 +181,7 @@ public:
                           int nWorldFileIndex = 3, int *pnIndexUsed = nullptr );
 
     // Write oriented.
-    void    SetSpatialRef( const OGRSpatialReference *poSRS );
+    void    SetProjection( const char *pszWKT );
     void    SetGeoTransform( double * );
     void    SetGCPs( int, const GDAL_GCP * );
     void    SetRPCMD( char** papszRPCMDIn );

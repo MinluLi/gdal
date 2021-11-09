@@ -219,7 +219,6 @@ void RegisterOGRS57()
         "</CreationOptionList>" );
 
     poDriver->SetMetadataItem( GDAL_DCAP_VIRTUALIO, "YES" );
-    poDriver->SetMetadataItem( GDAL_DCAP_MULTIPLE_VECTOR_LAYERS, "YES" );
 
     poDriver->pfnOpen = OGRS57Driver::Open;
     poDriver->pfnIdentify = OGRS57DriverIdentify;

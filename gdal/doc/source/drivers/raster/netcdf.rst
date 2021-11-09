@@ -198,9 +198,7 @@ driver first tries to follow the CF-1 Convention from UNIDATA looking
 for the Metadata named "grid_mapping". If "grid_mapping" is not present,
 the driver will try to find an lat/lon grid array to set geotransform
 array. The NetCDF driver verifies that the Lat/Lon array is equally
-spaced.
-
-.. versionadded:: 3.4 crs_wkt attribute support
+space.
 
 If those 2 methods fail, NetCDF driver will try to read the following
 metadata directly and set up georeferencing.
@@ -215,10 +213,6 @@ or,
 -  Southernmost_Northing
 -  Easternmost_Easting
 -  Westernmost_Easting
-
-See also the configuration options **GDAL_NETCDF_VERIFY_DIMS** and
-**GDAL_NETCDF_IGNORE_XY_AXIS_NAME_CHECKS** which control this
-behavior.
 
 Open options
 ------------
@@ -302,28 +296,44 @@ Variables attributes for: tos, lon, lat and time
      time#bounds=time_bnds
      time#original_units=seconds since 2001-1-1
 
-Product specific behavior
---------------------------
+Important Changes
+~~~~~~~~~~~~~~~~~
 
-Sentinel 5
-++++++++++
+-  Added support for NC2, NC4 and NC4C file types for reading and
+   writing, and HDF4 for reading. See `NetCDF File
+   Format <http://www.unidata.ucar.edu/software/netcdf/docs/netcdf/File-Format.html#File-Format>`__
+   for details.
 
-.. versionadded:: 3.4
+   -  ``NC`` : NetCDF Classic Format: The Original Binary Format.
+   -  ``NC2`` : 64-bit Offset Format: Supporting Larger Variables
+   -  ``NC4`` : NetCDF-4 Format: Uses HDF5
+   -  ``NC4C`` : NetCDF-4 Classic Model Format: HDF5 with NetCDF
+      Limitations
+   -  ``HDF4`` : HDF4 SD Format
 
-The most verbose metadata is reported in the ``json:ISO_METADATA``,
-``json:ESA_METADATA``, ``json:EOP_METADATA``, ``json:QA_STATISTICS``,
-``json:GRANULE_DESCRIPTION``, ``json:ALGORITHM_SETTINGS`` and ``json:SUPPORT_DATA``
-metadata domains.
+-  Improved support for CF-1.5 projected and geographic SRS reading and
+   writing
 
-Can be discovered for example with:
+-  Improvements to metadata (global and variable) handling
 
-::
+-  Added simple progress indicator
 
-    gdalinfo -mdd all -json S5P.nc
+-  Added support for DEFLATE compression (reading and writing) and szip
+   (reading) - requires NetCDF-4 support
 
+-  Added support for valid_range/valid_min/valid_max
+
+-  Proper handling of signed/unsigned byte data
+
+-  Added support for Create() function - enables to use NetCDF directly
+   with gdalwarp
+
+-  Added support for CF two-dimensional coordinate variables (see `CF
+   Conventions <http://cfconventions.org/1.6.html#idp5559280>`__) via
+   GDAL GEOLOCATION arrays (see :ref:`rfc-4`)
 
 Creation Options
-----------------
+~~~~~~~~~~~~~~~~
 
 -  **FORMAT=[NC/NC2/NC4/NC4C]**: Set the NetCDF file format to use, NC
    is the default. NC2 is normally supported by recent NetCDF
@@ -352,8 +362,7 @@ Creation Options
    (such as named datums and EPSG codes), therefore the driver exports
    these variables by default. In import the CF "grid_mapping" variable
    takes precedence and the GDAL tags are used if they do not conflict
-   with CF metadata. In GDAL 4, spatial_ref will not be exported. The
-   crs_wkt CF metatata attribute will be used instead.
+   with CF metadata.
 
 -  **WRITE_LONLAT=[YES/NO/IF_NEEDED]**: Define if CF lon/lat variables
    are written to file. Default is YES for geographic SRS and NO for
@@ -372,73 +381,13 @@ Creation Options
 -  **PIXELTYPE=[DEFAULT/SIGNEDBYTE]**: By setting this to SIGNEDBYTE, a
    new Byte file can be forced to be written as signed byte.
 
-Creation of multidimensional files with CreateCopy() 2D raster API
-------------------------------------------------------------------
-
-Starting with GDAL 3.1, the preferred way of creating > 2D files is to use the
-the :ref:`multidim_raster_data_model` API. However it is possible to create
-such files with the 2D raster API using the CreateCopy() method (note that at
-time of writing, this is not supported using the Create() method).
-
-The ``NETCDF_DIM_EXTRA={dim1_name,...dimN_name}`` metadata item must be set on the
-source dataset, where dim1_name is the name of the slowest varying dimension
-and dimN_name the name of the fastest varying one.
-
-For each extra dimension, the ``NETCDF_DIM_{dim_name}_DEF={dimension_size,netcdf_data_type}``
-metadata item must be set where dimension_size is the size of the dimension
-(number of samples along that dimension) and netcdf_data_type is the integer
-value for the netCDF data type of the corresponding indexing variable. Among the most useful
-data types:
-
-- 4 for Int
-- 5 for Float
-- 6 for Double
-- 10 for Int64
-
-The ``NETCDF_DIM_{dim_name}_VALUES={value1,...valueN}`` is set to define the
-values of the indexing variable corresponding to dimension.
-
-``dim_name#attribute`` metadata items can also be set to define the attributes
-of the indexing variable of the dimension.
-
-Example of creation of a Time,Z,Y,X 4D file in Python:
-
-.. code-block:: python
-
-    # Create in-memory file with required metadata to define the extra >2D
-    # dimensions
-    size_z = 2
-    size_time = 3
-    src_ds = gdal.GetDriverByName('MEM').Create('', 4, 3, size_z * size_time)
-    src_ds.SetMetadataItem('NETCDF_DIM_EXTRA', '{time,Z}')
-    # 6 is NC_DOUBLE
-    src_ds.SetMetadataItem('NETCDF_DIM_Z_DEF', f"{{{size_z},6}}")
-    src_ds.SetMetadataItem('NETCDF_DIM_Z_VALUES', '{1.25,2.50}')
-    src_ds.SetMetadataItem('Z#axis', 'Z')
-    src_ds.SetMetadataItem('NETCDF_DIM_time_DEF', f"{{{size_time},6}}")
-    src_ds.SetMetadataItem('NETCDF_DIM_time_VALUES', '{1,2,3}')
-    src_ds.SetMetadataItem('time#axis', 'T')
-    src_ds.SetGeoTransform([2,1,0,49,0,-1])
-
-    # Create netCDF file
-    gdal.GetDriverByName('netCDF').CreateCopy('out.nc', src_ds)
-
-
 Configuration Options
----------------------
+~~~~~~~~~~~~~~~~~~~~~
 
 -  **GDAL_NETCDF_BOTTOMUP=[YES/NO]** : Set the y-axis order for import,
    overriding the order detected by the driver. This option is usually
    not needed unless a specific dataset is causing problems (which
    should be reported in GDAL trac).
-
--  **GDAL_NETCDF_VERIFY_DIMS=[YES/STRICT]** : Try to guess which dimensions
-   represent the latitude and longitude only by their attributes (STRICT)
-   or also by guessing the name (YES), default is YES.
-
--  **GDAL_NETCDF_IGNORE_XY_AXIS_NAME_CHECKS=[YES/NO]** : When a dimension
-   has been identified as latitude or longitude by its attributes, check
-   if its name also matches the convention, default is NO.
 
 VSI Virtual File System API support
 -----------------------------------

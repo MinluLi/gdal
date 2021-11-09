@@ -161,9 +161,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *buf, size_t len)
                 // Also check that reading the source doesn't involve too
                 // much memory
                 GDALDataset* poSrcDS = reinterpret_cast<GDALDataset*>(hSrcDS);
-                const int nBands = poSrcDS->GetRasterCount();
-                const int nXSize = poSrcDS->GetRasterXSize();
-                const int nYSize = poSrcDS->GetRasterYSize();
+                int nBands = poSrcDS->GetRasterCount();
                 if( nBands < 10 )
                 {
                     // Prevent excessive downsampling which might require huge
@@ -174,26 +172,29 @@ int LLVMFuzzerTestOneInput(const uint8_t *buf, size_t len)
                         if( bXDimPct && nXDim > 0 )
                         {
                             nXDim = static_cast<int>(
-                                nXSize / 100.0 * nXDim);
+                                poSrcDS->GetRasterXSize() / 100.0 * nXDim);
                         }
                         if( bYDimPct && nYDim > 0 )
                         {
                             nYDim = static_cast<int>(
-                                nYSize / 100.0 * nYDim);
+                                poSrcDS->GetRasterYSize() / 100.0 * nYDim);
                         }
-                        if( nXDim > 0 && nXSize / nXDim > 100 )
+                        if( nXDim > 0 && poSrcDS->GetRasterXSize() / nXDim > 100 )
                             bOKForResampling = false;
-                        if( nYDim > 0 && nYSize / nYDim > 100 )
+                        if( nYDim > 0 && poSrcDS->GetRasterYSize() / nYDim > 100 )
                             bOKForResampling = false;
                     }
 
                     bool bOKForSrc = true;
-                    if( nBands > 0 )
+                    if( nBands )
                     {
                         const int nDTSize = GDALGetDataTypeSizeBytes(
                             poSrcDS->GetRasterBand(1)->GetRasterDataType() );
-                        if( nXSize > 0 && nYSize > 0 &&
-                            nBands * nDTSize > 10 * 1024 * 1024 / nXSize / nYSize )
+                        vsi_l_offset nSize =
+                            static_cast<vsi_l_offset>(nBands) *
+                                poSrcDS->GetRasterXSize() *
+                                poSrcDS->GetRasterYSize() * nDTSize;
+                        if( nSize > 10 * 1024 * 1024 )
                         {
                             bOKForSrc = false;
                         }

@@ -151,8 +151,9 @@ void GDALJP2AbstractDataset::LoadJP2Metadata(
         (nGMLJP2Index >= 0 || nGEOJP2Index >= 0 || nMSIGIndex >= 0 ||
          m_nWORLDFILEIndex >= 0) )
     {
-        m_oSRS = oJP2Geo.m_oSRS;
-        if( !m_oSRS.IsEmpty() )
+        CPLFree(pszProjection);
+        pszProjection = CPLStrdup(oJP2Geo.pszProjection);
+        if( strlen(pszProjection) > 0 )
             m_nProjectionGeorefSrcIndex = nIndexUsed;
         bGeoTransformValid = CPL_TO_BOOL( oJP2Geo.bHaveGeoTransform );
         if( bGeoTransformValid )

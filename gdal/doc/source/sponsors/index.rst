@@ -7,37 +7,14 @@ Sponsors
 GDAL is a truly collaborative effort, with many diverse organizations
 contributing resources to its success. The following organizations take an
 extra step, providing unrestricted funding every year to maintain and improve
-the health of the project:
+the health of project:
 
-- Gold level:
+- Platinum level:
 
-  .. _gold-sponsors:
+  .. _platinium-sponsors:
   .. container:: horizontal-logos
 
     .. Note: they will appear in randomized order in HTML
-
-    .. container:: horizontal-logo
-
-        .. note: Given the square shape of th AWS logo compared to the other ones, we have to reduce its width a bit so it doesn't look bigger overall
-
-        .. image:: ../../images/sponsors/logo-aws.png
-           :class: img-logos
-           :width: 225 px
-           :target: https://aws.amazon.com
-
-    .. container:: horizontal-logo
-
-        .. image:: ../../images/sponsors/logo-esri.png
-           :class: img-logos
-           :width: 250 px
-           :target: https://www.esri.com
-
-    .. container:: horizontal-logo
-
-        .. image:: ../../images/sponsors/logo-maxar.png
-           :class: img-logos
-           :width: 250 px
-           :target: https://www.maxar.com
 
     .. container:: horizontal-logo
 
@@ -54,12 +31,19 @@ the health of the project:
            :target: https://www.planet.com
 
 
-- Silver level:
+- Gold level:
 
-  .. _silver-sponsors:
+  .. _gold-sponsors:
   .. container:: horizontal-logos
 
     .. Note: they will appear in randomized order in HTML
+
+    .. container:: horizontal-logo
+
+        .. image:: ../../images/sponsors/logo-esri.png
+           :class: img-logos
+           :width: 200 px
+           :target: https://www.esri.com
 
     .. container:: horizontal-logo
 
@@ -77,26 +61,12 @@ the health of the project:
 
 
 
-- Bronze level:
+- Silver level:
 
-  .. _bronze-sponsors:
+  .. _silver-sponsors:
   .. container:: horizontal-logos
 
     .. Note: they will appear in randomized order in HTML
-
-    .. container:: horizontal-logo
-
-        .. image:: ../../images/sponsors/logo-aerometrex.png
-           :class: img-logos
-           :width: 150 px
-           :target: https://aerometrex.com.au
-
-    .. container:: horizontal-logo
-
-        .. image:: ../../images/sponsors/logo-frontiersi.png
-           :class: img-logos
-           :width: 150 px
-           :target: https://frontiersi.com.au
 
     .. container:: horizontal-logo
 
@@ -105,12 +75,14 @@ the health of the project:
            :width: 150 px
            :target: https://www.koordinates.com
 
+
     .. container:: horizontal-logo
 
         .. image:: ../../images/sponsors/logo-mapgears.png
            :class: img-logos
            :width: 150 px
            :target: https://www.mapgears.com
+
 
     .. container:: horizontal-logo
 
@@ -122,24 +94,11 @@ the health of the project:
 
 - Supporter level:
 
-  .. _supporter-sponsors:
-  .. container:: horizontal-logos
+    .. _supporter-sponsors:
+    .. container:: horizontal-logos
 
-    .. container:: horizontal-logo
+      None listed yet.
 
-        Myles Sutherland
-
-    .. container:: horizontal-logo
-
-        `Kaplan Open Source Consulting <https://kaplanopensource.co.il/>`__
-
-    .. container:: horizontal-logo
-
-        `Space Intelligence <https://www.space-intelligence.com>`__
-
-    .. container:: horizontal-logo
-
-        `Umbra <https://umbra.space/>`__
 
 .. raw:: html
 
@@ -174,22 +133,15 @@ the health of the project:
 
         return this;
     };
+    $('#platinium-sponsors').randomize('div.horizontal-logo');
     $('#gold-sponsors').randomize('div.horizontal-logo');
     $('#silver-sponsors').randomize('div.horizontal-logo');
-    $('#bronze-sponsors').randomize('div.horizontal-logo');
     $('#supporter-sponsors').randomize('div.horizontal-logo');
-
   </script>
 
-The GDAL Project is hosted by `OSGeo <https://www.osgeo.org>`__,
-and a fiscally sponsored project of `NumFOCUS <https://numfocus.org>`__, a
-nonprofit dedicated to supporting the open-source scientific computing community. If you
-like GDAL and want to support our mission, please consider making a
-`donation <https://numfocus.org/donate-to-gdal>`__ to support our efforts.
-
-NumFOCUS is 501(c)(3) non-profit charity in the United States; as such, donations to
-NumFOCUS are tax-deductible as allowed by law. As with any donation, you should
-consult with your personal tax adviser or the IRS about your particular tax situation.
+The GDAL Project is hosted by `OSGeo <https://www.osgeo.org>`__, and
+`NumFOCUS <https://numfocus.org>`__ will serve as the fiscal sponsor once GDAL's application is completed,
+enabling all sponsorship to go through a 501(c)3 as charitable donations.
 
 .. container:: horizontal-logos
 
@@ -222,8 +174,6 @@ Related resources
 
 - `Sustainable GDAL Sponsorship Prospectus`_.
 - :ref:`Sponsoring frequently asked questions (FAQ) <sponsoring-faq>`.
-
-.. Source of the PDF is at https://docs.google.com/document/d/1yhMWeI_LgEXPUkngqOitqcKfp7ov6WsS41v5ulz-kd0/edit#
 
 .. _Sustainable GDAL Sponsorship Prospectus: https://gdal.org/sponsors/Sustainable%20GDAL%20Sponsorship%20Prospectus.pdf
 

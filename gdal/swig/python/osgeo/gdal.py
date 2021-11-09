@@ -329,18 +329,6 @@ def MultiDimInfo(ds, **kwargs):
 def _strHighPrec(x):
     return x if isinstance(x, str) else '%.18g' % x
 
-mapGRIORAMethodToString = {
-    gdalconst.GRIORA_NearestNeighbour: 'near',
-    gdalconst.GRIORA_Bilinear: 'bilinear',
-    gdalconst.GRIORA_Cubic: 'cubic',
-    gdalconst.GRIORA_CubicSpline: 'cubicspline',
-    gdalconst.GRIORA_Lanczos: 'lanczos',
-    gdalconst.GRIORA_Average: 'average',
-    gdalconst.GRIORA_RMS: 'rms',
-    gdalconst.GRIORA_Mode: 'mode',
-    gdalconst.GRIORA_Gauss: 'gauss',
-}
-
 def TranslateOptions(options=None, format=None,
               outputType = gdalconst.GDT_Unknown, bandList=None, maskBand=None,
               width = 0, height = 0, widthPct = 0.0, heightPct = 0.0,
@@ -386,13 +374,7 @@ def TranslateOptions(options=None, format=None,
           callback --- callback method
           callback_data --- user data for callback
     """
-
-# Only used for tests
-    return_option_list = options == '__RETURN_OPTION_LIST__'
-    if return_option_list:
-        options = []
-    else:
-        options = [] if options is None else options
+    options = [] if options is None else options
 
     if isinstance(options, str):
         new_options = ParseCommandLine(options)
@@ -459,15 +441,26 @@ def TranslateOptions(options=None, format=None,
         if not rat:
             new_options += ['-norat']
         if resampleAlg is not None:
-            if resampleAlg in mapGRIORAMethodToString:
-                new_options += ['-r', mapGRIORAMethodToString[resampleAlg]]
+            if resampleAlg == gdalconst.GRA_NearestNeighbour:
+                new_options += ['-r', 'near']
+            elif resampleAlg == gdalconst.GRA_Bilinear:
+                new_options += ['-r', 'bilinear']
+            elif resampleAlg == gdalconst.GRA_Cubic:
+                new_options += ['-r', 'cubic']
+            elif resampleAlg == gdalconst.GRA_CubicSpline:
+                new_options += ['-r', 'cubicspline']
+            elif resampleAlg == gdalconst.GRA_Lanczos:
+                new_options += ['-r', 'lanczos']
+            elif resampleAlg == gdalconst.GRA_Average:
+                new_options += ['-r', 'average']
+            elif resampleAlg == gdalconst.GRA_RMS:
+                new_options += ['-r', 'rms']
+            elif resampleAlg == gdalconst.GRA_Mode:
+                new_options += ['-r', 'mode']
             else:
                 new_options += ['-r', str(resampleAlg)]
         if xRes != 0 and yRes != 0:
             new_options += ['-tr', _strHighPrec(xRes), _strHighPrec(yRes)]
-
-    if return_option_list:
-        return new_options
 
     return (GDALTranslateOptions(new_options), callback, callback_data)
 
@@ -552,13 +545,7 @@ def WarpOptions(options=None, format=None,
           callback --- callback method
           callback_data --- user data for callback
     """
-
-# Only used for tests
-    return_option_list = options == '__RETURN_OPTION_LIST__'
-    if return_option_list:
-        options = []
-    else:
-        options = [] if options is None else options
+    options = [] if options is None else options
 
     if isinstance(options, str):
         new_options = ParseCommandLine(options)
@@ -596,26 +583,24 @@ def WarpOptions(options=None, format=None,
         if errorThreshold is not None:
             new_options += ['-et', _strHighPrec(errorThreshold)]
         if resampleAlg is not None:
-
-            mapMethodToString = {
-                gdalconst.GRA_NearestNeighbour: 'near',
-                gdalconst.GRA_Bilinear: 'bilinear',
-                gdalconst.GRA_Cubic: 'cubic',
-                gdalconst.GRA_CubicSpline: 'cubicspline',
-                gdalconst.GRA_Lanczos: 'lanczos',
-                gdalconst.GRA_Average: 'average',
-                gdalconst.GRA_RMS: 'rms',
-                gdalconst.GRA_Mode: 'mode',
-                gdalconst.GRA_Max: 'max',
-                gdalconst.GRA_Min: 'min',
-                gdalconst.GRA_Med: 'med',
-                gdalconst.GRA_Q1: 'q1',
-                gdalconst.GRA_Q3: 'q3',
-                gdalconst.GRA_Sum: 'sum',
-            }
-
-            if resampleAlg in mapMethodToString:
-                new_options += ['-r', mapMethodToString[resampleAlg]]
+            if resampleAlg == gdalconst.GRIORA_NearestNeighbour:
+                new_options += ['-r', 'near']
+            elif resampleAlg == gdalconst.GRIORA_Bilinear:
+                new_options += ['-rb']
+            elif resampleAlg == gdalconst.GRIORA_Cubic:
+                new_options += ['-rc']
+            elif resampleAlg == gdalconst.GRIORA_CubicSpline:
+                new_options += ['-rcs']
+            elif resampleAlg == gdalconst.GRIORA_Lanczos:
+                new_options += ['-r', 'lanczos']
+            elif resampleAlg == gdalconst.GRIORA_Average:
+                new_options += ['-r', 'average']
+            elif resampleAlg == gdalconst.GRIORA_RMS:
+                new_options += ['-r', 'rms']
+            elif resampleAlg == gdalconst.GRIORA_Mode:
+                new_options += ['-r', 'mode']
+            elif resampleAlg == gdalconst.GRIORA_Gauss:
+                new_options += ['-r', 'gauss']
             else:
                 new_options += ['-r', str(resampleAlg)]
         if warpMemoryLimit is not None:
@@ -669,11 +654,8 @@ def WarpOptions(options=None, format=None,
         else:
             overviewLevel = None
 
-        if overviewLevel is not None and overviewLevel != 'AUTO':
+        if overviewLevel:
             new_options += ['-ovr', overviewLevel]
-
-    if return_option_list:
-        return new_options
 
     return (GDALWarpAppOptions(new_options), callback, callback_data)
 
@@ -1319,13 +1301,7 @@ def BuildVRTOptions(options=None,
           callback --- callback method.
           callback_data --- user data for callback.
     """
-
-# Only used for tests
-    return_option_list = options == '__RETURN_OPTION_LIST__'
-    if return_option_list:
-        options = []
-    else:
-        options = [] if options is None else options
+    options = [] if options is None else options
 
     if isinstance(options, str):
         new_options = ParseCommandLine(options)
@@ -1347,8 +1323,24 @@ def BuildVRTOptions(options=None,
         if addAlpha:
             new_options += ['-addalpha']
         if resampleAlg is not None:
-            if resampleAlg in mapGRIORAMethodToString:
-                new_options += ['-r', mapGRIORAMethodToString[resampleAlg]]
+            if resampleAlg == gdalconst.GRIORA_NearestNeighbour:
+                new_options += ['-r', 'near']
+            elif resampleAlg == gdalconst.GRIORA_Bilinear:
+                new_options += ['-rb']
+            elif resampleAlg == gdalconst.GRIORA_Cubic:
+                new_options += ['-rc']
+            elif resampleAlg == gdalconst.GRIORA_CubicSpline:
+                new_options += ['-rcs']
+            elif resampleAlg == gdalconst.GRIORA_Lanczos:
+                new_options += ['-r', 'lanczos']
+            elif resampleAlg == gdalconst.GRIORA_Average:
+                new_options += ['-r', 'average']
+            elif resampleAlg == gdalconst.GRIORA_RMS:
+                new_options += ['-r', 'rms']
+            elif resampleAlg == gdalconst.GRIORA_Mode:
+                new_options += ['-r', 'mode']
+            elif resampleAlg == gdalconst.GRIORA_Gauss:
+                new_options += ['-r', 'gauss']
             else:
                 new_options += ['-r', str(resampleAlg)]
         if outputSRS is not None:
@@ -1361,9 +1353,6 @@ def BuildVRTOptions(options=None,
             new_options += ['-vrtnodata', str(VRTNodata)]
         if hideNodata:
             new_options += ['-hidenodata']
-
-    if return_option_list:
-        return new_options
 
     return (GDALBuildVRTOptions(new_options), callback, callback_data)
 
@@ -1509,22 +1498,6 @@ def ConfigurePythonLogging(logger_name='gdal', enable_debug=False):
     SetErrorHandler(_pylog_handler)
 
 
-def EscapeString(*args, **kwargs):
-    """EscapeString(string_or_bytes, scheme = gdal.CPLES_SQL)"""
-    if isinstance(args[0], bytes):
-        return _gdal.EscapeBinary(*args, **kwargs)
-    else:
-        return _gdal.wrapper_EscapeString(*args, **kwargs)
-
-
-def ApplyVerticalShiftGrid(*args, **kwargs):
-    """ApplyVerticalShiftGrid(Dataset src_ds, Dataset grid_ds, bool inverse=False, double srcUnitToMeter=1.0, double dstUnitToMeter=1.0, char ** options=None) -> Dataset"""
-
-    from warnings import warn
-    warn('ApplyVerticalShiftGrid() will be removed in GDAL 4.0', DeprecationWarning)
-    return _ApplyVerticalShiftGrid(*args, **kwargs)
-
-
 
 def Debug(*args):
     """Debug(char const * msg_class, char const * message)"""
@@ -1566,13 +1539,9 @@ def ErrorReset(*args):
     """ErrorReset()"""
     return _gdal.ErrorReset(*args)
 
-def wrapper_EscapeString(*args, **kwargs):
-    """wrapper_EscapeString(int len, int scheme) -> retStringAndCPLFree *"""
-    return _gdal.wrapper_EscapeString(*args, **kwargs)
-
-def EscapeBinary(*args, **kwargs):
-    """EscapeBinary(int len, int scheme)"""
-    return _gdal.EscapeBinary(*args, **kwargs)
+def EscapeString(*args, **kwargs):
+    """EscapeString(int len, int scheme) -> retStringAndCPLFree *"""
+    return _gdal.EscapeString(*args, **kwargs)
 
 def GetLastErrorNo(*args):
     """GetLastErrorNo() -> int"""
@@ -1692,17 +1661,9 @@ def SetConfigOption(*args):
     """SetConfigOption(char const * pszKey, char const * pszValue)"""
     return _gdal.SetConfigOption(*args)
 
-def SetThreadLocalConfigOption(*args):
-    """SetThreadLocalConfigOption(char const * pszKey, char const * pszValue)"""
-    return _gdal.SetThreadLocalConfigOption(*args)
-
 def GetConfigOption(*args):
     """GetConfigOption(char const * pszKey, char const * pszDefault=None) -> char const *"""
     return _gdal.GetConfigOption(*args)
-
-def GetThreadLocalConfigOption(*args):
-    """GetThreadLocalConfigOption(char const * pszKey, char const * pszDefault=None) -> char const *"""
-    return _gdal.GetThreadLocalConfigOption(*args)
 
 def CPLBinaryToHex(*args):
     """CPLBinaryToHex(int nBytes) -> retStringAndCPLFree *"""
@@ -1752,10 +1713,6 @@ def Sync(*args, **kwargs):
     """Sync(char const * pszSource, char const * pszTarget, char ** options=None, GDALProgressFunc callback=0, void * callback_data=None) -> bool"""
     return _gdal.Sync(*args, **kwargs)
 
-def AbortPendingUploads(*args):
-    """AbortPendingUploads(char const * utf8_path) -> bool"""
-    return _gdal.AbortPendingUploads(*args)
-
 def GetActualURL(*args):
     """GetActualURL(char const * utf8_path) -> char const *"""
     return _gdal.GetActualURL(*args)
@@ -1788,8 +1745,6 @@ VSILFILE_swigregister(VSILFILE)
 VSI_STAT_EXISTS_FLAG = _gdal.VSI_STAT_EXISTS_FLAG
 VSI_STAT_NATURE_FLAG = _gdal.VSI_STAT_NATURE_FLAG
 VSI_STAT_SIZE_FLAG = _gdal.VSI_STAT_SIZE_FLAG
-VSI_STAT_SET_ERROR_FLAG = _gdal.VSI_STAT_SET_ERROR_FLAG
-VSI_STAT_CACHE_ONLY = _gdal.VSI_STAT_CACHE_ONLY
 class StatBuf(_object):
     """Proxy of C++ StatBuf class."""
 
@@ -1960,7 +1915,7 @@ class MajorObject(_object):
 
 
     def GetMetadata(self, domain=''):
-      if domain and domain[:4] == 'xml:':
+      if domain[:4] == 'xml:':
         return self.GetMetadata_List(domain)
       return self.GetMetadata_Dict(domain)
 
@@ -2452,11 +2407,6 @@ class Dataset(MajorObject):
         return _gdal.Dataset_GetLayerCount(self, *args)
 
 
-    def IsLayerPrivate(self, *args):
-        """IsLayerPrivate(Dataset self, int index) -> bool"""
-        return _gdal.Dataset_IsLayerPrivate(self, *args)
-
-
     def GetLayerByIndex(self, *args):
         """GetLayerByIndex(Dataset self, int index=0) -> Layer"""
         return _gdal.Dataset_GetLayerByIndex(self, *args)
@@ -2769,8 +2719,6 @@ class Dataset(MajorObject):
 Dataset_swigregister = _gdal.Dataset_swigregister
 Dataset_swigregister(Dataset)
 
-GEDTST_NONE = _gdal.GEDTST_NONE
-GEDTST_JSON = _gdal.GEDTST_JSON
 class Group(_object):
     """Proxy of C++ GDALGroupHS class."""
 
@@ -2828,16 +2776,6 @@ class Group(_object):
     def OpenGroupFromFullname(self, *args):
         """OpenGroupFromFullname(Group self, char const * name, char ** options=None) -> Group"""
         return _gdal.Group_OpenGroupFromFullname(self, *args)
-
-
-    def GetVectorLayerNames(self, *args):
-        """GetVectorLayerNames(Group self, char ** options=None) -> char **"""
-        return _gdal.Group_GetVectorLayerNames(self, *args)
-
-
-    def OpenVectorLayer(self, *args):
-        """OpenVectorLayer(Group self, char const * name, char ** options=None) -> Layer"""
-        return _gdal.Group_OpenVectorLayer(self, *args)
 
 
     def GetDimensions(self, *args):
@@ -2957,11 +2895,6 @@ class MDArray(_object):
         return _gdal.MDArray_GetDimensions(self, *args)
 
 
-    def GetCoordinateVariables(self, *args):
-        """GetCoordinateVariables(MDArray self)"""
-        return _gdal.MDArray_GetCoordinateVariables(self, *args)
-
-
     def GetBlockSize(self, *args):
         """GetBlockSize(MDArray self)"""
         return _gdal.MDArray_GetBlockSize(self, *args)
@@ -2998,7 +2931,7 @@ class MDArray(_object):
 
 
     def AdviseRead(self, *args):
-        """AdviseRead(MDArray self, int nDims1, int nDims2, char ** options=None) -> CPLErr"""
+        """AdviseRead(MDArray self, int nDims1, int nDims2) -> CPLErr"""
         return _gdal.MDArray_AdviseRead(self, *args)
 
 
@@ -3027,19 +2960,9 @@ class MDArray(_object):
         return _gdal.MDArray_GetNoDataValueAsDouble(self, *args)
 
 
-    def GetNoDataValueAsString(self, *args):
-        """GetNoDataValueAsString(MDArray self) -> retStringAndCPLFree *"""
-        return _gdal.MDArray_GetNoDataValueAsString(self, *args)
-
-
     def SetNoDataValueDouble(self, *args):
         """SetNoDataValueDouble(MDArray self, double d) -> CPLErr"""
         return _gdal.MDArray_SetNoDataValueDouble(self, *args)
-
-
-    def SetNoDataValueString(self, *args):
-        """SetNoDataValueString(MDArray self, char const * nodata) -> CPLErr"""
-        return _gdal.MDArray_SetNoDataValueString(self, *args)
 
 
     def SetNoDataValueRaw(self, *args):
@@ -3128,23 +3051,13 @@ class MDArray(_object):
 
 
     def GetStatistics(self, *args, **kwargs):
-        """GetStatistics(MDArray self, bool approx_ok=False, bool force=True, GDALProgressFunc callback=0, void * callback_data=None) -> Statistics"""
+        """GetStatistics(MDArray self, Dataset ds=None, bool approx_ok=False, bool force=True, GDALProgressFunc callback=0, void * callback_data=None) -> Statistics"""
         return _gdal.MDArray_GetStatistics(self, *args, **kwargs)
 
 
     def ComputeStatistics(self, *args, **kwargs):
-        """ComputeStatistics(MDArray self, bool approx_ok=False, GDALProgressFunc callback=0, void * callback_data=None) -> Statistics"""
+        """ComputeStatistics(MDArray self, Dataset ds=None, bool approx_ok=False, GDALProgressFunc callback=0, void * callback_data=None) -> Statistics"""
         return _gdal.MDArray_ComputeStatistics(self, *args, **kwargs)
-
-
-    def GetResampled(self, *args):
-        """GetResampled(MDArray self, int nDimensions, GDALRIOResampleAlg resample_alg, OSRSpatialReferenceShadow ** srs, char ** options=None) -> MDArray"""
-        return _gdal.MDArray_GetResampled(self, *args)
-
-
-    def Cache(self, *args):
-        """Cache(MDArray self, char ** options=None) -> bool"""
-        return _gdal.MDArray_Cache(self, *args)
 
 
     def Read(self,
@@ -3182,12 +3095,12 @@ class MDArray(_object):
         from osgeo import gdal_array
         return gdal_array.MDArrayReadAsArray(self, array_start_idx, count, array_step, buffer_datatype, buf_obj)
 
-    def AdviseRead(self, array_start_idx = None, count = None, options = []):
+    def AdviseRead(self, array_start_idx = None, count = None):
         if not array_start_idx:
           array_start_idx = [0] * self.GetDimensionCount()
         if not count:
           count = [ (self.GetDimensions()[i].GetSize() - array_start_idx[i]) for i in range (self.GetDimensionCount()) ]
-        return _gdal.MDArray_AdviseRead(self, array_start_idx, count, options)
+        return _gdal.MDArray_AdviseRead(self, array_start_idx, count)
 
     def __getitem__(self, item):
 
@@ -3453,21 +3366,13 @@ class Attribute(_object):
 
     def Read(self):
       """ Read an attribute and return it with the most appropriate type """
-      dt = self.GetDataType()
-      dt_class = dt.GetClass()
+      dt_class = self.GetDataType().GetClass()
       if dt_class == GEDTC_STRING:
           if self.GetTotalElementsCount() == 1:
-              s = self.ReadAsString()
-              if dt.GetSubType() == GEDTST_JSON:
-                  try:
-                      import json
-                      return json.loads(s)
-                  except:
-                      pass
-              return s
+              return self.ReadAsString()
           return self.ReadAsStringArray()
       if dt_class == GEDTC_NUMERIC:
-          if dt.GetNumericDataType() in (GDT_Byte, GDT_Int16, GDT_UInt16, GDT_Int32):
+          if self.GetDataType().GetNumericDataType() in (GDT_Byte, GDT_Int16, GDT_UInt16, GDT_Int32):
               if self.GetTotalElementsCount() == 1:
                   return self.ReadAsInt()
               else:
@@ -3499,9 +3404,6 @@ class Attribute(_object):
           return self.WriteDoubleArray(val)
         if isinstance(val[0], str):
           return self.WriteStringArray(val)
-      if isinstance(val, dict) and self.GetDataType().GetSubType() == GEDTST_JSON:
-          import json
-          return self.WriteString(json.dumps(val))
       return self.WriteRaw(val)
 
 
@@ -3583,7 +3485,7 @@ class ExtendedDataType(_object):
     Create = staticmethod(Create)
 
     def CreateString(*args):
-        """CreateString(size_t nMaxStringLength=0, GDALExtendedDataTypeSubType eSubType=GEDTST_NONE) -> ExtendedDataType"""
+        """CreateString(size_t nMaxStringLength=0) -> ExtendedDataType"""
         return _gdal.ExtendedDataType_CreateString(*args)
 
     CreateString = staticmethod(CreateString)
@@ -3619,11 +3521,6 @@ class ExtendedDataType(_object):
         return _gdal.ExtendedDataType_GetMaxStringLength(self, *args)
 
 
-    def GetSubType(self, *args):
-        """GetSubType(ExtendedDataType self) -> GDALExtendedDataTypeSubType"""
-        return _gdal.ExtendedDataType_GetSubType(self, *args)
-
-
     def GetComponents(self, *args):
         """GetComponents(ExtendedDataType self)"""
         return _gdal.ExtendedDataType_GetComponents(self, *args)
@@ -3654,7 +3551,7 @@ def ExtendedDataType_Create(*args):
     return _gdal.ExtendedDataType_Create(*args)
 
 def ExtendedDataType_CreateString(*args):
-    """ExtendedDataType_CreateString(size_t nMaxStringLength=0, GDALExtendedDataTypeSubType eSubType=GEDTST_NONE) -> ExtendedDataType"""
+    """ExtendedDataType_CreateString(size_t nMaxStringLength=0) -> ExtendedDataType"""
     return _gdal.ExtendedDataType_CreateString(*args)
 
 def ExtendedDataType_CreateCompound(*args):
@@ -4471,9 +4368,9 @@ def Transformer(*args):
     """Transformer(Dataset src, Dataset dst, char ** options) -> GDALTransformerInfoShadow"""
     return _gdal.Transformer(*args)
 
-def _ApplyVerticalShiftGrid(*args, **kwargs):
-    """_ApplyVerticalShiftGrid(Dataset src_ds, Dataset grid_ds, bool inverse=False, double srcUnitToMeter=1.0, double dstUnitToMeter=1.0, char ** options=None) -> Dataset"""
-    return _gdal._ApplyVerticalShiftGrid(*args, **kwargs)
+def ApplyVerticalShiftGrid(*args, **kwargs):
+    """ApplyVerticalShiftGrid(Dataset src_ds, Dataset grid_ds, bool inverse=False, double srcUnitToMeter=1.0, double dstUnitToMeter=1.0, char ** options=None) -> Dataset"""
+    return _gdal.ApplyVerticalShiftGrid(*args, **kwargs)
 
 def ApplyGeoTransform(*args):
     """ApplyGeoTransform(double [6] padfGeoTransform, double dfPixel, double dfLine)"""

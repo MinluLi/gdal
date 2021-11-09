@@ -8,7 +8,6 @@
 #
 # ******************************************************************************
 #  Copyright (c) 2005, Frank Warmerdam <warmerdam@pobox.com>
-#  Copyright (c) 2021, Idan Miara <idan@miara.com>
 #
 #  Permission is hereby granted, free of charge, to any person obtaining a
 #  copy of this software and associated documentation files (the "Software"),
@@ -42,10 +41,10 @@ def Usage():
 
 
 def main(argv):
-    src_filename = None
-    dst_filename = None
-    driver_name = 'GML'
-    pixel_out = False
+    out_format = 'GML'
+    in_file = None
+    out_file = None
+    pixel_out = 0
 
     argv = gdal.GeneralCmdLineProcessor(argv)
     if argv is None:
@@ -58,35 +57,31 @@ def main(argv):
 
         if arg == '-of':
             i = i + 1
-            driver_name = argv[i]
+            out_format = argv[i]
 
         elif arg == '-p':
-            pixel_out = True
+            pixel_out = 1
 
-        elif src_filename is None:
-            src_filename = argv[i]
+        elif in_file is None:
+            in_file = argv[i]
 
-        elif dst_filename is None:
-            dst_filename = argv[i]
+        elif out_file is None:
+            out_file = argv[i]
 
         else:
             return Usage()
 
         i = i + 1
 
-    if dst_filename is None:
+    if out_file is None:
         return Usage()
 
-    return gcps2vec(src_filename=src_filename, dst_filename=dst_filename, driver_name=driver_name, pixel_out=pixel_out)
-
-
-def gcps2vec(src_filename: str, dst_filename: str, driver_name: str, pixel_out: bool = False):
     # ----------------------------------------------------------------------------
     # Open input file, and fetch GCPs.
     # ----------------------------------------------------------------------------
-    ds = gdal.Open(src_filename)
+    ds = gdal.Open(in_file)
     if ds is None:
-        print(f'Unable to open {src_filename}')
+        print('Unable to open %s' % in_file)
         return 1
 
     gcp_srs = ds.GetGCPProjection()
@@ -95,34 +90,34 @@ def gcps2vec(src_filename: str, dst_filename: str, driver_name: str, pixel_out: 
     ds = None
 
     if gcps is None or not gcps:
-        print(f'No GCPs on file {src_filename}!')
+        print('No GCPs on file %s!' % in_file)
         return 1
 
     # ----------------------------------------------------------------------------
     # Create output file, and layer.
     # ----------------------------------------------------------------------------
 
-    driver = ogr.GetDriverByName(driver_name)
-    if driver is None:
-        print(f'No driver named {driver_name} available.')
+    drv = ogr.GetDriverByName(out_format)
+    if drv is None:
+        print('No driver named %s available.' % out_format)
         return 1
 
-    ds = driver.CreateDataSource(dst_filename)
+    ds = drv.CreateDataSource(out_file)
 
-    if not pixel_out and gcp_srs != "":
+    if pixel_out == 0 and gcp_srs != "":
         srs = osr.SpatialReference()
         srs.ImportFromWkt(gcp_srs)
     else:
         srs = None
 
-    if not pixel_out:
+    if pixel_out == 0:
         geom_type = ogr.wkbPoint25D
     else:
         geom_type = ogr.wkbPoint
 
     layer = ds.CreateLayer('gcps', srs, geom_type=geom_type)
 
-    if not pixel_out:
+    if pixel_out == 0:
         fd = ogr.FieldDefn('Pixel', ogr.OFTReal)
         layer.CreateField(fd)
 
@@ -152,7 +147,7 @@ def gcps2vec(src_filename: str, dst_filename: str, driver_name: str, pixel_out: 
 
         feat = ogr.Feature(layer.GetLayerDefn())
 
-        if not pixel_out:
+        if pixel_out == 0:
             geom = ogr.Geometry(geom_type)
             feat.SetField('Pixel', gcp.GCPPixel)
             feat.SetField('Line', gcp.GCPLine)

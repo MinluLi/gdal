@@ -429,9 +429,10 @@ OGRGenSQLResultsLayer::OGRGenSQLResultsLayer( GDALDataset *poSrcDSIn,
                 poSRS->Release();
             }
 
-            auto poMyGeomFieldDefn = cpl::make_unique<OGRGenSQLGeomFieldDefn>(&oGFDefn);
+            OGRGenSQLGeomFieldDefn* poMyGeomFieldDefn =
+                new OGRGenSQLGeomFieldDefn(&oGFDefn);
             poMyGeomFieldDefn->bForceGeomType = bForceGeomType;
-            poDefn->AddGeomFieldDefn( std::move(poMyGeomFieldDefn) );
+            poDefn->AddGeomFieldDefn( poMyGeomFieldDefn, FALSE );
         }
         else
             poDefn->AddFieldDefn( &oFDefn );
@@ -465,8 +466,9 @@ OGRGenSQLResultsLayer::OGRGenSQLResultsLayer( GDALDataset *poSrcDSIn,
 
         panGeomFieldToSrcGeomField[poDefn->GetGeomFieldCount()] = 0;
 
-        poDefn->AddGeomFieldDefn(
-            cpl::make_unique<OGRGenSQLGeomFieldDefn>(poSrcDefn->GetGeomFieldDefn(0)) );
+        OGRGenSQLGeomFieldDefn* poMyGeomFieldDefn =
+            new OGRGenSQLGeomFieldDefn(poSrcDefn->GetGeomFieldDefn(0));
+        poDefn->AddGeomFieldDefn( poMyGeomFieldDefn, FALSE );
 
         /* Hack while drivers haven't been updated so that */
         /* poSrcDefn->GetGeomFieldDefn(0)->GetSpatialRef() == poSrcLayer->GetSpatialRef() */

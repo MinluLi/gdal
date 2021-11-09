@@ -10,7 +10,7 @@ CONDA_PREFIX=/usr/local/miniconda/envs/test
 find ${CONDA_PREFIX}/lib -name '*.la' -delete
 
 # build GDAL
-./autogen.sh
+cd gdal
 # --without-tiledb because of https://github.com/OSGeo/gdal/issues/3122
 ./configure --prefix=$HOME/install-gdal \
     --enable-debug \
@@ -39,14 +39,14 @@ export PATH=$HOME/install-gdal/bin:$PWD/apps/.libs:$PATH
 export DYLD_LIBRARY_PATH=$HOME/install-gdal/lib
 export GDAL_DATA=$HOME/install-gdal/share/gdal
 
-cd autotest/cpp
+cd ../autotest/cpp
 echo $PATH
 
 gdal-config --version
 gdal-config --cflags
 gdal-config --libs
 make -j3
-cd ../..
+cd ../../gdal
 
 # Post-install testing
 # ../autotest/postinstall/test_pkg-config.sh $HOME/install-gdal

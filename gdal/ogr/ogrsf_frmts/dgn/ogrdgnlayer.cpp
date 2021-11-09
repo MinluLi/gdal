@@ -293,17 +293,17 @@ void OGRDGNLayer::ConsiderBrush( DGNElemCore *psElement, const char *pszPen,
         && DGNLookupColor( hDGN, nFillColor,
                            &gv_red, &gv_green, &gv_blue ) )
     {
-        CPLString osFullStyle;
-        osFullStyle.Printf(
+        char szFullStyle[256];
+        snprintf( szFullStyle, sizeof(szFullStyle),
                  "BRUSH(fc:#%02x%02x%02x,id:\"ogr-brush-0\")",
                  gv_red, gv_green, gv_blue );
 
         if( nFillColor != psElement->color )
         {
-            osFullStyle += ';';
-            osFullStyle += pszPen;
+            strcat( szFullStyle, ";" );
+            strcat( szFullStyle, pszPen );
         }
-        poFeature->SetStyleString( osFullStyle.c_str() );
+        poFeature->SetStyleString( szFullStyle );
     }
     else
         poFeature->SetStyleString( pszPen );

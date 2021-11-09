@@ -150,12 +150,6 @@ struct GDALVectorTranslateOptions
         otherwise only SRS assignment is done. */
     char *pszOutputSRSDef;
 
-    /*! Coordinate epoch of source SRS */
-    double dfSourceCoordinateEpoch;
-
-    /*! Coordinate epoch of output SRS */
-    double dfOutputCoordinateEpoch;
-
     /*! override source SRS */
     char *pszSourceSRSDef;
 
@@ -512,7 +506,8 @@ static OGRGeometry* LoadGeometry( const char* pszDS,
         poLyr->SetAttributeFilter(pszWhere);
 
     OGRMultiPolygon *poMP = nullptr;
-    for( auto& poFeat: poLyr )
+    OGRFeature *poFeat = nullptr;
+    while ((poFeat = poLyr->GetNextFeature()) != nullptr)
     {
         OGRGeometry* poSrcGeom = poFeat->GetGeometryRef();
         if (poSrcGeom)
@@ -540,12 +535,15 @@ static OGRGeometry* LoadGeometry( const char* pszDS,
             {
                 CPLError( CE_Failure, CPLE_AppDefined, "Geometry not of polygon type." );
                 OGRGeometryFactory::destroyGeometry(poMP);
+                OGRFeature::DestroyFeature(poFeat);
                 if( pszSQL != nullptr )
                     poDS->ReleaseResultSet( poLyr );
                 GDALClose(poDS);
                 return nullptr;
             }
         }
+
+        OGRFeature::DestroyFeature(poFeat);
     }
 
     if( pszSQL != nullptr )
@@ -717,7 +715,8 @@ bool OGRSplitListFieldLayer::BuildLayerDefn(GDALProgressFunc pfnProgress,
 
         /* Scan the whole layer to compute the maximum number of */
         /* items for each field of list type */
-        for( auto& poSrcFeature: poSrcLayer )
+        OGRFeature* poSrcFeature = nullptr;
+        while( (poSrcFeature = poSrcLayer->GetNextFeature()) != nullptr )
         {
             for( int i=0; i<nListFieldCount; ++i )
             {
@@ -756,6 +755,7 @@ bool OGRSplitListFieldLayer::BuildLayerDefn(GDALProgressFunc pfnProgress,
                     pasListFields[i].nMaxOccurrences = nCount;
                 }
             }
+            OGRFeature::DestroyFeature(poSrcFeature);
 
             nFeatureIndex ++;
             if (pfnProgress != nullptr && nFeatureCount != 0)
@@ -1860,8 +1860,6 @@ static GDALDataset* GDALVectorTranslateCreateCopy(
                       psOptions->pszOutputSRSDef );
             return nullptr;
         }
-        oOutputSRSHolder.get()->SetCoordinateEpoch(psOptions->dfOutputCoordinateEpoch);
-
         poWrkSrcDS = GDALVectorTranslateWrappedDataset::New(
             poDS, oOutputSRSHolder.get(), psOptions->bTransform);
         if( poWrkSrcDS == nullptr )
@@ -2326,7 +2324,7 @@ GDALDatasetH GDALVectorTranslate( const char *pszDest, GDALDatasetH hDstDS, int 
         // have write capabilities. But do the substitution to get a sensible
         // error message
         if( EQUAL(osOGRCompatFormat, "GMT") ||
-            EQUAL(osOGRCompatFormat, "VRT") ||
+            EQUAL(osOGRCompatFormat, "VRT") |
             EQUAL(osOGRCompatFormat, "SDTS") ||
             EQUAL(osOGRCompatFormat, "PDS") )
         {
@@ -2486,7 +2484,6 @@ GDALDatasetH GDALVectorTranslate( const char *pszDest, GDALDatasetH hDstDS, int 
             if( hDstDS == nullptr ) GDALClose( poODS );
             return nullptr;
         }
-        oOutputSRSHolder.get()->SetCoordinateEpoch(psOptions->dfOutputCoordinateEpoch);
     }
 
 /* -------------------------------------------------------------------- */
@@ -2505,7 +2502,6 @@ GDALDatasetH GDALVectorTranslate( const char *pszDest, GDALDatasetH hDstDS, int 
             if( hDstDS == nullptr ) GDALClose( poODS );
             return nullptr;
         }
-        oSourceSRS.SetCoordinateEpoch(psOptions->dfSourceCoordinateEpoch);
         poSourceSRS = &oSourceSRS;
     }
 
@@ -4088,7 +4084,7 @@ std::unique_ptr<TargetLayerInfo> SetupTargetLayer::Setup(OGRLayer* poSrcLayer,
 
         const bool caseInsensitive =
             !EQUAL(m_poDstDS->GetDriver()->GetDescription(), "GeoJSON");
-        const auto formatName = [caseInsensitive](const char* name) {
+        auto formatName = [caseInsensitive](const char* name) {
             if( caseInsensitive ) {
                 return CPLString(name).toupper();
             } else {
@@ -4145,17 +4141,6 @@ std::unique_ptr<TargetLayerInfo> SetupTargetLayer::Setup(OGRLayer* poSrcLayer,
                 formatName(poSrcFDefn->GetFieldDefn(i)->GetNameRef()));
         }
 
-        // For each source field name, memorize the last number suffix to have unique
-        // field names in the target.
-        // Let's imagine we have a source layer with the field name foo repeated twice
-        // After dealing the first field, oMapFieldNameToLastSuffix["foo"] will be
-        // 1, so when starting a unique name for the second field, we'll be able to
-        // start at 2.
-        // This avoids quadratic complexity if a big number of source field names
-        // are identical.
-        // Like in https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=37768
-        std::map<std::string, int> oMapFieldNameToLastSuffix;
-
         for( size_t i = 0; i < anSrcFieldIndices.size(); i++ )
         {
             const int iField = anSrcFieldIndices[i];
@@ -4179,14 +4164,12 @@ std::unique_ptr<TargetLayerInfo> SetupTargetLayer::Setup(OGRLayer* poSrcLayer,
                                   m_bUnsetDefault);
 
             /* The field may have been already created at layer creation */
+            std::map<CPLString, int>::iterator oIter =
+                oMapPreExistingFields.find(formatName(oFieldDefn.GetNameRef()));
+            if( oIter != oMapPreExistingFields.end() )
             {
-                const auto oIter =
-                    oMapPreExistingFields.find(formatName(oFieldDefn.GetNameRef()));
-                if( oIter != oMapPreExistingFields.end() )
-                {
-                    anMap[iField] = oIter->second;
-                    continue;
-                }
+                anMap[iField] = oIter->second;
+                continue;
             }
 
             bool bHasRenamed = false;
@@ -4196,11 +4179,9 @@ std::unique_ptr<TargetLayerInfo> SetupTargetLayer::Setup(OGRLayer* poSrcLayer,
                     formatName(oFieldDefn.GetNameRef())) !=
                                                     oSetDstFieldNames.end() )
             {
-                const CPLString osTmpNameRaddixUC(formatName(oFieldDefn.GetNameRef()));
                 int nTry = 1;
-                const auto oIter = oMapFieldNameToLastSuffix.find(osTmpNameRaddixUC);
-                if( oIter != oMapFieldNameToLastSuffix.end() )
-                    nTry = oIter->second;
+                CPLString osTmpNameRaddixUC(oFieldDefn.GetNameRef());
+                osTmpNameRaddixUC = formatName(osTmpNameRaddixUC);
                 CPLString osTmpNameUC = osTmpNameRaddixUC;
                 osTmpNameUC.reserve(osTmpNameUC.size() + 10);
                 while( true )
@@ -4219,7 +4200,6 @@ std::unique_ptr<TargetLayerInfo> SetupTargetLayer::Setup(OGRLayer* poSrcLayer,
                     {
                         bHasRenamed = true;
                         oFieldDefn.SetName((CPLString(oFieldDefn.GetNameRef()) + szTry).c_str());
-                        oMapFieldNameToLastSuffix[osTmpNameRaddixUC] = nTry;
                         break;
                     }
                 }
@@ -5461,10 +5441,6 @@ GDALVectorTranslateOptions *GDALVectorTranslateOptionsNew(char** papszArgv,
             CPLFree(psOptions->pszSourceSRSDef);
             psOptions->pszSourceSRSDef = CPLStrdup(papszArgv[++i]);
         }
-        else if( i+1 < nArgc && EQUAL(papszArgv[i],"-s_coord_epoch") )
-        {
-            psOptions->dfSourceCoordinateEpoch = CPLAtof(papszArgv[++i]);
-        }
         else if( i+1 < nArgc && EQUAL(papszArgv[i],"-a_srs") )
         {
             CPLFree(psOptions->pszOutputSRSDef);
@@ -5475,11 +5451,6 @@ GDALVectorTranslateOptions *GDALVectorTranslateOptionsNew(char** papszArgv,
                 psOptions->pszOutputSRSDef = nullptr;
                 psOptions->bNullifyOutputSRS = true;
             }
-        }
-        else if( i+1 < nArgc && (EQUAL(papszArgv[i],"-a_coord_epoch") ||
-                                 EQUAL(papszArgv[i],"-t_coord_epoch")) )
-        {
-            psOptions->dfOutputCoordinateEpoch = CPLAtof(papszArgv[++i]);
         }
         else if( i+1 < nArgc && EQUAL(papszArgv[i],"-t_srs") )
         {

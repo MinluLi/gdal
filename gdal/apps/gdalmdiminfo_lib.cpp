@@ -30,7 +30,6 @@
 #include "gdal_utils.h"
 #include "gdal_utils_priv.h"
 
-#include "cpl_json.h"
 #include "cpl_json_streaming_writer.h"
 #include "gdal_priv.h"
 #include <limits>
@@ -243,88 +242,13 @@ static void DumpValue(CPLJSonStreamingWriter& serializer,
 }
 
 /************************************************************************/
-/*                          SerializeJSON()                             */
-/************************************************************************/
-
-static void SerializeJSON(const CPLJSONObject& obj,
-                          CPLJSonStreamingWriter& serializer)
-{
-    switch( obj.GetType() )
-    {
-        case CPLJSONObject::Type::Unknown:
-        {
-            CPLAssert(false);
-            break;
-        }
-
-        case CPLJSONObject::Type::Null:
-        {
-            serializer.AddNull();
-            break;
-        }
-
-        case CPLJSONObject::Type::Object:
-        {
-            auto objectContext(serializer.MakeObjectContext());
-            for( const auto& subobj: obj.GetChildren() )
-            {
-                serializer.AddObjKey(subobj.GetName());
-                SerializeJSON(subobj, serializer);
-            }
-            break;
-        }
-
-        case CPLJSONObject::Type::Array:
-        {
-            auto arrayContext(serializer.MakeArrayContext());
-            const CPLJSONArray array = obj.ToArray();
-            for( const auto& subobj: array )
-            {
-                SerializeJSON(subobj, serializer);
-            }
-            break;
-        }
-
-        case CPLJSONObject::Type::Boolean:
-        {
-            serializer.Add( obj.ToBool() );
-            break;
-        }
-
-        case CPLJSONObject::Type::String:
-        {
-            serializer.Add( obj.ToString() );
-            break;
-        }
-
-        case CPLJSONObject::Type::Integer:
-        {
-            serializer.Add( obj.ToInteger() );
-            break;
-        }
-
-        case CPLJSONObject::Type::Long:
-        {
-            serializer.Add( obj.ToLong() );
-            break;
-        }
-
-        case CPLJSONObject::Type::Double:
-        {
-            serializer.Add( obj.ToDouble() );
-            break;
-        }
-    }
-}
-
-/************************************************************************/
 /*                          DumpAttrValue()                             */
 /************************************************************************/
 
-static void DumpAttrValue(const std::shared_ptr<GDALAttribute>& attr,
+static void DumpAttrValue(std::shared_ptr<GDALAttribute> attr,
                           CPLJSonStreamingWriter& serializer)
 {
-    const auto& dt = attr->GetDataType();
+    const auto dt(attr->GetDataType());
     const size_t nEltCount(static_cast<size_t>(attr->GetTotalElementsCount()));
     switch( dt.GetClass() )
     {
@@ -334,24 +258,9 @@ static void DumpAttrValue(const std::shared_ptr<GDALAttribute>& attr,
             {
                 const char* pszStr = attr->ReadAsString();
                 if( pszStr )
-                {
-                    if( dt.GetSubType() == GEDTST_JSON )
-                    {
-                        CPLJSONDocument oDoc;
-                        if( oDoc.LoadMemory(std::string(pszStr)) )
-                        {
-                            SerializeJSON(oDoc.GetRoot(), serializer);
-                        }
-                        else
-                        {
-                            serializer.Add(pszStr);
-                        }
-                    }
-                    else
-                    {
-                        serializer.Add(pszStr);
-                    }
-                }
+                    serializer.Add(pszStr);
+                else
+                    serializer.AddNull();
             }
             else
             {
@@ -444,7 +353,7 @@ static void DumpAttr(std::shared_ptr<GDALAttribute> attr,
         return;
     }
 
-    const auto& dt = attr->GetDataType();
+    const auto dt(attr->GetDataType());
     auto objectContext(serializer.MakeObjectContext());
     if( bOutputObjType )
     {
@@ -461,18 +370,6 @@ static void DumpAttr(std::shared_ptr<GDALAttribute> attr,
     {
         serializer.AddObjKey("datatype");
         DumpDataType(dt, serializer);
-
-        switch( dt.GetSubType() )
-        {
-            case GEDTST_NONE:
-                break;
-            case GEDTST_JSON:
-            {
-                serializer.AddObjKey("subtype");
-                serializer.Add("JSON");
-                break;
-            }
-        }
 
         serializer.AddObjKey("value");
     }
@@ -704,7 +601,8 @@ static void DumpStructuralInfo(CSLConstList papszStructuralInfo,
 /*                             DumpArray()                              */
 /************************************************************************/
 
-static void DumpArray(std::shared_ptr<GDALMDArray> array,
+static void DumpArray(GDALDataset* poDS,
+                      std::shared_ptr<GDALMDArray> array,
                      CPLJSonStreamingWriter& serializer,
                      const GDALMultiDimInfoOptions *psOptions,
                      std::set<std::string>& alreadyDumpedDimensions,
@@ -731,34 +629,6 @@ static void DumpArray(std::shared_ptr<GDALMDArray> array,
     {
         serializer.AddObjKey("dimensions");
         DumpDimensions(dims, serializer, psOptions, alreadyDumpedDimensions);
-
-        serializer.AddObjKey("dimension_size");
-        auto arrayContext(serializer.MakeArrayContext());
-        for( const auto& poDim: dims )
-        {
-            serializer.Add(poDim->GetSize());
-        }
-    }
-
-
-    bool hasNonNullBlockSize = false;
-    const auto blockSize = array->GetBlockSize();
-    for( auto v: blockSize )
-    {
-        if( v != 0 )
-        {
-            hasNonNullBlockSize = true;
-            break;
-        }
-    }
-    if( hasNonNullBlockSize )
-    {
-        serializer.AddObjKey("block_size");
-        auto arrayContext(serializer.MakeArrayContext());
-        for( auto v: blockSize )
-        {
-            serializer.Add(v);
-        }
     }
 
     CPLStringList aosOptions;
@@ -857,7 +727,7 @@ static void DumpArray(std::shared_ptr<GDALMDArray> array,
         double dfMean = 0.0;
         double dfStdDev = 0.0;
         GUInt64 nValidCount = 0;
-        if( array->GetStatistics( false, true,
+        if( array->GetStatistics( poDS, false, true,
                               &dfMin, &dfMax, &dfMean, &dfStdDev,
                               &nValidCount,
                               nullptr, nullptr ) == CE_None )
@@ -889,7 +759,8 @@ static void DumpArray(std::shared_ptr<GDALMDArray> array,
 /*                            DumpArrays()                              */
 /************************************************************************/
 
-static void DumpArrays(std::shared_ptr<GDALGroup> group,
+static void DumpArrays(GDALDataset* poDS,
+                       std::shared_ptr<GDALGroup> group,
                        const std::vector<std::string>& arrayNames,
                        CPLJSonStreamingWriter& serializer,
                        const GDALMultiDimInfoOptions *psOptions,
@@ -906,7 +777,7 @@ static void DumpArrays(std::shared_ptr<GDALGroup> group,
         if( array )
         {
             serializer.AddObjKey(array->GetName());
-            DumpArray( array, serializer, psOptions,
+            DumpArray( poDS, array, serializer, psOptions,
                        alreadyDumpedDimensions, false, false );
         }
     }
@@ -916,7 +787,8 @@ static void DumpArrays(std::shared_ptr<GDALGroup> group,
 /*                             DumpGroup()                              */
 /************************************************************************/
 
-static void DumpGroup(std::shared_ptr<GDALGroup> group,
+static void DumpGroup(GDALDataset* poDS,
+                      std::shared_ptr<GDALGroup> group,
                       const char* pszDriverName,
                       CPLJSonStreamingWriter& serializer,
                       const GDALMultiDimInfoOptions *psOptions,
@@ -938,15 +810,8 @@ static void DumpGroup(std::shared_ptr<GDALGroup> group,
     {
         serializer.AddObjKey("name");
         serializer.Add(group->GetName());
-
-        // If the root group is not actually the root, print its full path
-        if( pszDriverName != nullptr && group->GetName() != "/" )
-        {
-            serializer.AddObjKey("full_name");
-            serializer.Add(group->GetFullName());
-        }
     }
-
+    
     CPLStringList aosOptionsGetAttr;
     if( psOptions->bDetailed )
         aosOptionsGetAttr.SetNameValue("SHOW_ALL", "YES");
@@ -971,7 +836,7 @@ static void DumpGroup(std::shared_ptr<GDALGroup> group,
     if( !arrayNames.empty() )
     {
         serializer.AddObjKey("arrays");
-        DumpArrays(group, arrayNames, serializer, psOptions,
+        DumpArrays(poDS, group, arrayNames, serializer, psOptions,
                    alreadyDumpedDimensions);
     }
 
@@ -995,7 +860,7 @@ static void DumpGroup(std::shared_ptr<GDALGroup> group,
                 if( subgroup )
                 {
                     serializer.AddObjKey(subgroupName);
-                    DumpGroup(  subgroup, nullptr, serializer, psOptions,
+                    DumpGroup( poDS, subgroup, nullptr, serializer, psOptions,
                                alreadyDumpedDimensions, false, false );
                 }
             }
@@ -1008,7 +873,7 @@ static void DumpGroup(std::shared_ptr<GDALGroup> group,
                 auto subgroup = group->OpenGroup(subgroupName);
                 if( subgroup )
                 {
-                    DumpGroup( subgroup, nullptr, serializer, psOptions,
+                    DumpGroup( poDS, subgroup, nullptr, serializer, psOptions,
                                alreadyDumpedDimensions, false, true );
                 }
             }
@@ -1070,7 +935,7 @@ char *GDALMultiDimInfo( GDALDatasetH hDataset,
             auto poDriver = poDS->GetDriver();
             if( poDriver )
                 pszDriverName = poDriver->GetDescription();
-            DumpGroup(group, pszDriverName, serializer, psOptions,
+            DumpGroup(poDS, group, pszDriverName, serializer, psOptions,
                       alreadyDumpedDimensions, true, true);
         }
         else
@@ -1096,7 +961,7 @@ char *GDALMultiDimInfo( GDALDatasetH hDataset,
                          "Cannot find array %s", pszArrayName);
                 return nullptr;
             }
-            DumpArray(array, serializer, psOptions,
+            DumpArray(poDS, array, serializer, psOptions,
                       alreadyDumpedDimensions, true, true);
         }
     }

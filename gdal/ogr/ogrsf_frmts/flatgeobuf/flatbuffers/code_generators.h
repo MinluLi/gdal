@@ -76,8 +76,6 @@ class CodeWriter {
     if (cur_ident_lvl_) cur_ident_lvl_--;
   }
 
-  void SetPadding(const std::string &padding) { pad_ = padding; }
-
  private:
   std::map<std::string, std::string> value_map_;
   std::stringstream stream_;
@@ -94,10 +92,7 @@ class BaseGenerator {
   virtual bool generate() = 0;
 
   static std::string NamespaceDir(const Parser &parser, const std::string &path,
-                                  const Namespace &ns,
-                                  const bool dasherize = false);
-
-  static std::string ToDasherizedCase(const std::string pascal_case);
+                                  const Namespace &ns);
 
   std::string GeneratedFileName(const std::string &path,
                                 const std::string &file_name,
@@ -119,8 +114,7 @@ class BaseGenerator {
   BaseGenerator &operator=(const BaseGenerator &);
   BaseGenerator(const BaseGenerator &);
 
-  std::string NamespaceDir(const Namespace &ns,
-                           const bool dasherize = false) const;
+  std::string NamespaceDir(const Namespace &ns) const;
 
   static const char *FlatBuffersGeneratedWarning();
 

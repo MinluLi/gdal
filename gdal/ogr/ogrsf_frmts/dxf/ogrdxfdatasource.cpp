@@ -1005,7 +1005,7 @@ size_t OGRDXFDataSource::GetEntryFromAcDsDataSection(
     int iPrevOffset = oReader.iSrcBufferFileOffset + oReader.iSrcBufferOffset;
     int nPrevLineNumber = oReader.nLineNumber;
 
-    char szLineBuf[4096];
+    char szLineBuf[270]; // TODO figure out what to do with this re character escapes
     int nCode = 0;
     bool bFound = false;
 

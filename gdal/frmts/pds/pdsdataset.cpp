@@ -158,7 +158,7 @@ PDSDataset::PDSDataset() :
 PDSDataset::~PDSDataset()
 
 {
-    PDSDataset::FlushCache(true);
+    PDSDataset::FlushCache();
     if( fpImage != nullptr )
         VSIFCloseL( fpImage );
 

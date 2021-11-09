@@ -660,7 +660,7 @@ JP2KAKDataset::JP2KAKDataset()
 JP2KAKDataset::~JP2KAKDataset()
 
 {
-    FlushCache(true);
+    FlushCache();
 
     if( poInput != nullptr )
     {
@@ -788,8 +788,7 @@ int JP2KAKDataset::Identify( GDALOpenInfo * poOpenInfo )
             || EQUAL(pszExtension, "j2k")
             || EQUAL(pszExtension, "jp2")
             || EQUAL(pszExtension, "jpx")
-            || EQUAL(pszExtension, "j2c")
-            || EQUAL(pszExtension, "jhc") )
+            || EQUAL(pszExtension, "j2c") )
            return TRUE;
 
         // We also want to handle jpc datastreams vis /vsisubfile.
@@ -1134,18 +1133,35 @@ GDALDataset *JP2KAKDataset::Open( GDALOpenInfo * poOpenInfo )
 
         cod->get(Corder, 0, 0, order);
 
-        const char* pszOrder = nullptr;
-        switch( order )
+        // TODO(schwehr): Why not a switch statement?
+        if( order == Corder_LRCP )
         {
-            case Corder_LRCP: pszOrder = "LRCP"; break;
-            case Corder_RPCL: pszOrder = "RPCL"; break;
-            case Corder_PCRL: pszOrder = "PCRL"; break;
-            case Corder_CPRL: pszOrder = "CPRL"; break;
-            default: break;
+            CPLDebug("JP2KAK", "order=LRCP");
+            poDS->SetMetadataItem("Corder", "LRCP");
         }
-        if( pszOrder )
+        else if( order == Corder_RLCP )
         {
-            poDS->SetMetadataItem("Corder", pszOrder, "IMAGE_STRUCTURE");
+            CPLDebug("JP2KAK", "order=RLCP");
+            poDS->SetMetadataItem("Corder", "RLCP");
+        }
+        else if( order == Corder_RPCL )
+        {
+            CPLDebug("JP2KAK", "order=RPCL");
+            poDS->SetMetadataItem("Corder", "RPCL");
+        }
+        else if( order == Corder_PCRL )
+        {
+            CPLDebug("JP2KAK", "order=PCRL");
+            poDS->SetMetadataItem("Corder", "PCRL");
+        }
+        else if( order == Corder_CPRL )
+        {
+            CPLDebug("JP2KAK", "order=CPRL");
+            poDS->SetMetadataItem("Corder", "CPRL");
+        }
+        else
+        {
+            CPLDebug("JP2KAK", "order=%d, not recognized.", order);
         }
 
         poDS->bUseYCC = false;
@@ -2475,7 +2491,6 @@ JP2KAKCreateCopy( const char * pszFilename, GDALDataset *poSrcDS,
     // Set the GeoTIFF and GML boxes if georeferencing is available,
     // and this is a JP2 file.
     double adfGeoTransform[6] = { 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-    // cppcheck-suppress knownConditionTrueFalse
     if( bIsJP2
         && ((poSrcDS->GetGeoTransform(adfGeoTransform) == CE_None
              && (adfGeoTransform[0] != 0.0
@@ -2491,12 +2506,12 @@ JP2KAKCreateCopy( const char * pszFilename, GDALDataset *poSrcDS,
 
         if( poSrcDS->GetGCPCount() > 0 )
         {
-            oJP2MD.SetSpatialRef(poSrcDS->GetGCPSpatialRef());
+            oJP2MD.SetProjection(poSrcDS->GetGCPProjection());
             oJP2MD.SetGCPs(poSrcDS->GetGCPCount(), poSrcDS->GetGCPs());
         }
         else
         {
-            oJP2MD.SetSpatialRef(poSrcDS->GetSpatialRef());
+            oJP2MD.SetProjection(poSrcDS->GetProjectionRef());
             oJP2MD.SetGeoTransform(adfGeoTransform);
         }
 
@@ -2566,7 +2581,6 @@ JP2KAKCreateCopy( const char * pszFilename, GDALDataset *poSrcDS,
     }
 
     // Open codestream box.
-    // cppcheck-suppress knownConditionTrueFalse
     if( bIsJP2 )
         jp2_out.open_codestream();
 

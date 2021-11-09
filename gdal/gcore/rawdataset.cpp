@@ -304,7 +304,7 @@ RawRasterBand::~RawRasterBand()
 
     CSLDestroy(papszCategoryNames);
 
-    RawRasterBand::FlushCache(true);
+    RawRasterBand::FlushCache();
 
     if (bOwnsFP)
     {
@@ -360,10 +360,10 @@ void RawRasterBand::SetAccess(GDALAccess eAccessIn) { eAccess = eAccessIn; }
 /*      write block function as it is kind of expensive.                */
 /************************************************************************/
 
-CPLErr RawRasterBand::FlushCache(bool bAtClosing)
+CPLErr RawRasterBand::FlushCache()
 
 {
-    CPLErr eErr = GDALRasterBand::FlushCache(bAtClosing);
+    CPLErr eErr = GDALRasterBand::FlushCache();
     if( eErr != CE_None )
     {
         bNeedFileFlush = false;
@@ -523,9 +523,7 @@ CPLErr RawRasterBand::AccessLine( int iLine )
         if( nBand > 1 && pLineStart != nullptr )
         {
             // BIP interleaved
-            auto poFirstBand = cpl::down_cast<RawRasterBand*>(poDS->GetRasterBand(1));
-            CPLAssert(poFirstBand);
-            return poFirstBand->AccessLine(iLine);
+            return cpl::down_cast<RawRasterBand*>(poDS->GetRasterBand(1))->AccessLine(iLine);
         }
         return CE_Failure;
     }
@@ -1020,11 +1018,11 @@ CPLErr RawRasterBand::IRasterIO( GDALRWFlag eRWFlag,
                 cpl::down_cast<RawRasterBand *>(poDS->GetRasterBand(1));
             CPLAssert(poFirstBand);
             if( poFirstBand->bNeedFileFlush )
-                RawRasterBand::FlushCache(false);
+                RawRasterBand::FlushCache();
         }
     }
     if( bNeedFileFlush )
-        RawRasterBand::FlushCache(false);
+        RawRasterBand::FlushCache();
 
     // Read data.
     if ( eRWFlag == GF_Read )
@@ -1469,7 +1467,7 @@ CPLVirtualMem  *RawRasterBand::GetVirtualMemAuto( GDALRWFlag eRWFlag,
                                                  pnLineSpace, papszOptions);
     }
 
-    FlushCache(false);
+    FlushCache();
 
     CPLVirtualMem *pVMem = CPLVirtualMemFileMapNew(
         fpRawL, nImgOffset, nSize,

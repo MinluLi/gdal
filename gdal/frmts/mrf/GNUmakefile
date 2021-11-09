@@ -48,23 +48,13 @@ XTRA_OPT	:=	$(XTRA_OPT) -DLERC -I../../third_party/LercLib
 SUBLIBS := lib-LERCV1
 endif
 
-ifeq ($(BRUNSLI_ENABLED),yes)
-XTRA_OPT		:=	$(XTRA_OPT) -DBRUNSLI $(BRUNSLI_INCLUDE)
-endif
-
-ifeq ($(ZSTD_SETTING),yes)
-XTRA_OPT		:=	$(XTRA_OPT) -DZSTD_SUPPORT
-endif
-
 CPPFLAGS        :=  $(XTRA_OPT)  $(CPPFLAGS)
 
 default:  $(PREDEPEND)	$(OBJ:.o=.$(OBJ_EXT)) $(SUBLIBS)
 
 clean:
 	rm -rf *.o *.lo .libs/$(OBJ) .libs $(O_OBJ) $(LO_O_OBJ) gdal_mrf.so.1
-ifdef $(LERCV1)
 	(cd $(LERCV1); $(MAKE) clean)
-endif
 
 install-obj:	$(PREDEPEND) $(SUBLIBS) $(O_OBJ:.o=.$(OBJ_EXT))
 

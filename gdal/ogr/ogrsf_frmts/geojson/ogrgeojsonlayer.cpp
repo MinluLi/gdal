@@ -467,7 +467,7 @@ OGRErr OGRGeoJSONLayer::SyncToDisk()
 {
     TerminateAppendSession();
 
-    poDS_->FlushCache(false);
+    poDS_->FlushCache();
     return OGRERR_NONE;
 }
 

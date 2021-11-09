@@ -92,14 +92,8 @@ OGRDataSource *OGRMDBDriver::Open( const char * pszFilename,
         delete poDS;
         return nullptr;
     }
-
-    if( !GDALIsDriverDeprecatedForGDAL35StillEnabled("MDB", "You should consider using the generic ODBC driver with an updated MDBTools Access driver instead.") )
-    {
-        delete poDS;
-        return nullptr;
-    }
-
-    return poDS;
+    else
+        return poDS;
 }
 
 /************************************************************************/
@@ -124,7 +118,5 @@ void RegisterOGRMDB()
                                "Access MDB (PGeo and Geomedia capable)" );
     poDriver->SetMetadataItem( GDAL_DMD_EXTENSION, "mdb" );
     poDriver->SetMetadataItem( GDAL_DMD_HELPTOPIC, "drivers/vector/mdb.html" );
-    poDriver->SetMetadataItem( GDAL_DCAP_MULTIPLE_VECTOR_LAYERS, "YES" );
-
     OGRSFDriverRegistrar::GetRegistrar()->RegisterDriver( poDriver );
 }

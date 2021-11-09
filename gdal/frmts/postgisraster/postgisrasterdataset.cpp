@@ -304,9 +304,9 @@ int PostGISRasterDataset::CloseDependentDatasets()
 /*                            FlushCache()                              */
 /************************************************************************/
 
-void PostGISRasterDataset::FlushCache(bool bAtClosing)
+void PostGISRasterDataset::FlushCache()
 {
-    VRTDataset::FlushCache(bAtClosing);
+    VRTDataset::FlushCache();
     oOutDBDatasetCache.clear();
 }
 
@@ -2724,14 +2724,13 @@ GBool PostGISRasterDataset::SetRasterProperties
  * BROWSE_SCHEMA or BROWSE_DATABASE
  **********************************************************************/
 static GBool
-GetConnectionInfo(const char *pszFilename, char **ppszConnectionString,
-                  char **ppszService, char **ppszDbname, char **ppszSchema,
-                  char **ppszTable, char **ppszColumn, char **ppszWhere,
-                  char **ppszHost, char **ppszPort, char **ppszUser,
-                  char **ppszPassword, WorkingMode *nMode,
-                  GBool *bBrowseDatabase, OutDBResolution *peOutDBResolution)
+GetConnectionInfo(const char * pszFilename,
+    char ** ppszConnectionString, char ** ppszDbname, char ** ppszSchema, char ** ppszTable,
+    char ** ppszColumn, char ** ppszWhere, char ** ppszHost,
+    char ** ppszPort, char ** ppszUser, char ** ppszPassword,
+    WorkingMode * nMode, GBool * bBrowseDatabase, OutDBResolution* peOutDBResolution )
 {
-    int nPos = -1, sPos = -1, i;
+    int nPos = -1, i;
     char * pszTmp = nullptr;
     char **papszParams = ParseConnectionString(pszFilename);
     if (papszParams == nullptr) {
@@ -2787,26 +2786,24 @@ GetConnectionInfo(const char *pszFilename, char **ppszConnectionString,
     }
 
     /**
-     * Case 1: There's no database or service name: Error, you need, at least,
-     * specify a database or a service name (NOTE: insensitive search)
+     * Case 1: There's no database name: Error, you need, at least,
+     * specify a database name (NOTE: insensitive search)
      **/
     nPos = CSLFindName(papszParams, "dbname");
-    sPos = CSLFindName(papszParams, "service");
-
-    if (nPos == -1 && sPos == -1) {
+    if (nPos == -1) {
         CPLError(CE_Failure, CPLE_AppDefined,
-                "You must specify at least a db name or a service name");
+                "You must specify at least a db name");
 
         CSLDestroy(papszParams);
 
         return false;
     }
 
-    *ppszDbname = (nPos != -1) ? CPLStrdup(CPLParseNameValue(papszParams[nPos], nullptr)) : nullptr;
-    *ppszService = (sPos != -1) ? CPLStrdup(CPLParseNameValue(papszParams[sPos], nullptr)) : nullptr;
+    *ppszDbname =
+        CPLStrdup(CPLParseNameValue(papszParams[nPos], nullptr));
 
     /**
-     * Case 2: There's a database or service name, but no table name: activate a flag
+     * Case 2: There's database name, but no table name: activate a flag
      * for browsing the database, fetching all the schemas that contain
      * raster tables
      **/
@@ -2840,8 +2837,6 @@ GetConnectionInfo(const char *pszFilename, char **ppszConnectionString,
             papszParams = CSLRemoveStrings(papszParams, nPos, 1, nullptr);
         }
     } else {
-        *bBrowseDatabase = false;
-
         *ppszTable =
             CPLStrdup(CPLParseNameValue(papszParams[nPos], nullptr));
         /* Delete this pair from params array */
@@ -2910,9 +2905,7 @@ GetConnectionInfo(const char *pszFilename, char **ppszConnectionString,
      * Set application name if not found in connection string
      **********************************************************/
 
-    if (*bBrowseDatabase == FALSE &&
-        *nMode == ONE_RASTER_PER_TABLE &&
-        CSLFindName(papszParams, "application_name") == -1 &&
+    if (CSLFindName(papszParams, "application_name") == -1 &&
         getenv("PGAPPNAME") == nullptr) {
         osConnectionString += "application_name=";
         osConnectionString += "'";
@@ -3003,9 +2996,7 @@ GetConnectionInfo(const char *pszFilename, char **ppszConnectionString,
         "Mode: %d\nDbname: %s\nSchema: %s\nTable: %s\nColumn: %s\nWhere: %s\n"
         "Host: %s\nPort: %s\nUser: %s\nPassword: %s\n"
         "Connection String: %s\n",
-        *nMode,
-        *ppszService ? *ppszService : "(null)",
-        *ppszDbname ? *ppszDbname : "(null)",
+        *nMode, *ppszDbname,
         *ppszSchema ? *ppszSchema : "(null)",
         *ppszTable ? *ppszTable : "(null)",
         *ppszColumn ? *ppszColumn : "(null)",
@@ -3030,14 +3021,13 @@ GetConnection(const char * pszFilename, char ** ppszConnectionString,
     OutDBResolution* peOutDBResolution)
 {
     PGconn * poConn = nullptr;
-    char * pszService = nullptr;
     char * pszDbname = nullptr;
     char * pszHost = nullptr;
     char * pszPort = nullptr;
     char * pszUser = nullptr;
     char * pszPassword = nullptr;
 
-    if (GetConnectionInfo(pszFilename, ppszConnectionString, &pszService, &pszDbname, ppszSchema,
+    if (GetConnectionInfo(pszFilename, ppszConnectionString, &pszDbname, ppszSchema,
         ppszTable, ppszColumn, ppszWhere, &pszHost, &pszPort, &pszUser,
         &pszPassword, nMode, bBrowseDatabase, peOutDBResolution))
     {
@@ -3047,7 +3037,7 @@ GetConnection(const char * pszFilename, char ** ppszConnectionString,
         PostGISRasterDriver * poDriver =
             static_cast<PostGISRasterDriver *>(GDALGetDriverByName("PostGISRaster"));
 
-        poConn = poDriver->GetConnection(*ppszConnectionString, pszService,
+        poConn = poDriver->GetConnection(*ppszConnectionString,
                 pszDbname, pszHost, pszPort, pszUser);
 
         if (poConn == nullptr) {
@@ -3056,7 +3046,6 @@ GetConnection(const char * pszFilename, char ** ppszConnectionString,
         }
     }
 
-    CPLFree(pszService);
     CPLFree(pszDbname);
     CPLFree(pszHost);
     CPLFree(pszPort);

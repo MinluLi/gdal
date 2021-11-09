@@ -323,7 +323,7 @@ GeoRasterWrapper* GeoRasterWrapper::Open( const char* pszStringId, bool bUpdate 
         else
         {
             poGRW->sSchema = "";
-            poGRW->sOwner  = poGRW->poConnection->GetSessionUser();
+            poGRW->sOwner  = poGRW->poConnection->GetUser();
         }
 
         CSLDestroy( papszSchema );
@@ -3521,11 +3521,6 @@ bool GeoRasterWrapper::FlushMetadata()
                     nExtentSRID = 0;
                 }
             }
-        }
-        else
-        {
-            if (nExtentSRID == 0)
-                nExtentSRID = nSRID;
         }
 
         delete poStmt;

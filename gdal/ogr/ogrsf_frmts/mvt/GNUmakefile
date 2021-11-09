@@ -4,7 +4,7 @@ include ../../../GDALmake.opt
 
 OBJ	=	ogrmvtdataset.o mvtutils.o mvt_tile.o
 
-CPPFLAGS	:=	-iquote .. -iquote ../.. -iquote ../osm $(CPPFLAGS)
+CPPFLAGS	:=	-I.. -I../.. -I../osm $(CPPFLAGS)
 
 ifeq ($(HAVE_SQLITE),yes)
 CPPFLAGS :=	$(CPPFLAGS) -DHAVE_SQLITE $(SQLITE_INC)

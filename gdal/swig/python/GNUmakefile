@@ -58,11 +58,10 @@ SED_COMMANDS += -e 's/obj = PyUnicode_AsUTF8String(obj);/obj = PyUnicode_AsUTF8S
 
 .generated_files_up_to_date: ${WRAPPERS} $(SWIGOUTPUTDIR)gdal_array_wrap.cpp
 	rm -f .generated_files_up_to_date
-	for i in gdal_wrap.cpp gdalconst_wrap.c ogr_wrap.cpp osr_wrap.cpp gdal_array_wrap.cpp gnm_wrap.cpp; do \
-		if test -f $(SWIGOUTPUTDIR)$$i; then \
-		    if ! grep "#define POST_PROCESSING_APPLIED" $(SWIGOUTPUTDIR)$$i>/dev/null; then \
+	if ! grep "CPL_IGNORE_RET_VAL(result" $(SWIGOUTPUTDIR)gdal_wrap.cpp>/dev/null; then \
+		for i in gdal_wrap.cpp gdalconst_wrap.c ogr_wrap.cpp osr_wrap.cpp gdal_array_wrap.cpp gnm_wrap.cpp; do \
+		    if test -f $(SWIGOUTPUTDIR)$$i; then \
 		        sed $(SED_COMMANDS) $(SWIGOUTPUTDIR)$$i > $(SWIGOUTPUTDIR)$$i.tmp; \
-		        echo "#define POST_PROCESSING_APPLIED" >> $(SWIGOUTPUTDIR)$$i.tmp; \
 		        mv -f $(SWIGOUTPUTDIR)$$i.tmp $(SWIGOUTPUTDIR)$$i; \
 		        \
 		        if test $$i = "gdal_wrap.cpp" ; then \
@@ -72,13 +71,13 @@ SED_COMMANDS += -e 's/obj = PyUnicode_AsUTF8String(obj);/obj = PyUnicode_AsUTF8S
 		            mv -f $(SWIGOUTPUTDIR)$$i.tmp $(SWIGOUTPUTDIR)$$i; \
 		        fi; \
 		    fi; \
-		fi; \
-	done
+		done; \
+	fi
 ifeq ($(shell sed --version | grep GNU >/dev/null; echo $$?), 0)
 	# Only GNU sed accepts inserting newlines with \n. This is just to please Coverity, so no need to find a workaround
-	for i in gdal_wrap.cpp gdalconst_wrap.c ogr_wrap.cpp osr_wrap.cpp gnm_wrap.cpp; do \
-		if test -f $(SWIGOUTPUTDIR)$$i; then \
-		    if ! grep "define SED_HACKS" $(SWIGOUTPUTDIR)$$i>/dev/null; then \
+	if ! grep "define SED_HACKS" $(SWIGOUTPUTDIR)gdal_wrap.cpp>/dev/null; then \
+		for i in gdal_wrap.cpp gdalconst_wrap.c ogr_wrap.cpp osr_wrap.cpp gnm_wrap.cpp; do \
+		    if test -f $(SWIGOUTPUTDIR)$$i; then \
 		        sed \
 		          -e 's/PyObject \*resultobj = 0;/PyObject \*resultobj = 0; int bLocalUseExceptionsCode = bUseExceptions;/' \
 		          -e 's/\#define SWIGPYTHON/\#define SWIGPYTHON\n\#define SED_HACKS/' \
@@ -86,8 +85,8 @@ ifeq ($(shell sed --version | grep GNU >/dev/null; echo $$?), 0)
 		          $(SWIGOUTPUTDIR)$$i > $(SWIGOUTPUTDIR)$$i.tmp; \
 		        mv -f $(SWIGOUTPUTDIR)$$i.tmp $(SWIGOUTPUTDIR)$$i; \
 		    fi; \
-		fi; \
-	done;
+		done; \
+	fi
 endif
 	echo "done" > .generated_files_up_to_date
 
@@ -102,7 +101,7 @@ build: .generated_files_up_to_date
 egg:
 	$(PYTHON) setup.py bdist_egg
 
-site_package_dir=$(shell $(PYTHON) -c "from trimmedsysconfig import get_python_lib;print(get_python_lib(prefix=\"$(PREFIX)\"))")
+site_package_dir=$(shell $(PYTHON) -c "from __future__ import print_function;from distutils.sysconfig import get_python_lib;print(get_python_lib(prefix=\"$(PREFIX)\"))")
 
 ifeq ($(PY_HAVE_SETUPTOOLS),1)
     setup_opts=--single-version-externally-managed --record=record.txt

@@ -42,7 +42,7 @@
 #include <thread>
 #include <utility>
 #include <vector>
-#include "cpl_http.h"
+#include <cpl_http.h>
 
 using TileCacheType = lru11::Cache<std::string,
                                    std::shared_ptr<GDALDataset>, std::mutex>;
@@ -1306,7 +1306,7 @@ bool GDALRDADataset::ReadGeoreferencing()
     CPLString osSRS =
         GetJsonString(poObj, "spatialReferenceSystemCode", true, bError);
     OGRSpatialReference oSRS;
-    if( !osSRS.empty() && oSRS.SetFromUserInput(osSRS, OGRSpatialReference::SET_FROM_USER_INPUT_LIMITATIONS_get()) == OGRERR_NONE )
+    if( !osSRS.empty() && oSRS.SetFromUserInput(osSRS) == OGRERR_NONE )
     {
         char* pszWKT = nullptr;
         oSRS.exportToWkt(&pszWKT);
@@ -1595,7 +1595,8 @@ GDALDataset* GDALRDADataset::OpenStatic( GDALOpenInfo* poOpenInfo )
     if( !Identify(poOpenInfo) )
         return nullptr;
 
-    auto poDS = cpl::make_unique<GDALRDADataset>();
+    std::unique_ptr<GDALRDADataset> poDS =
+        std::unique_ptr<GDALRDADataset>(new GDALRDADataset());
 
     if( !poDS->Open(poOpenInfo) )
         return nullptr;

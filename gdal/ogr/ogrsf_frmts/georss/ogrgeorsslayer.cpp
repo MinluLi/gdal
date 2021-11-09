@@ -1089,11 +1089,11 @@ bool OGRGeoRSSLayer::IsStandardField( const char* pszName )
 /************************************************************************/
 
 static void OGRGeoRSSLayerSplitComposedField( const char* pszName,
-                                              std::string& osElementName,
-                                              std::string& osNumber,
-                                              std::string& osAttributeName )
+                                              char** ppszElementName,
+                                              char** ppszNumber,
+                                              char** ppszAttributeName )
 {
-    osElementName = pszName;
+    *ppszElementName = CPLStrdup(pszName);
 
     int i = 0;
     while(pszName[i] != '\0' && pszName[i] != '_' &&
@@ -1102,32 +1102,32 @@ static void OGRGeoRSSLayerSplitComposedField( const char* pszName,
         i++;
     }
 
-    osElementName.resize(i);
+    (*ppszElementName)[i] = '\0';
 
     if (pszName[i] >= '0' && pszName[i] <= '9')
     {
-        osNumber = pszName + i;
-        const auto nPos = osNumber.find('_');
-        if( nPos != std::string::npos )
+        *ppszNumber = CPLStrdup(pszName + i);
+        char* pszUnderscore = strchr(*ppszNumber, '_');
+        if( pszUnderscore )
         {
-            osAttributeName = osNumber.substr(nPos + 1);
-            osNumber.resize(nPos);
+            *pszUnderscore = '\0';
+            *ppszAttributeName = CPLStrdup(pszUnderscore + 1);
         }
         else
         {
-            osAttributeName.clear();
+            *ppszAttributeName = nullptr;
         }
     }
     else
     {
-        osNumber.clear();
+        *ppszNumber = CPLStrdup("");
         if( pszName[i] == '_' )
         {
-            osAttributeName = pszName + i + 1;
+            *ppszAttributeName = CPLStrdup(pszName + i + 1);
         }
         else
         {
-            osAttributeName.clear();
+            *ppszAttributeName = nullptr;
         }
     }
 }
@@ -1259,11 +1259,11 @@ OGRErr OGRGeoRSSLayer::ICreateFeature( OGRFeature *poFeatureIn )
         if ( ! poFeatureIn->IsFieldSetAndNotNull( i ) )
             continue;
 
-        std::string osElementName;
-        std::string osNumber;
-        std::string osAttributeName;
-        OGRGeoRSSLayerSplitComposedField(pszName, osElementName, osNumber,
-                                         osAttributeName);
+        char* pszElementName = nullptr;
+        char* pszNumber = nullptr;
+        char* pszAttributeName = nullptr;
+        OGRGeoRSSLayerSplitComposedField(pszName, &pszElementName, &pszNumber,
+                                         &pszAttributeName);
 
         bool bWillSkip = false;
         // Handle Atom entries with elements with sub-elements like
@@ -1274,14 +1274,15 @@ OGRErr OGRGeoRSSLayer::ICreateFeature( OGRFeature *poFeatureIn )
                  apszAllowedATOMFieldNamesWithSubElements[k] != nullptr;
                  k++ )
             {
-                if( osElementName == apszAllowedATOMFieldNamesWithSubElements[k] &&
-                    !osAttributeName.empty() )
+                if( strcmp(pszElementName,
+                           apszAllowedATOMFieldNamesWithSubElements[k]) == 0 &&
+                    pszAttributeName != nullptr )
                 {
                     bWillSkip = true;
                     if( pbUsed[i] )
                         break;
 
-                    VSIFPrintfL(fp, "      <%s>\n", osElementName.c_str());
+                    VSIFPrintfL(fp, "      <%s>\n", pszElementName);
 
                     for( int j = i; j < nFieldCount; j++ )
                     {
@@ -1289,16 +1290,16 @@ OGRErr OGRGeoRSSLayer::ICreateFeature( OGRFeature *poFeatureIn )
                         if ( ! poFeatureIn->IsFieldSetAndNotNull(j) )
                             continue;
 
-                        std::string osElementName2;
-                        std::string osNumber2;
-                        std::string osAttributeName2;
+                        char* pszElementName2 = nullptr;
+                        char* pszNumber2 = nullptr;
+                        char* pszAttributeName2 = nullptr;
                         OGRGeoRSSLayerSplitComposedField(
                             poFieldDefn->GetNameRef(),
-                            osElementName2, osNumber2,osAttributeName2);
+                            &pszElementName2, &pszNumber2, &pszAttributeName2);
 
-                        if( osElementName2 == osElementName &&
-                            osNumber2 == osNumber &&
-                            !osAttributeName2.empty() )
+                        if( strcmp(pszElementName2, pszElementName) == 0 &&
+                            strcmp(pszNumber, pszNumber2) == 0 &&
+                            pszAttributeName2 != nullptr )
                         {
                             pbUsed[j] = TRUE;
 
@@ -1306,13 +1307,16 @@ OGRErr OGRGeoRSSLayer::ICreateFeature( OGRFeature *poFeatureIn )
                                 OGRGetXML_UTF8_EscapedString(
                                     poFeatureIn->GetFieldAsString(j));
                             VSIFPrintfL(fp, "        <%s>%s</%s>\n",
-                                        osAttributeName2.c_str(), pszValue,
-                                        osAttributeName2.c_str());
+                                        pszAttributeName2, pszValue,
+                                        pszAttributeName2);
                             CPLFree(pszValue);
                         }
+                        CPLFree(pszElementName2);
+                        CPLFree(pszNumber2);
+                        CPLFree(pszAttributeName2);
                     }
 
-                    VSIFPrintfL(fp, "      </%s>\n", osElementName.c_str());
+                    VSIFPrintfL(fp, "      </%s>\n", pszElementName);
 
                     break;
                 }
@@ -1352,40 +1356,42 @@ OGRErr OGRGeoRSSLayer::ICreateFeature( OGRFeature *poFeatureIn )
         }
         // RSS fields with content and attributes.
         else if( eFormat == GEORSS_RSS &&
-                 (osElementName == "category" ||
-                  osElementName == "guid" ||
-                  osElementName == "source" ) )
+                 (strcmp(pszElementName, "category") == 0 ||
+                  strcmp(pszElementName, "guid") == 0 ||
+                  strcmp(pszElementName, "source") == 0 ) )
         {
-            if( osAttributeName.empty() )
+            if( pszAttributeName == nullptr )
             {
                 OGRGeoRSSLayerWriteSimpleElement(
-                    fp, osElementName.c_str(), osNumber.c_str(),
+                    fp, pszElementName, pszNumber,
                     apszAllowedRSSFieldNames, poFeatureDefn, poFeatureIn);
             }
         }
         // RSS field with attribute only.
         else if( eFormat == GEORSS_RSS &&
-                 osElementName == "enclosure" )
+                 strcmp(pszElementName, "enclosure") == 0 )
         {
-            if( osAttributeName == "url" )
+            if( pszAttributeName != nullptr &&
+                strcmp(pszAttributeName, "url") == 0 )
             {
                 OGRGeoRSSLayerWriteSimpleElement(
-                    fp, osElementName.c_str(), osNumber.c_str(),
+                    fp, pszElementName, pszNumber,
                     apszAllowedRSSFieldNames, poFeatureDefn, poFeatureIn);
             }
         }
         /* ATOM fields with attribute only */
         else if( eFormat == GEORSS_ATOM &&
-                 (osElementName == "category" ||
-                  osElementName == "link") )
+                 (strcmp(pszElementName, "category") == 0 ||
+                  strcmp(pszElementName, "link") == 0) )
         {
-            if( (osElementName == "category" &&
-                 osAttributeName == "term") ||
-                (osElementName == "link" &&
-                 osAttributeName == "href") )
+            if( pszAttributeName != nullptr &&
+                ((strcmp(pszElementName, "category") == 0 &&
+                  strcmp(pszAttributeName, "term") == 0) ||
+                 (strcmp(pszElementName, "link") == 0 &&
+                  strcmp(pszAttributeName, "href") == 0)) )
             {
                 OGRGeoRSSLayerWriteSimpleElement(
-                    fp, osElementName.c_str(), osNumber.c_str(),
+                    fp, pszElementName, pszNumber,
                     apszAllowedATOMFieldNames, poFeatureDefn, poFeatureIn);
             }
         }
@@ -1512,6 +1518,10 @@ OGRErr OGRGeoRSSLayer::ICreateFeature( OGRFeature *poFeatureIn )
             CPLFree(pszValue);
             CPLFree(pszTagName);
         }
+
+        CPLFree(pszElementName);
+        CPLFree(pszNumber);
+        CPLFree(pszAttributeName);
     }
 
     CPLFree(pbUsed);
@@ -2218,7 +2228,8 @@ void OGRGeoRSSLayer::endElementLoadSchemaCbk( const char *pszName )
     {
         bInFeature = false;
     }
-    else if( eFormat == GEORSS_ATOM &&
+    else if( bInFeature &&
+             eFormat == GEORSS_ATOM &&
              currentDepth == 2 &&
              OGRGeoRSSLayerATOMTagHasSubElement(pszNoNSName) )
     {

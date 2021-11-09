@@ -99,8 +99,6 @@ public:
             IVSIS3LikeHandleHelper * poHandleHelper ) override;
 
     char* GetSignedURL( const char* pszFilename, CSLConstList papszOptions ) override;
-
-    std::string GetStreamingFilename(const std::string& osFilename) const override { return osFilename; }
 };
 
 /************************************************************************/
@@ -171,7 +169,7 @@ VSIVirtualHandle* VSIOSSFSHandler::Open( const char *pszFilename,
     }
 
     return
-        VSICurlFilesystemHandlerBase::Open(pszFilename, pszAccess, bSetError, papszOptions);
+        VSICurlFilesystemHandler::Open(pszFilename, pszAccess, bSetError, papszOptions);
 }
 
 /************************************************************************/
@@ -189,7 +187,7 @@ VSIOSSFSHandler::~VSIOSSFSHandler()
 
 void VSIOSSFSHandler::ClearCache()
 {
-    VSICurlFilesystemHandlerBase::ClearCache();
+    VSICurlFilesystemHandler::ClearCache();
 
     oMapBucketsToOSSParams.clear();
 }
@@ -212,7 +210,7 @@ const char* VSIOSSFSHandler::GetOptions()
         "description='Size in MB for chunks of files that are uploaded. The"
         "default value of 50 MB allows for files up to 500 GB each' "
         "default='50' min='1' max='1000'/>" +
-        VSICurlFilesystemHandlerBase::GetOptionsStatic() +
+        VSICurlFilesystemHandler::GetOptionsStatic() +
         "</Options>");
     return osOptions.c_str();
 }

@@ -31,8 +31,6 @@
 #include "ogr_dods.h"
 #include "cpl_string.h"
 
-#include <cmath>
-
 CPL_CVSID("$Id$")
 
 /************************************************************************/
@@ -1029,5 +1027,19 @@ bool OGRDODSIsFloatInvalid( const float * pfValToCheck )
 bool OGRDODSIsDoubleInvalid( const double * pdfValToCheck )
 
 {
-    return !std::isfinite(*pdfValToCheck);
+    const unsigned char *pabyValToCheck = (unsigned char *) pdfValToCheck;
+
+#if CPL_IS_LSB == 0
+    if( (pabyValToCheck[0] & 0x7f) == 0x7f
+        && (pabyValToCheck[1] & 0xf0) == 0xf0 )
+        return true;
+    else
+        return false;
+#else
+    if( (pabyValToCheck[7] & 0x7f) == 0x7f
+        && (pabyValToCheck[6] & 0xf0) == 0xf0 )
+        return true;
+    else
+        return false;
+#endif
 }

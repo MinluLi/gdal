@@ -1,7 +1,7 @@
 
 OBJ	=	tiledbdataset.obj
 
-EXTRAFLAGS      =       $(TILEDB_CFLAGS)
+EXTRAFLAGS 	=  
 
 GDAL_ROOT	=	..\..
 

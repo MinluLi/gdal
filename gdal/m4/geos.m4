@@ -55,7 +55,6 @@ AC_DEFUN([GEOS_INIT],[
 
     AC_MSG_RESULT([GEOS support disabled])
     GEOS_CONFIG=no
-    HAVE_GEOS=no
 
   elif test x"$with_geos" = x"yes" -o x"$with_geos" = x"" ; then
 
@@ -131,7 +130,9 @@ AC_DEFUN([GEOS_INIT],[
       ax_save_LIBS="${LIBS}"
       LIBS=${GEOS_LIBS}
       ax_save_CFLAGS="${CFLAGS}"
-      CFLAGS="${GEOS_CFLAGS} ${CFLAGS}"
+      CFLAGS="${GEOS_CFLAGS}"
+      ax_save_LDFLAGS="${LDFLAGS}"
+      LDFLAGS=""
 
       AC_CHECK_LIB([geos_c],
         [GEOSversion],
@@ -153,12 +154,13 @@ AC_DEFUN([GEOS_INIT],[
 
       CFLAGS="${ax_save_CFLAGS}"
       LIBS="${ax_save_LIBS}"
+      LDFLAGS="${ax_save_LDFLAGS}"
 
     fi
 
   else
 
-    if test x"$with_geos" != x"no" -a x"$with_geos" != x ; then
+    if test $ac_geos_config_auto = "no" ; then
       AC_MSG_ERROR([GEOS support explicitly enabled, but geos-config could not be found])
     fi
 

@@ -53,7 +53,6 @@ AC_DEFUN([SFCGAL_INIT],[
   if test x"$with_sfcgal" = x"no" ; then
 
     AC_MSG_RESULT([SFCGAL support disabled])
-    HAVE_SFCGAL=no
     SFCGAL_CONFIG=no
 
   elif test x"$with_sfcgal" = x"yes" -o x"$with_sfcgal" = x"" ; then
@@ -130,7 +129,9 @@ AC_DEFUN([SFCGAL_INIT],[
       ax_save_LIBS="${LIBS}"
       LIBS=${SFCGAL_LIBS}
       ax_save_CFLAGS="${CFLAGS}"
-      CFLAGS="${SFCGAL_CFLAGS} ${CFLAGS}"
+      CFLAGS="${SFCGAL_CFLAGS}"
+      ax_save_LDFLAGS="${LDFLAGS}"
+      LDFLAGS=""
 
       AC_CHECK_LIB([SFCGAL],
         [sfcgal_version],
@@ -152,12 +153,13 @@ AC_DEFUN([SFCGAL_INIT],[
 
       CFLAGS="${ax_save_CFLAGS}"
       LIBS="${ax_save_LIBS}"
+      LDFLAGS="${ax_save_LDFLAGS}"
 
     fi
 
   else
 
-    if test x"$with_sfcgal" != x"no" -a x"$with_sfcgal" != x ; then
+    if test $ac_sfcgal_config_auto = "no" ; then
       AC_MSG_ERROR([SFCGAL support explicitly enabled, but sfcgal-config could not be found])
     fi
 

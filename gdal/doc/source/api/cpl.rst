@@ -16,12 +16,6 @@ cpl_csv.h
 .. doxygenfile:: cpl_csv.h
    :project: api
 
-cpl_compressor.h
-----------------
-
-.. doxygenfile:: cpl_compressor.h
-   :project: api
-
 cpl_error.h
 -----------
 

@@ -27,6 +27,7 @@
  *****************************************************************************/
 #include "../vrt/vrtdataset.h"
 #include "gdal_pam.h"
+#include "gdal_proxy.h"
 #include "derivedlist.h"
 
 CPL_CVSID("$Id$")
@@ -138,12 +139,6 @@ GDALDataset * DerivedDataset::Open( GDALOpenInfo * poOpenInfo )
     // Transfer metadata
     poDS->SetMetadata(poTmpDS->GetMetadata());
 
-    char** papszRPC = poTmpDS->GetMetadata("RPC");
-    if( papszRPC )
-    {
-        poDS->SetMetadata(papszRPC, "RPC");
-    }
-
     // Transfer projection
     poDS->SetProjection(poTmpDS->GetProjectionRef());
 
@@ -171,7 +166,23 @@ GDALDataset * DerivedDataset::Open( GDALOpenInfo * poOpenInfo )
         poBand->SetPixelFunctionName(pixelFunctionName);
         poBand->SetSourceTransferType(poTmpDS->GetRasterBand(nBand)->GetRasterDataType());
 
-        poBand->AddComplexSource(odFilename,nBand,0,0,nCols,nRows,0,0,nCols,nRows);
+        GDALProxyPoolDataset* proxyDS =
+            new GDALProxyPoolDataset(
+                odFilename,
+                poDS->nRasterXSize,
+                poDS->nRasterYSize,
+                GA_ReadOnly,
+                TRUE);
+        for(int j=0;j<nbBands;++j)
+        {
+            int blockXSize, blockYSize;
+            poTmpDS->GetRasterBand(nBand)->GetBlockSize(&blockXSize,&blockYSize);
+            proxyDS->AddSrcBandDescription(poTmpDS->GetRasterBand(nBand)->GetRasterDataType(), blockXSize, blockYSize);
+        }
+
+        poBand->AddComplexSource(proxyDS->GetRasterBand(nBand),0,0,nCols,nRows,0,0,nCols,nRows);
+
+        proxyDS->Dereference();
     }
 
     GDALClose(poTmpDS);

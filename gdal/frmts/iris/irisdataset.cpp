@@ -421,7 +421,7 @@ IRISDataset::IRISDataset() :
 IRISDataset::~IRISDataset()
 
 {
-    FlushCache(true);
+    FlushCache();
     if( fp != nullptr )
         VSIFCloseL( fp );
     CPLFree( pszSRS_WKT );

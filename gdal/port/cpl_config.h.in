@@ -1,9 +1,6 @@
 /* port/cpl_config.h.in.  Generated from configure.in by autoheader.  */
 /* $Id$ */
 
-#ifndef CPL_CONFIG_H
-#define CPL_CONFIG_H
-
 /* Define if you want to use pthreads based multiprocessing support */
 #undef CPL_MULTIPROC_PTHREAD
 
@@ -42,6 +39,9 @@
 
 /* Define to 1 if you have the <csf.h> header file. */
 #undef HAVE_CSF_H
+
+/* Define to 1 if you have the <dbmalloc.h> header file. */
+#undef HAVE_DBMALLOC_H
 
 /* Define to 1 if you have the declaration of `strtof', and to 0 if you don't.
    */
@@ -214,6 +214,9 @@
 /* The size of `void*', as computed by sizeof. */
 #undef SIZEOF_VOIDP
 
+/* Define to 1 if you have the ANSI C header files. */
+#undef STDC_HEADERS
+
 /* Define to 1 if you have fseek64, ftell64 */
 #undef UNIX_STDIO_64
 
@@ -237,6 +240,9 @@
 
 /* Define to name of 64bit ftell func */
 #undef VSI_FTELL64
+
+/* Define to 1, if you have 64 bit STDIO API */
+#undef VSI_LARGE_API_SUPPORTED
 
 /* Define to 1, if you have LARGEFILE64_SOURCE */
 #undef VSI_NEED_LARGEFILE64_SOURCE
@@ -270,5 +276,3 @@
 
 /* Define to 1 if the compiler supports -Wzero-as-null-pointer-constant */
 #undef HAVE_GCC_WARNING_ZERO_AS_NULL_POINTER_CONSTANT
-
-#endif

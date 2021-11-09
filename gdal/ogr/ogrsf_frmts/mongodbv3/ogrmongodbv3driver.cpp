@@ -862,11 +862,7 @@ GIntBig OGRMongoDBv3Layer::GetFeatureCount(int bForce)
 /*                             Stringify()                              */
 /************************************************************************/
 
-#if BSONCXX_VERSION_MAJOR > 3 || BSONCXX_VERSION_MINOR >= 6
-static CPLString Stringify(const bsoncxx::types::bson_value::view& val)
-#else
 static CPLString Stringify(const bsoncxx::types::value& val)
-#endif
 {
     const auto eBSONType = val.type();
     if( eBSONType == bsoncxx::type::k_utf8 )
@@ -1157,7 +1153,7 @@ static void OGRMongoDBV3ReaderSetField(OGRFeature* poFeature,
 std::unique_ptr<OGRFeature> OGRMongoDBv3Layer::Translate(
                                             const bsoncxx::document::view& doc)
 {
-    auto poFeature = cpl::make_unique<OGRFeature>(m_poFeatureDefn);
+    std::unique_ptr<OGRFeature> poFeature(new OGRFeature(m_poFeatureDefn));
     for (auto&& field : doc)
     {
         std::string fieldName(field.key());
@@ -2182,25 +2178,17 @@ bool OGRMongoDBv3Dataset::Open(GDALOpenInfo* poOpenInfo)
             !osCAFile.empty() || !osCRLFile.empty() ||
             bAllowInvalidCertificates )
         {
-#if BSONCXX_VERSION_MAJOR > 3 || BSONCXX_VERSION_MINOR >= 6
-            mongocxx::options::tls tls_options;
-#else
-            mongocxx::options::ssl tls_options;
-#endif
+            mongocxx::options::ssl ssl_options;
             if( !osPEMKeyFile.empty() )
-                tls_options.pem_file(osPEMKeyFile);
+                ssl_options.pem_file(osPEMKeyFile);
             if( !osPEMKeyPassword.empty() )
-                tls_options.pem_password(osPEMKeyPassword);
+                ssl_options.pem_password(osPEMKeyPassword);
             if( !osCAFile.empty() )
-                tls_options.ca_file(osCAFile);
+                ssl_options.ca_file(osCAFile);
             if( !osCRLFile.empty() )
-                tls_options.crl_file(osCRLFile);
-            tls_options.allow_invalid_certificates(bAllowInvalidCertificates);
-#if BSONCXX_VERSION_MAJOR > 3 || BSONCXX_VERSION_MINOR >= 6
-            client_options.tls_opts(tls_options);
-#else
-            client_options.ssl_opts(tls_options);
-#endif
+                ssl_options.crl_file(osCRLFile);
+            ssl_options.allow_invalid_certificates(bAllowInvalidCertificates);
+            client_options.ssl_opts(ssl_options);
         }
 
         m_oConn = mongocxx::client(uri, client_options);
@@ -2683,7 +2671,6 @@ void RegisterOGRMongoDBv3()
 
     poDriver->SetMetadataItem( GDAL_DMD_CREATIONFIELDDATATYPES, "Integer Integer64 Real String Date DateTime Time IntegerList Integer64List RealList StringList Binary" );
     poDriver->SetMetadataItem( GDAL_DMD_CREATIONFIELDDATASUBTYPES, "Boolean" );
-    poDriver->SetMetadataItem( GDAL_DCAP_MULTIPLE_VECTOR_LAYERS, "YES" );
 
     poDriver->pfnOpen = OGRMongoDBv3DriverOpen;
     poDriver->pfnIdentify = OGRMongoDBv3DriverIdentify;

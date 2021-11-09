@@ -248,7 +248,7 @@ class OGRLIBKMLDataSource final: public OGRDataSource
     int                       Create( const char *pszFilename,
                                       char **papszOptions );
 
-    void                      FlushCache(bool bAtClosing) override;
+    void                      FlushCache() override;
     int                       TestCapability(const char * ) override;
 
     kmldom::KmlFactory       *GetKmlFactory() { return m_poKmlFactory; }

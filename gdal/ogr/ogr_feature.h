@@ -279,14 +279,17 @@ class CPL_DLL OGRFeatureDefn
 {
   protected:
 //! @cond Doxygen_Suppress
-    volatile int nRefCount = 0;
+    volatile int nRefCount;
 
-    mutable std::vector<std::unique_ptr<OGRFieldDefn>> apoFieldDefn{};
-    mutable std::vector<std::unique_ptr<OGRGeomFieldDefn>> apoGeomFieldDefn{};
+    mutable int         nFieldCount;
+    mutable OGRFieldDefn **papoFieldDefn;
 
-    char        *pszFeatureClassName = nullptr;
+    mutable int                nGeomFieldCount;
+    mutable OGRGeomFieldDefn **papoGeomFieldDefn;
 
-    bool        bIgnoreStyle = false;
+    char        *pszFeatureClassName;
+
+    int         bIgnoreStyle;
 //! @endcond
 
   public:
@@ -302,17 +305,17 @@ class CPL_DLL OGRFeatureDefn
     virtual int         GetFieldIndex( const char * ) const;
     int                 GetFieldIndexCaseSensitive( const char * ) const;
 
-    virtual void        AddFieldDefn( const OGRFieldDefn * );
+    virtual void        AddFieldDefn( OGRFieldDefn * );
     virtual OGRErr      DeleteFieldDefn( int iField );
-    virtual OGRErr      ReorderFieldDefns( const int* panMap );
+    virtual OGRErr      ReorderFieldDefns( int* panMap );
 
     virtual int         GetGeomFieldCount() const;
     virtual OGRGeomFieldDefn *GetGeomFieldDefn( int i );
     virtual const OGRGeomFieldDefn *GetGeomFieldDefn( int i ) const;
     virtual int         GetGeomFieldIndex( const char * ) const;
 
-    virtual void        AddGeomFieldDefn( const OGRGeomFieldDefn * );
-    virtual void        AddGeomFieldDefn( std::unique_ptr<OGRGeomFieldDefn>&& );
+    virtual void        AddGeomFieldDefn( OGRGeomFieldDefn *,
+                                          int bCopy = TRUE );
     virtual OGRErr      DeleteGeomFieldDefn( int iGeomField );
 
     virtual OGRwkbGeometryType GetGeomType() const;
@@ -327,8 +330,8 @@ class CPL_DLL OGRFeatureDefn
 
     virtual int         IsGeometryIgnored() const;
     virtual void        SetGeometryIgnored( int bIgnore );
-    virtual bool        IsStyleIgnored() const { return bIgnoreStyle; }
-    virtual void        SetStyleIgnored( bool bIgnore )
+    virtual int         IsStyleIgnored() const { return bIgnoreStyle; }
+    virtual void        SetStyleIgnored( int bIgnore )
         { bIgnoreStyle = bIgnore; }
 
     virtual int         IsSame( const OGRFeatureDefn * poOtherFeatureDefn ) const;

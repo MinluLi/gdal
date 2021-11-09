@@ -56,7 +56,7 @@ typedef enum
 
 OGRSpatialReferenceH GTIFGetOGISDefnAsOSR( GTIF *, GTIFDefn * );
 
-int GTIFSetFromOGISDefnEx( GTIF *, OGRSpatialReferenceH, GTIFFKeysFlavorEnum,
+int GTIFSetFromOGISDefnEx( GTIF *, const char *, GTIFFKeysFlavorEnum,
                            GeoTIFFVersionEnum );
 
 CPL_C_END

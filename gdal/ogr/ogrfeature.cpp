@@ -3289,22 +3289,15 @@ char* OGRFeature::GetFieldAsSerializedJSon( int iField ) const
     OGRFieldType eType = poFDefn->GetType();
     if( eType == OFTStringList )
     {
+        json_object* poObj = json_object_new_array();
         char** papszValues = GetFieldAsStringList(iField);
-        if( papszValues == nullptr )
+        for( int i=0; papszValues[i] != nullptr; i++)
         {
-            pszRet = CPLStrdup("[]");
+            json_object_array_add( poObj,
+                                   json_object_new_string(papszValues[i]) );
         }
-        else
-        {
-            json_object* poObj = json_object_new_array();
-            for( int i=0; papszValues[i] != nullptr; i++)
-            {
-                json_object_array_add( poObj,
-                                       json_object_new_string(papszValues[i]) );
-            }
-            pszRet = CPLStrdup( json_object_to_json_string(poObj) );
-            json_object_put(poObj);
-        }
+        pszRet = CPLStrdup( json_object_to_json_string(poObj) );
+        json_object_put(poObj);
     }
     else if( eType == OFTIntegerList )
     {

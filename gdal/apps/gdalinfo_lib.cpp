@@ -361,8 +361,6 @@ char *GDALInfo( GDALDatasetH hDataset, const GDALInfoOptions *psOptions )
         int nAxesCount = 0;
         const int* panAxes = OSRGetDataAxisToSRSAxisMapping( hSRS, &nAxesCount );
 
-        const double dfCoordinateEpoch = OSRGetCoordinateEpoch(hSRS);
-
         if( bJson )
         {
             json_object *poWkt = json_object_new_string(pszPrettyWkt);
@@ -376,13 +374,6 @@ char *GDALInfo( GDALDatasetH hDataset, const GDALInfoOptions *psOptions )
             }
             json_object_object_add(
                 poCoordinateSystem, "dataAxisToSRSAxisMapping", poAxisMapping);
-
-            if( dfCoordinateEpoch > 0 )
-            {
-                json_object_object_add( poJsonObject,
-                                        "coordinateEpoch",
-                                        json_object_new_double(dfCoordinateEpoch) );
-            }
         }
         else
         {
@@ -401,18 +392,6 @@ char *GDALInfo( GDALDatasetH hDataset, const GDALInfoOptions *psOptions )
                 Concat( osStr, psOptions->bStdoutOutput, "%d", panAxes[i]);
             }
             Concat( osStr, psOptions->bStdoutOutput, "\n");
-
-            if( dfCoordinateEpoch > 0 )
-            {
-                std::string osCoordinateEpoch = CPLSPrintf("%f", dfCoordinateEpoch);
-                if( osCoordinateEpoch.find('.') != std::string::npos )
-                {
-                    while( osCoordinateEpoch.back() == '0' )
-                        osCoordinateEpoch.resize(osCoordinateEpoch.size()-1);
-                }
-                Concat( osStr, psOptions->bStdoutOutput,
-                        "Coordinate epoch: %s\n", osCoordinateEpoch.c_str() );
-            }
         }
         CPLFree( pszPrettyWkt );
 

@@ -68,19 +68,15 @@ PostGISRasterDriver::~PostGISRasterDriver() {
  * All connection will be destroyed when the PostGISRasterDriver is destroyed.
  *
  ***************************************************************************/
-PGconn *PostGISRasterDriver::GetConnection(const char *pszConnectionString,
-                                           const char *pszServiceIn,
-                                           const char *pszDbnameIn,
-                                           const char *pszHostIn,
-                                           const char *pszPortIn,
-                                           const char *pszUserIn)
+PGconn* PostGISRasterDriver::GetConnection(const char* pszConnectionString,
+        const char * pszDbnameIn, const char * pszHostIn, const char * pszPortIn, const char * pszUserIn)
 {
     PGconn * poConn = nullptr;
 
     if( pszHostIn == nullptr ) pszHostIn = "(null)";
     if( pszPortIn == nullptr ) pszPortIn = "(null)";
     if( pszUserIn == nullptr ) pszUserIn = "(null)";
-    CPLString osKey = ( pszServiceIn == nullptr ) ? pszDbnameIn : pszServiceIn;
+    CPLString osKey = pszDbnameIn;
     osKey += "-";
     osKey += pszHostIn;
     osKey += "-";

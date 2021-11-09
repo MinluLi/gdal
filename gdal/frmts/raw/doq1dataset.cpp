@@ -156,7 +156,7 @@ DOQ1Dataset::DOQ1Dataset() :
 DOQ1Dataset::~DOQ1Dataset()
 
 {
-    FlushCache(true);
+    FlushCache();
 
     CPLFree( pszProjection );
     if( fpImage != nullptr )

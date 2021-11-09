@@ -4,7 +4,7 @@ include ../../../GDALmake.opt
 
 OBJ	=	ogrselafindriver.o ogrselafindatasource.o ogrselafinlayer.o io_selafin.o
 
-CPPFLAGS	:=	-iquote .. -iquote ../..  $(CPPFLAGS)
+CPPFLAGS	:=	-I.. -I../..  $(CPPFLAGS)
 
 # To pass -Wextra -Werror, enable this next line:
 # CPPFLAGS += -Wno-missing-field-initializers

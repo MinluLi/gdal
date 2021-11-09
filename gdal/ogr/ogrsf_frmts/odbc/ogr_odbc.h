@@ -33,7 +33,6 @@
 #include "ogrsf_frmts.h"
 #include "cpl_odbc.h"
 #include "cpl_error.h"
-#include <unordered_set>
 
 /************************************************************************/
 /*                            OGRODBCLayer                              */
@@ -61,8 +60,6 @@ class OGRODBCLayer CPL_NON_FINAL: public OGRLayer
     char               *pszFIDColumn;
 
     int                *panFieldOrdinals;
-
-    bool                m_bEOF = false;
 
     CPLErr              BuildFeatureDefn( const char *pszLayerName,
                                           CPLODBCStatement *poStmt );
@@ -178,6 +175,7 @@ class OGRODBCDataSource final: public OGRDataSource
 
     char               *pszName;
 
+    int                 bDSUpdate;
     CPLODBCSession      oSession;
 
     // We maintain a list of known SRID to reduce the number of trips to
@@ -186,24 +184,20 @@ class OGRODBCDataSource final: public OGRDataSource
     int                *panSRID;
     OGRSpatialReference **papoSRS;
 
-    // set of all lowercase table names. Note that this is only used when opening MDB datasources, not generic ODBC ones.
-    std::unordered_set< std::string > m_aosAllLCTableNames;
+    int                 OpenMDB( const char *, int bUpdate );
 
-    int                 OpenMDB(GDALOpenInfo *poOpenInfo );
-    static bool         IsPrivateLayerName( const CPLString& osName );
   public:
                         OGRODBCDataSource();
                         virtual ~OGRODBCDataSource();
 
-    int                 Open( GDALOpenInfo* poOpenInfo );
+    int                 Open( const char *, int bUpdate, int bTestOpen );
     int                 OpenTable( const char *pszTableName,
-                                   const char *pszGeomCol );
+                                   const char *pszGeomCol,
+                                   int bUpdate );
 
     const char          *GetName() override { return pszName; }
     int                 GetLayerCount() override { return nLayers; }
     OGRLayer            *GetLayer( int ) override;
-    OGRLayer            *GetLayerByName( const char* ) override;
-    bool                IsLayerPrivate( int ) const override;
 
     int                 TestCapability( const char * ) override;
 
@@ -216,6 +210,24 @@ class OGRODBCDataSource final: public OGRDataSource
 
     // Internal use
     CPLODBCSession     *GetSession() { return &oSession; }
+};
+
+/************************************************************************/
+/*                             OGRODBCDriver                            */
+/************************************************************************/
+
+class OGRODBCDriver final: public OGRSFDriver
+{
+  public:
+                virtual ~OGRODBCDriver();
+
+    const char *GetName() override;
+    OGRDataSource *Open( const char *, int ) override;
+
+    virtual OGRDataSource *CreateDataSource( const char *pszName,
+                                             char ** = nullptr ) override;
+
+    int                 TestCapability( const char * ) override;
 };
 
 #endif /* ndef OGR_ODBC_H_INCLUDED */

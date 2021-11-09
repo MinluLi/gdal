@@ -203,7 +203,7 @@ GMTDataset::~GMTDataset()
 
 {
     CPLMutexHolderD(&hNCMutex);
-    FlushCache(true);
+    FlushCache();
     nc_close (cdfid);
 }
 

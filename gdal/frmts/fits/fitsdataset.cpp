@@ -69,7 +69,7 @@ class FITSDataset final : public GDALPamDataset {
   int m_fitsDataType = 0;   // FITS code for the image type
 
   bool m_isExistingFile = false;
-  LONGLONG m_highestOffsetWritten = 0;  // How much of image has been written
+  long m_highestOffsetWritten = 0;  // How much of image has been written
 
   bool        m_bNoDataChanged = false;
   bool        m_bNoDataSet = false;
@@ -88,6 +88,8 @@ class FITSDataset final : public GDALPamDataset {
 
   std::vector<std::unique_ptr<FITSLayer>> m_apoLayers{};
 
+  FITSDataset();     // Others should not call this constructor explicitly
+
   CPLErr Init(fitsfile* hFITS, bool isExistingFile, int hduNum);
 
   void        LoadGeoreferencing();
@@ -96,8 +98,6 @@ class FITSDataset final : public GDALPamDataset {
   void        LoadMetadata(GDALMajorObject* poTarget);
 
 public:
-
-  FITSDataset();     // Others should not call this constructor explicitly
   ~FITSDataset();
 
   static GDALDataset* Open( GDALOpenInfo* );
@@ -1730,7 +1730,7 @@ FITSRasterBand::FITSRasterBand( FITSDataset *poDSIn, int nBandIn ) :
 
 FITSRasterBand::~FITSRasterBand()
 {
-    FlushCache(true);
+    FlushCache();
 }
 
 /************************************************************************/
@@ -1989,7 +1989,7 @@ FITSDataset::~FITSDataset() {
       }
 
       // Make sure we flush the raster cache before we close the file!
-      FlushCache(true);
+      FlushCache();
     }
 
     // Close the FITS handle
@@ -2388,7 +2388,7 @@ GDALDataset* FITSDataset::Open(GDALOpenInfo* poOpenInfo) {
         return nullptr;
     }
     // Create a FITSDataset object
-    auto dataset = cpl::make_unique<FITSDataset>();
+    auto dataset = std::unique_ptr<FITSDataset>(new FITSDataset());
     dataset->m_isExistingFile = true;
     dataset->m_hFITS = hFITS;
     dataset->eAccess = poOpenInfo->eAccess;

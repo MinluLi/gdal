@@ -217,7 +217,7 @@ BSBDataset::BSBDataset() :
 BSBDataset::~BSBDataset()
 
 {
-    FlushCache(true);
+    FlushCache();
 
     GDALDeinitGCPs( nGCPCount, pasGCPList );
     CPLFree( pasGCPList );

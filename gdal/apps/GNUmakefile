@@ -4,7 +4,7 @@
 
 include ../GDALmake.opt
 
-CPPFLAGS :=	-iquote $(GDAL_ROOT)/frmts/vrt $(CPPFLAGS) $(JSON_INCLUDE) $(PROJ_INCLUDE) -iquote $(GDAL_ROOT)/ogr/ogrsf_frmts/geojson -iquote $(GDAL_ROOT)/ogr/ogrsf_frmts/generic -g
+CPPFLAGS :=	-I$(GDAL_ROOT)/frmts/vrt $(CPPFLAGS) $(JSON_INCLUDE) $(PROJ_INCLUDE) -I$(GDAL_ROOT)/ogr/ogrsf_frmts/geojson -I$(GDAL_ROOT)/ogr/ogrsf_frmts/generic -g
 LNK_FLAGS :=	$(LDFLAGS)
 DEP_LIBS =	$(EXE_DEP_LIBS) $(XTRAOBJ)
 
@@ -26,11 +26,12 @@ BIN_LIST += 	gdal_contour$(EXE) \
 		ogr2ogr$(EXE) \
 		ogrtindex$(EXE) \
 		ogrlineref$(EXE) \
+		testepsg$(EXE) \
 		gdalbuildvrt$(EXE)
 
 ifeq ($(GNM_ENABLED),yes)
 BIN_LIST += 	gnmmanage$(EXE) gnmanalyse$(EXE)
-CPPFLAGS +=	-iquote $(GDAL_ROOT)/gnm
+CPPFLAGS +=	-I$(GDAL_ROOT)/gnm
 endif
 
 ifeq ($(HAVE_GEOS),yes)
@@ -39,10 +40,10 @@ endif
 
 NON_DEFAULT_LIST = 	multireadtest$(EXE) dumpoverviews$(EXE) \
 	gdalwarpsimple$(EXE) gdalflattenmask$(EXE) \
-	gdaltorture$(EXE) gdal2ogr$(EXE) \
+	gdaltorture$(EXE) gdal2ogr$(EXE) test_ogrsf$(EXE) \
 	gdalasyncread$(EXE) testreprojmulti$(EXE)
 
-default:	gdal-config-inst gdal-config $(BIN_LIST) test_ogrsf$(EXE)
+default:	gdal-config-inst gdal-config $(BIN_LIST)
 
 all: default $(NON_DEFAULT_LIST)
 
@@ -194,7 +195,7 @@ gdal_create$(EXE):	gdal_create.$(OBJ_EXT) $(DEP_LIBS)
 	$(LD) $(LNK_FLAGS) $< $(XTRAOBJ) $(CONFIG_LIBS) -o $@
 
 clean:
-	$(RM) *.o $(BIN_LIST) $(NON_DEFAULT_LIST) core gdal-config gdal-config-inst
+	$(RM) *.o $(BIN_LIST) core gdal-config gdal-config-inst
 
 $(DEP_LIBS):
 
@@ -205,7 +206,7 @@ gdal-config:	gdal-config.in ../GDALmake.opt ./GNUmakefile ../VERSION
 	echo 'CONFIG_LIBS="$(CONFIG_LIBS)"' >> gdal-config
 	echo 'CONFIG_DEP_LIBS="$(LIBS)"' >> gdal-config
 	echo 'CONFIG_PREFIX="$(GDAL_ROOT)"' >> gdal-config
-	echo 'CONFIG_CFLAGS="-I$(GDAL_ROOT)/port -I$(GDAL_ROOT)/generated_headers -I$(GDAL_ROOT)/gcore -I$(GDAL_ROOT)/alg -I$(GDAL_ROOT)/gnm -I$(GDAL_ROOT)/ogr -I$(GDAL_ROOT)/ogr/ogrsf_frmts -I$(GDAL_ROOT)/frmts/vrt -I$(GDAL_ROOT)/apps"' >> gdal-config
+	echo 'CONFIG_CFLAGS="-I$(GDAL_ROOT)/port -I$(GDAL_ROOT)/gcore -I$(GDAL_ROOT)/alg -I$(GDAL_ROOT)/gnm -I$(GDAL_ROOT)/ogr -I$(GDAL_ROOT)/ogr/ogrsf_frmts -I$(GDAL_ROOT)/frmts/vrt -I$(GDAL_ROOT)/apps"' >> gdal-config
 	echo 'CONFIG_DATA="$(GDAL_ROOT)/data"' >> gdal-config
 	echo 'CONFIG_VERSION="'`cat ../VERSION`'"' >> gdal-config
 	echo 'CONFIG_OGR_ENABLED=yes' >> gdal-config  # Deprecated.  Always true.

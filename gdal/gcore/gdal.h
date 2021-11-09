@@ -39,7 +39,7 @@
 
 #ifndef DOXYGEN_SKIP
 #if defined(GDAL_COMPILATION)
-#define DO_NOT_DEFINE_GDAL_DATE_NAME
+#define DO_NOT_DEFINE_GDAL_RELEASE_DATE_AND_GDAL_RELEASE_NAME
 #endif
 #include "gdal_version.h"
 #include "cpl_port.h"
@@ -153,8 +153,8 @@ typedef enum
 } GDALRIOResampleAlg;
 
 /* NOTE to developers: only add members, and if so edit INIT_RASTERIO_EXTRA_ARG */
-/** Structure to pass extra arguments to RasterIO() method,
- * must be initialized with INIT_RASTERIO_EXTRA_ARG
+/* and INIT_RASTERIO_EXTRA_ARG */
+/** Structure to pass extra arguments to RasterIO() method
   * @since GDAL 2.0
   */
 typedef struct
@@ -297,16 +297,6 @@ typedef enum {
     GEDTC_COMPOUND
 } GDALExtendedDataTypeClass;
 
-/** Enumeration giving the subtype of a GDALExtendedDataType.
- * @since GDAL 3.4
- */
-typedef enum {
-    /** None. */
-    GEDTST_NONE,
-    /** JSon. Only applies to GEDTC_STRING */
-    GEDTST_JSON
-} GDALExtendedDataTypeSubType;
-
 /** Opaque type for C++ GDALExtendedDataType */
 typedef struct GDALExtendedDataTypeHS* GDALExtendedDataTypeH;
 /** Opaque type for C++ GDALEDTComponent */
@@ -393,14 +383,7 @@ typedef struct GDALDimensionHS* GDALDimensionH;
  * */
 #define GDAL_DMD_CREATIONFIELDDATASUBTYPES "DMD_CREATIONFIELDDATASUBTYPES"
 
-/** Capability set by a driver that exposes Subdatasets.
- *
- * This capability reflects that a raster driver supports child layers, such as NetCDF
- * or multi-table raster Geopackages.
- *
- * See GDAL_DCAP_MULTIPLE_VECTOR_LAYERS for a similar capability flag
- * for vector drivers.
- */
+/** Capability set by a driver that exposes Subdatasets. */
 #define GDAL_DMD_SUBDATASETS "DMD_SUBDATASETS"
 
 /** Capability set by a driver that implements the Open() API. */
@@ -496,21 +479,6 @@ typedef struct GDALDimensionHS* GDALDimensionH;
  * @since GDAL 2.3
  */
 #define GDAL_DCAP_FEATURE_STYLES     "DCAP_FEATURE_STYLES"
-
-/** Capability set by drivers which support storing/retrieving coordinate epoch for dynamic CRS
- * @since GDAL 3.4
- */
-#define GDAL_DCAP_COORDINATE_EPOCH   "DCAP_COORDINATE_EPOCH"
-
-/** Capability set by drivers for formats which support multiple vector layers.
- *
- * Note: some GDAL drivers expose "virtual" layer support while the underlying formats themselves
- * do not. This capability is only set for drivers of formats which have a native
- * concept of multiple vector layers (such as GeoPackage).
- *
- * @since GDAL 3.4
- */
-#define GDAL_DCAP_MULTIPLE_VECTOR_LAYERS "DCAP_MULTIPLE_VECTOR_LAYERS"
 
 /** Value for GDALDimension::GetType() specifying the X axis of a horizontal CRS.
  * @since GDAL 3.1
@@ -860,7 +828,6 @@ GDALRegenerateOverviews( GDALRasterBandH hSrcBand,
 int    CPL_DLL GDALDatasetGetLayerCount( GDALDatasetH );
 OGRLayerH CPL_DLL GDALDatasetGetLayer( GDALDatasetH, int );
 OGRLayerH CPL_DLL GDALDatasetGetLayerByName( GDALDatasetH, const char * );
-int       CPL_DLL GDALDatasetIsLayerPrivate( GDALDatasetH, int );
 OGRErr    CPL_DLL GDALDatasetDeleteLayer( GDALDatasetH, int );
 OGRLayerH CPL_DLL GDALDatasetCreateLayer( GDALDatasetH, const char *,
                                       OGRSpatialReferenceH, OGRwkbGeometryType,
@@ -895,9 +862,6 @@ bool CPL_DLL GDALDatasetAddFieldDomain(GDALDatasetH hDS,
 /* ==================================================================== */
 /*      GDALRasterBand ... one band/channel in a dataset.               */
 /* ==================================================================== */
-
-/* Note: the only user of SRCVAL() was frmts/vrt/pixelfunctions.cpp and we no */
-/* longer use it. */
 
 /**
  * SRCVAL - Macro which may be used by pixel functions to obtain
@@ -934,15 +898,6 @@ typedef CPLErr
                         int nBufXSize, int nBufYSize,
                         GDALDataType eSrcType, GDALDataType eBufType,
                         int nPixelSpace, int nLineSpace);
-
-/** Type of functions to pass to GDALAddDerivedBandPixelFuncWithArgs.
- * @since GDAL 3.4 */
-typedef CPLErr
-(*GDALDerivedPixelFuncWithArgs)(void **papoSources, int nSources, void *pData,
-                                int nBufXSize, int nBufYSize,
-                                GDALDataType eSrcType, GDALDataType eBufType,
-                                int nPixelSpace, int nLineSpace,
-                                CSLConstList papszFunctionArgs);
 
 GDALDataType CPL_DLL CPL_STDCALL GDALGetRasterDataType( GDALRasterBandH );
 void CPL_DLL CPL_STDCALL
@@ -1081,9 +1036,6 @@ CPLErr CPL_DLL CPL_STDCALL GDALSetDefaultRAT( GDALRasterBandH,
                                               GDALRasterAttributeTableH );
 CPLErr CPL_DLL CPL_STDCALL GDALAddDerivedBandPixelFunc( const char *pszName,
                                     GDALDerivedPixelFunc pfnPixelFunc );
-CPLErr CPL_DLL CPL_STDCALL GDALAddDerivedBandPixelFuncWithArgs( const char *pszName,
-                                                                GDALDerivedPixelFuncWithArgs pfnPixelFunc,
-                                                                const char *pszMetadata);
 
 GDALRasterBandH CPL_DLL CPL_STDCALL GDALGetMaskBand( GDALRasterBandH hBand );
 int CPL_DLL CPL_STDCALL GDALGetMaskFlags( GDALRasterBandH hBand );
@@ -1533,7 +1485,6 @@ GDALDatasetH CPL_DLL GDALCreateMultiDimensional( GDALDriverH hDriver,
 
 GDALExtendedDataTypeH CPL_DLL GDALExtendedDataTypeCreate(GDALDataType eType) CPL_WARN_UNUSED_RESULT;
 GDALExtendedDataTypeH CPL_DLL GDALExtendedDataTypeCreateString(size_t nMaxStringLength) CPL_WARN_UNUSED_RESULT;
-GDALExtendedDataTypeH CPL_DLL GDALExtendedDataTypeCreateStringEx(size_t nMaxStringLength, GDALExtendedDataTypeSubType eSubType) CPL_WARN_UNUSED_RESULT;
 GDALExtendedDataTypeH CPL_DLL GDALExtendedDataTypeCreateCompound(
     const char* pszName, size_t nTotalSize,
     size_t nComponents, const GDALEDTComponentH* comps) CPL_WARN_UNUSED_RESULT;
@@ -1549,7 +1500,6 @@ int CPL_DLL GDALExtendedDataTypeCanConvertTo(GDALExtendedDataTypeH hSourceEDT,
                                              GDALExtendedDataTypeH hTargetEDT);
 int CPL_DLL GDALExtendedDataTypeEquals(GDALExtendedDataTypeH hFirstEDT,
                                        GDALExtendedDataTypeH hSecondEDT);
-GDALExtendedDataTypeSubType CPL_DLL GDALExtendedDataTypeGetSubType(GDALExtendedDataTypeH hEDT);
 
 GDALEDTComponentH CPL_DLL GDALEDTComponentCreate(const char* pszName, size_t nOffset, GDALExtendedDataTypeH hType) CPL_WARN_UNUSED_RESULT;
 void CPL_DLL GDALEDTComponentRelease(GDALEDTComponentH hComp);
@@ -1571,8 +1521,6 @@ GDALMDArrayH CPL_DLL  GDALGroupResolveMDArray(GDALGroupH hGroup,
 char CPL_DLL **GDALGroupGetGroupNames(GDALGroupH hGroup, CSLConstList papszOptions) CPL_WARN_UNUSED_RESULT;
 GDALGroupH CPL_DLL GDALGroupOpenGroup(GDALGroupH hGroup, const char* pszSubGroupName, CSLConstList papszOptions) CPL_WARN_UNUSED_RESULT;
 GDALGroupH CPL_DLL GDALGroupOpenGroupFromFullname(GDALGroupH hGroup, const char* pszMDArrayName, CSLConstList papszOptions) CPL_WARN_UNUSED_RESULT;
-char CPL_DLL **GDALGroupGetVectorLayerNames(GDALGroupH hGroup, CSLConstList papszOptions) CPL_WARN_UNUSED_RESULT;
-OGRLayerH CPL_DLL GDALGroupOpenVectorLayer(GDALGroupH hGroup, const char* pszVectorLayerName, CSLConstList papszOptions) CPL_WARN_UNUSED_RESULT;
 GDALDimensionH CPL_DLL *GDALGroupGetDimensions(GDALGroupH hGroup, size_t* pnCount, CSLConstList papszOptions) CPL_WARN_UNUSED_RESULT;
 GDALAttributeH CPL_DLL GDALGroupGetAttribute(GDALGroupH hGroup, const char* pszName) CPL_WARN_UNUSED_RESULT;
 GDALAttributeH CPL_DLL *GDALGroupGetAttributes(GDALGroupH hGroup, size_t* pnCount, CSLConstList papszOptions) CPL_WARN_UNUSED_RESULT;
@@ -1627,10 +1575,6 @@ int CPL_DLL GDALMDArrayWrite(GDALMDArrayH hArray,
 int CPL_DLL GDALMDArrayAdviseRead(GDALMDArrayH hArray,
                                   const GUInt64* arrayStartIdx,
                                   const size_t* count);
-int CPL_DLL GDALMDArrayAdviseReadEx(GDALMDArrayH hArray,
-                                    const GUInt64* arrayStartIdx,
-                                    const size_t* count,
-                                    CSLConstList papszOptions);
 GDALAttributeH CPL_DLL GDALMDArrayGetAttribute(GDALMDArrayH hArray, const char* pszName) CPL_WARN_UNUSED_RESULT;
 GDALAttributeH CPL_DLL *GDALMDArrayGetAttributes(GDALMDArrayH hArray, size_t* pnCount, CSLConstList papszOptions) CPL_WARN_UNUSED_RESULT;
 GDALAttributeH CPL_DLL GDALMDArrayCreateAttribute(GDALMDArrayH hArray,
@@ -1681,15 +1625,6 @@ int CPL_DLL GDALMDArrayComputeStatistics( GDALMDArrayH hArray, GDALDatasetH,
                                     double *pdfMean, double *pdfStdDev,
                                     GUInt64* pnValidCount,
                                     GDALProgressFunc, void *pProgressData );
-GDALMDArrayH CPL_DLL GDALMDArrayGetResampled(GDALMDArrayH hArray,
-                                     size_t nNewDimCount,
-                                     const GDALDimensionH* pahNewDims,
-                                     GDALRIOResampleAlg resampleAlg,
-                                     OGRSpatialReferenceH hTargetSRS,
-                                     CSLConstList papszOptions);
-GDALMDArrayH CPL_DLL* GDALMDArrayGetCoordinateVariables(GDALMDArrayH hArray, size_t *pnCount) CPL_WARN_UNUSED_RESULT;
-void CPL_DLL GDALReleaseArrays(GDALMDArrayH* arrays, size_t nCount);
-int CPL_DLL GDALMDArrayCache( GDALMDArrayH hArray, CSLConstList papszOptions );
 
 void CPL_DLL GDALAttributeRelease(GDALAttributeH hAttr);
 void CPL_DLL GDALReleaseAttributes(GDALAttributeH* attributes, size_t nCount);

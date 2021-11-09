@@ -369,7 +369,7 @@ GenBinDataset::GenBinDataset() :
 GenBinDataset::~GenBinDataset()
 
 {
-    FlushCache(true);
+    FlushCache();
 
     if( fpImage != nullptr )
         CPL_IGNORE_RET_VAL(VSIFCloseL( fpImage ));
