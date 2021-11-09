@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
 *
 * Project:  GDAL
 * Purpose:  Implements China Geospatial Data Transfer Grid Format.
@@ -34,7 +34,12 @@
 #include "cpl_string.h"
 
 int GetDataBuffer(VSILFILE* fp, const char* pszBegin, const char* pszEnd, char** papszBuf);
+
 CPLString ParseSpatialReference(const char* pszHeader);
+
 int ParseOSR2Header(const char* pszProjection, char** papszHeader);
+
+CPLString OSR_GDS(char** papszNV, const char* pszField, const char* pszDefaultValue);
+
 
 #endif /* _CNSDTFSRS_H_INCLUDED */

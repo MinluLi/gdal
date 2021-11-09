@@ -1,4 +1,4 @@
-/******************************************************************************
+Ôªø/******************************************************************************
 *
 * Project:  GDAL
 * Purpose:  Implements China Geospatial Data Transfer Grid Format.
@@ -31,82 +31,82 @@
 
 GIntBig GetFilePosition(VSILFILE* fp, const char* pszMark, int bBegin = TRUE)
 {
-	const char* pszBuf = CPLReadLineL( fp );
-	if(pszBuf == NULL)
-		return -1;
+    const char* pszBuf = CPLReadLineL(fp);
+    if (pszBuf == nullptr)
+        return -1;
 
-	do 
-	{
-		if(EQUAL(pszBuf, pszMark))
-			return static_cast<GIntBig>(VSIFTellL(fp) - (bBegin ? strlen(pszMark) : 0)) - 2;
+    do
+    {
+        if (EQUAL(pszBuf, pszMark))
+            return static_cast<GIntBig>(VSIFTellL(fp) - (bBegin ? strlen(pszMark) : 0)) - 2;
 
-		pszBuf = CPLReadLineL( fp );
-	} while (pszBuf != NULL);
+        pszBuf = CPLReadLineL(fp);
+    } while (pszBuf != nullptr);
 
-	return -1;
+    return -1;
 }
 
 int GetDataBuffer(VSILFILE* fp, const char* pszBegin, const char* pszEnd, char** papszBuf)
 {
-	GIntBig nBegin = GetFilePosition(fp, pszBegin, TRUE);
-	GIntBig nEnd = GetFilePosition(fp, pszEnd, FALSE);
+    GIntBig nBegin = GetFilePosition(fp, pszBegin, TRUE);
+    GIntBig nEnd = GetFilePosition(fp, pszEnd, FALSE);
 
-	if(nBegin < 0 || nEnd <0 || nEnd <= nBegin)
-		return -1;
+    if (nBegin < 0 || nEnd < 0 || nEnd <= nBegin)
+        return -1;
 
-	VSIFSeekL(fp, nBegin, SEEK_SET);
+    VSIFSeekL(fp, nBegin, SEEK_SET);
 
-	int nSize =  static_cast<int>(nEnd - nBegin + 2);
-	*papszBuf = (char *) CPLCalloc(nSize, 1);
-	memset(*papszBuf, 0, nSize);
+    int nSize = static_cast<int>(nEnd - nBegin + 2);
+    *papszBuf = (char*)CPLCalloc(nSize, 1);
+    memset(*papszBuf, 0, nSize);
 
-	int nBufferBytes = (int) VSIFReadL( *papszBuf, 1, nSize-1, fp );
-	if (*papszBuf == NULL || nBufferBytes <= 0)
-		return nBufferBytes;
+    int nBufferBytes = (int)VSIFReadL(*papszBuf, 1, nSize - 1, fp);
+    if (*papszBuf == nullptr || nBufferBytes <= 0)
+        return nBufferBytes;
 
-	return nBufferBytes;
+    return nBufferBytes;
 }
 
-static char *papszProjectionName[18] = {
-	"µÿ¿Ì◊¯±Íœµ",
-	"∏ﬂÀπ-øÀ¬¿∏Ò",
-	"¿º≤™Ãÿ’˝–Œ∏Ó‘≤◊∂",
-	"¿º≤™Ãÿ’˝–Œ«–‘≤◊∂",
-	"¿º≤™Ãÿµ»ª˝∑ΩŒª",
-	"—«∂˚≤™Àπµ»ª˝∏Ó‘≤◊∂",
-	"—«∂˚≤™Àπµ»ª˝«–‘≤◊∂",
-	"Õ®”√∫·÷·ƒ´ø®Õ–",
-	"ƒ´ø®Õ–’˝÷·µ»Ω««–‘≤÷˘",
-	"ƒ´ø®Õ–’˝÷·µ»Ω«∏Ó‘≤÷˘",
-	"≤®ÀπÕ–µ»æ‡«–∑ΩŒª",
-	"≈Ìƒ…µ»ª˝Œ±‘≤◊∂",
-	"µ»ª˝’˝÷·«–‘≤÷˘",
-	"µ»ª˝’˝÷·∏Ó‘≤÷˘",
-	"µ»æ‡’˝÷·«–‘≤◊∂",
-	"µ»æ‡’˝÷·∏Ó‘≤◊∂",
-	"µ»ª˝–±÷·«–∑ΩŒª",
-	NULL
+static char* papszProjectionName[18] = {
+    "Âú∞ÁêÜÂùêÊ†áÁ≥ª",
+    "È´òÊñØ-ÂÖãÂêïÊ†º",
+    "ÂÖ∞ÂãÉÁâπÊ≠£ÂΩ¢Ââ≤ÂúÜÈî•",
+    "ÂÖ∞ÂãÉÁâπÊ≠£ÂΩ¢ÂàáÂúÜÈî•",
+    "ÂÖ∞ÂãÉÁâπÁ≠âÁßØÊñπ‰Ωç",
+    "‰∫öÂ∞îÂãÉÊñØÁ≠âÁßØÂâ≤ÂúÜÈî•",
+    "‰∫öÂ∞îÂãÉÊñØÁ≠âÁßØÂàáÂúÜÈî•",
+    "ÈÄöÁî®Ê®™ËΩ¥Â¢®Âç°Êâò",
+    "Â¢®Âç°ÊâòÊ≠£ËΩ¥Á≠âËßíÂàáÂúÜÊü±",
+    "Â¢®Âç°ÊâòÊ≠£ËΩ¥Á≠âËßíÂâ≤ÂúÜÊü±",
+    "Ê≥¢ÊñØÊâòÁ≠âË∑ùÂàáÊñπ‰Ωç",
+    "ÂΩ≠Á∫≥Á≠âÁßØ‰º™ÂúÜÈî•",
+    "Á≠âÁßØÊ≠£ËΩ¥ÂàáÂúÜÊü±",
+    "Á≠âÁßØÊ≠£ËΩ¥Ââ≤ÂúÜÊü±",
+    "Á≠âË∑ùÊ≠£ËΩ¥ÂàáÂúÜÈî•",
+    "Á≠âË∑ùÊ≠£ËΩ¥Ââ≤ÂúÜÈî•",
+    "Á≠âÁßØÊñúËΩ¥ÂàáÊñπ‰Ωç",
+    nullptr
 };
 
 static const int nProjectionParametersIndex[18] = {
-	0,		//0000000000	"µÿ¿Ì◊¯±Íœµ"
-	543,	//1000011111	"∏ﬂÀπ-øÀ¬¿∏Ò"
-	972,	//1111001100	"¿º≤™Ãÿ’˝–Œ∏Ó‘≤◊∂"
-	780,	//1100001100	"¿º≤™Ãÿ’˝–Œ«–‘≤◊∂"
-	796,	//1100011100	"¿º≤™Ãÿµ»ª˝∑ΩŒª"
-	543,	//1111001100	"—«∂˚≤™Àπµ»ª˝∏Ó‘≤◊∂"
-	972,	//1111001100	"—«∂˚≤™Àπµ»ª˝«–‘≤◊∂"
-	525,	//1000001101	"Õ®”√∫·÷·ƒ´ø®Õ–"
-	540,	//1000011100	"ƒ´ø®Õ–’˝÷·µ»Ω««–‘≤÷˘"
-	796,	//1100011100	"ƒ´ø®Õ–’˝÷·µ»Ω«∏Ó‘≤÷˘"
-	780,	//1100001100	"≤®ÀπÕ–µ»æ‡«–∑ΩŒª"
-	780,	//1100001100	"≈Ìƒ…µ»ª˝Œ±‘≤◊∂"
-	524,	//1000001100	"µ»ª˝’˝÷·«–‘≤÷˘"
-	780,	//1100001100	"µ»ª˝’˝÷·∏Ó‘≤÷˘"
-	780,	//1100001100	"µ»æ‡’˝÷·«–‘≤◊∂"
-	972,	//1111001100	"µ»æ‡’˝÷·∏Ó‘≤◊∂"
-	796,	//1100011100	"µ»ª˝–±÷·«–∑ΩŒª"
-	0
+    0,		//0000000000	"Âú∞ÁêÜÂùêÊ†áÁ≥ª"
+    543,	//1000011111	"È´òÊñØ-ÂÖãÂêïÊ†º"
+    972,	//1111001100	"ÂÖ∞ÂãÉÁâπÊ≠£ÂΩ¢Ââ≤ÂúÜÈî•"
+    780,	//1100001100	"ÂÖ∞ÂãÉÁâπÊ≠£ÂΩ¢ÂàáÂúÜÈî•"
+    796,	//1100011100	"ÂÖ∞ÂãÉÁâπÁ≠âÁßØÊñπ‰Ωç"
+    543,	//1111001100	"‰∫öÂ∞îÂãÉÊñØÁ≠âÁßØÂâ≤ÂúÜÈî•"
+    972,	//1111001100	"‰∫öÂ∞îÂãÉÊñØÁ≠âÁßØÂàáÂúÜÈî•"
+    525,	//1000001101	"ÈÄöÁî®Ê®™ËΩ¥Â¢®Âç°Êâò"
+    540,	//1000011100	"Â¢®Âç°ÊâòÊ≠£ËΩ¥Á≠âËßíÂàáÂúÜÊü±"
+    796,	//1100011100	"Â¢®Âç°ÊâòÊ≠£ËΩ¥Á≠âËßíÂâ≤ÂúÜÊü±"
+    780,	//1100001100	"Ê≥¢ÊñØÊâòÁ≠âË∑ùÂàáÊñπ‰Ωç"
+    780,	//1100001100	"ÂΩ≠Á∫≥Á≠âÁßØ‰º™ÂúÜÈî•"
+    524,	//1000001100	"Á≠âÁßØÊ≠£ËΩ¥ÂàáÂúÜÊü±"
+    780,	//1100001100	"Á≠âÁßØÊ≠£ËΩ¥Ââ≤ÂúÜÊü±"
+    780,	//1100001100	"Á≠âË∑ùÊ≠£ËΩ¥ÂàáÂúÜÈî•"
+    972,	//1111001100	"Á≠âË∑ùÊ≠£ËΩ¥Ââ≤ÂúÜÈî•"
+    796,	//1100011100	"Á≠âÁßØÊñúËΩ¥ÂàáÊñπ‰Ωç"
+    0
 };
 
 /************************************************************************/
@@ -115,213 +115,213 @@ static const int nProjectionParametersIndex[18] = {
 
 CPLString ParseSpatialReference(const char* pszHeader)
 {
-	char** papszTokens = CSLTokenizeString2( pszHeader,  " \n\r\t:£∫", 0 );
-	int nTokens = CSLCount(papszTokens);
+    char** papszTokens = CSLTokenizeString2(pszHeader, " \n\r\t:Ôºö", 0);
+    int nTokens = CSLCount(papszTokens);
 
-	int iCST = CSLFindString( papszTokens, "CoordinateSystemType" );
-	if ( iCST<0 || iCST+1 >= nTokens)
-	{
-		CSLDestroy( papszTokens );
-		CPLDebug( "CNSDTF Grid", "Can't find SRS");
-		return "";
-	}
+    int iCST = CSLFindString(papszTokens, "CoordinateSystemType");
+    if (iCST < 0 || iCST + 1 >= nTokens)
+    {
+        CSLDestroy(papszTokens);
+        CPLDebug("CNSDTF Grid", "Can't find SRS");
+        return "";
+    }
 
-	char *pszCoordinateSystemType = papszTokens[iCST + 1];
-	if (EQUAL(pszCoordinateSystemType, "C"))
-	{
-		CSLDestroy( papszTokens );
-		CPLDebug( "CNSDTF Grid", "Can't find SRS");
-		return "";
-	}
+    char* pszCoordinateSystemType = papszTokens[iCST + 1];
+    if (EQUAL(pszCoordinateSystemType, "C"))
+    {
+        CSLDestroy(papszTokens);
+        CPLDebug("CNSDTF Grid", "Can't find SRS");
+        return "";
+    }
 
-	if ( (!EQUAL(pszCoordinateSystemType, "D")) && (!EQUAL(pszCoordinateSystemType, "P")))
-	{
-		CSLDestroy( papszTokens );
-		CPLDebug( "CNSDTF Grid", "Can't find SRS");
-		return "";
-	}
+    if ((!EQUAL(pszCoordinateSystemType, "D")) && (!EQUAL(pszCoordinateSystemType, "P")))
+    {
+        CSLDestroy(papszTokens);
+        CPLDebug("CNSDTF Grid", "Can't find SRS");
+        return "";
+    }
 
-	int iSpheroid = CSLFindString( papszTokens, "Spheroid" );
-	if ( iSpheroid<0 || iSpheroid+1 >= nTokens)
-	{
-		CSLDestroy( papszTokens );
-		CPLDebug( "CNSDTF Grid", "Can't find Spheroid, but the CoordinateSystemType is %s, this file header maybe is wrong.", pszCoordinateSystemType);
-		return "";
-	}
+    int iSpheroid = CSLFindString(papszTokens, "Spheroid");
+    if (iSpheroid < 0 || iSpheroid + 1 >= nTokens)
+    {
+        CSLDestroy(papszTokens);
+        CPLDebug("CNSDTF Grid", "Can't find Spheroid, but the CoordinateSystemType is %s, this file header maybe is wrong.", pszCoordinateSystemType);
+        return "";
+    }
 
-	char* pszSpheroid = papszTokens[iSpheroid + 1];
-	char** papszSpheroidTokens = CSLTokenizeString2( pszSpheroid,  ",£¨", 0 );
-	int nSpheroidTokens = CSLCount(papszSpheroidTokens);
-	if(nSpheroidTokens != 3)
-	{
-		CSLDestroy( papszSpheroidTokens );
-		CSLDestroy( papszTokens );
-		CPLDebug( "CNSDTF Grid", "The Spheroid value is %s, maybe is wrong.", pszSpheroid);
-		return "";
-	}
+    char* pszSpheroid = papszTokens[iSpheroid + 1];
+    char** papszSpheroidTokens = CSLTokenizeString2(pszSpheroid, ",Ôºå", 0);
+    int nSpheroidTokens = CSLCount(papszSpheroidTokens);
+    if (nSpheroidTokens != 3)
+    {
+        CSLDestroy(papszSpheroidTokens);
+        CSLDestroy(papszTokens);
+        CPLDebug("CNSDTF Grid", "The Spheroid value is %s, maybe is wrong.", pszSpheroid);
+        return "";
+    }
 
-	char *pszPrimeMeridian = "Greenwich";
-	double dPrimeMeridian = 0.0;
-	int iPrimeMeridian = CSLFindString( papszTokens, "PrimeMeridian" );
-	if ( iPrimeMeridian>=0 && iPrimeMeridian+1 < nTokens)
-	{
-		char* pszPrimeMeridianValue = papszTokens[iPrimeMeridian + 1];
-		if (!EQUAL(pszPrimeMeridian, pszPrimeMeridianValue))
-		{
-			char** papszPrimeMeridianTokens = CSLTokenizeString2( pszPrimeMeridianValue,  ",£¨", 0 );
-			int nPrimeMeridianTokens = CSLCount(papszPrimeMeridianTokens);
-			if(nPrimeMeridianTokens == 2)
-			{
-				pszPrimeMeridian = papszPrimeMeridianTokens[0];
-				dPrimeMeridian = CPLAtofM(papszPrimeMeridianTokens[1]);
-			}
+    char* pszPrimeMeridian = "Greenwich";
+    double dPrimeMeridian = 0.0;
+    int iPrimeMeridian = CSLFindString(papszTokens, "PrimeMeridian");
+    if (iPrimeMeridian >= 0 && iPrimeMeridian + 1 < nTokens)
+    {
+        char* pszPrimeMeridianValue = papszTokens[iPrimeMeridian + 1];
+        if (!EQUAL(pszPrimeMeridian, pszPrimeMeridianValue))
+        {
+            char** papszPrimeMeridianTokens = CSLTokenizeString2(pszPrimeMeridianValue, ",Ôºå", 0);
+            int nPrimeMeridianTokens = CSLCount(papszPrimeMeridianTokens);
+            if (nPrimeMeridianTokens == 2)
+            {
+                pszPrimeMeridian = papszPrimeMeridianTokens[0];
+                dPrimeMeridian = CPLAtofM(papszPrimeMeridianTokens[1]);
+            }
 
-			CSLDestroy( papszPrimeMeridianTokens );
-		}
-	}
+            CSLDestroy(papszPrimeMeridianTokens);
+        }
+    }
 
-	double dSemiMajor = CPLAtofM(papszSpheroidTokens[1]);
-	double dInvFlattening = CPLAtofM(papszSpheroidTokens[2]);
-	if (dSemiMajor < 6400)	//unit is km
-		dSemiMajor *= 1000;
+    double dSemiMajor = CPLAtofM(papszSpheroidTokens[1]);
+    double dInvFlattening = CPLAtofM(papszSpheroidTokens[2]);
+    if (dSemiMajor < 6400)	//unit is km
+        dSemiMajor *= 1000;
 
-	OGRSpatialReference oSRS;
-	oSRS.SetGeogCS(papszSpheroidTokens[0],
-		"unknown", 
-		papszSpheroidTokens[0], 
-		dSemiMajor, dInvFlattening,
-		pszPrimeMeridian, dPrimeMeridian, 
-		"degree", 0.0174532925199433 );
+    OGRSpatialReference oSRS;
+    oSRS.SetGeogCS(papszSpheroidTokens[0],
+        "unknown",
+        papszSpheroidTokens[0],
+        dSemiMajor, dInvFlattening,
+        pszPrimeMeridian, dPrimeMeridian,
+        "degree", 0.0174532925199433);
 
-	char* pszWkt = NULL;
+    char* pszWkt = nullptr;
 
-	if (EQUAL(pszCoordinateSystemType, "D"))
-	{
-		oSRS.exportToWkt( &pszWkt );
-		CSLDestroy( papszTokens );
-		return CPLString(pszWkt);
-	}
+    if (EQUAL(pszCoordinateSystemType, "D"))
+    {
+        oSRS.exportToWkt(&pszWkt);
+        CSLDestroy(papszTokens);
+        return CPLString(pszWkt);
+    }
 
-	int iProjection = CSLFindString( papszTokens, "Projection" );
-	if ( iProjection<0 || iProjection+1 >= nTokens)
-	{
-		CSLDestroy( papszTokens );
-		CPLDebug( "CNSDTF Grid", "Can't find Projection");
-		return "";
-	}
+    int iProjection = CSLFindString(papszTokens, "Projection");
+    if (iProjection < 0 || iProjection + 1 >= nTokens)
+    {
+        CSLDestroy(papszTokens);
+        CPLDebug("CNSDTF Grid", "Can't find Projection");
+        return "";
+    }
 
-	char* pszProjection = papszTokens[iProjection+1];
-	if(EQUAL(pszProjection, "µÿ¿Ì◊¯±Íœµ"))
-	{
-		oSRS.exportToWkt( &pszWkt );
-		CSLDestroy( papszTokens );
-		return CPLString(pszWkt);
-	}
+    char* pszProjection = papszTokens[iProjection + 1];
+    if (EQUAL(pszProjection, "Âú∞ÁêÜÂùêÊ†áÁ≥ª"))
+    {
+        oSRS.exportToWkt(&pszWkt);
+        CSLDestroy(papszTokens);
+        return CPLString(pszWkt);
+    }
 
-	int iProjectionType = CSLFindString( papszProjectionName, pszProjection );
-	if (iProjectionType<=0)
-	{
-		oSRS.exportToWkt( &pszWkt );
-		CSLDestroy( papszTokens );
-		return CPLString(pszWkt);
-	}
+    int iProjectionType = CSLFindString(papszProjectionName, pszProjection);
+    if (iProjectionType <= 0)
+    {
+        oSRS.exportToWkt(&pszWkt);
+        CSLDestroy(papszTokens);
+        return CPLString(pszWkt);
+    }
 
-	int iParametersIndex = nProjectionParametersIndex[iProjectionType];
+    //int iParametersIndex = nProjectionParametersIndex[iProjectionType];
 
-	int iParameters = CSLFindString( papszTokens, "Parameters" );
-	if ( iParameters<0 || iParameters+1 >= nTokens)
-	{
-		CSLDestroy( papszTokens );
-		CPLDebug( "CNSDTF Grid", "Can't find Projection Parameters");
-		return "";
-	}
+    int iParameters = CSLFindString(papszTokens, "Parameters");
+    if (iParameters < 0 || iParameters + 1 >= nTokens)
+    {
+        CSLDestroy(papszTokens);
+        CPLDebug("CNSDTF Grid", "Can't find Projection Parameters");
+        return "";
+    }
 
-	char* pszParameters = papszTokens[iParameters+1];
-	char** papszParametersTokens = CSLTokenizeString2( pszParameters,  ",£¨", CSLT_ALLOWEMPTYTOKENS);
-	int nParametersTokens = CSLCount(papszParametersTokens);
-	if(nParametersTokens != 10)
-	{
-		CSLDestroy( papszParametersTokens );
-		CSLDestroy( papszTokens );
-		CPLDebug( "CNSDTF Grid", "Parse projection parameters error, the count should be 10, but now is %d", nParametersTokens);
-		return "";
-	}
+    char* pszParameters = papszTokens[iParameters + 1];
+    char** papszParametersTokens = CSLTokenizeString2(pszParameters, ",Ôºå", CSLT_ALLOWEMPTYTOKENS);
+    int nParametersTokens = CSLCount(papszParametersTokens);
+    if (nParametersTokens != 10)
+    {
+        CSLDestroy(papszParametersTokens);
+        CSLDestroy(papszTokens);
+        CPLDebug("CNSDTF Grid", "Parse projection parameters error, the count should be 10, but now is %d", nParametersTokens);
+        return "";
+    }
 
-	double dParmeters[10] = {0.0};
-	for (int i=0; i<10; i++)
-		dParmeters[i] = CPLAtofM(papszParametersTokens[i]);
+    double dParmeters[10] = { 0.0 };
+    for (int i = 0; i < 10; i++)
+        dParmeters[i] = CPLAtofM(papszParametersTokens[i]);
 
-	switch(iProjectionType)
-	{
-	case 1:	//∏ﬂÀπ-øÀ¬¿∏Ò
-		oSRS.SetTM(0.0, dParmeters[0], dParmeters[5], dParmeters[6], dParmeters[7]);
-		break;
-	case 2:	//¿º≤™Ãÿ’˝–Œ∏Ó‘≤◊∂
-		oSRS.SetLCC(dParmeters[2], dParmeters[3], dParmeters[1], dParmeters[0], dParmeters[6], dParmeters[7]);
-		break;
-	case 3:	//¿º≤™Ãÿ’˝–Œ«–‘≤◊∂
-		oSRS.SetLCC(dParmeters[1], dParmeters[1], dParmeters[1], dParmeters[0], dParmeters[6], dParmeters[7]);
-		break;
-	case 4:	//¿º≤™Ãÿµ»ª˝∑ΩŒª
-		oSRS.SetLAEA(dParmeters[1], dParmeters[0], dParmeters[6], dParmeters[7]);
-		break;
-	case 5:	//—«∂˚≤™Àπµ»ª˝∏Ó‘≤◊∂
-		oSRS.SetACEA(dParmeters[2], dParmeters[3], dParmeters[1], dParmeters[0], dParmeters[6], dParmeters[7]);
-		break;
-	case 6:	//—«∂˚≤™Àπµ»ª˝«–‘≤◊∂
-		oSRS.SetACEA(dParmeters[1], dParmeters[1], dParmeters[1], dParmeters[0], dParmeters[6], dParmeters[7]);
-		break;
-	case 7:	//Õ®”√∫·÷·ƒ´ø®Õ–
-		{
-			int dZone = ((int)(dParmeters[0]) + 183) / 6;
-			int bIsNorth = TRUE;
-			if(dParmeters[7] >= 10000000)
-				bIsNorth = FALSE;
+    switch (iProjectionType)
+    {
+    case 1:	//È´òÊñØ-ÂÖãÂêïÊ†º
+        oSRS.SetTM(0.0, dParmeters[0], dParmeters[5], dParmeters[6], dParmeters[7]);
+        break;
+    case 2:	//ÂÖ∞ÂãÉÁâπÊ≠£ÂΩ¢Ââ≤ÂúÜÈî•
+        oSRS.SetLCC(dParmeters[2], dParmeters[3], dParmeters[1], dParmeters[0], dParmeters[6], dParmeters[7]);
+        break;
+    case 3:	//ÂÖ∞ÂãÉÁâπÊ≠£ÂΩ¢ÂàáÂúÜÈî•
+        oSRS.SetLCC(dParmeters[1], dParmeters[1], dParmeters[1], dParmeters[0], dParmeters[6], dParmeters[7]);
+        break;
+    case 4:	//ÂÖ∞ÂãÉÁâπÁ≠âÁßØÊñπ‰Ωç
+        oSRS.SetLAEA(dParmeters[1], dParmeters[0], dParmeters[6], dParmeters[7]);
+        break;
+    case 5:	//‰∫öÂ∞îÂãÉÊñØÁ≠âÁßØÂâ≤ÂúÜÈî•
+        oSRS.SetACEA(dParmeters[2], dParmeters[3], dParmeters[1], dParmeters[0], dParmeters[6], dParmeters[7]);
+        break;
+    case 6:	//‰∫öÂ∞îÂãÉÊñØÁ≠âÁßØÂàáÂúÜÈî•
+        oSRS.SetACEA(dParmeters[1], dParmeters[1], dParmeters[1], dParmeters[0], dParmeters[6], dParmeters[7]);
+        break;
+    case 7:	//ÈÄöÁî®Ê®™ËΩ¥Â¢®Âç°Êâò
+    {
+        int dZone = ((int)(dParmeters[0]) + 183) / 6;
+        int bIsNorth = TRUE;
+        if (dParmeters[7] >= 10000000)
+            bIsNorth = FALSE;
 
-			oSRS.SetUTM(dZone, bIsNorth);
-		}
-		break;
-	case 8:	//ƒ´ø®Õ–’˝÷·µ»Ω««–‘≤÷˘
-		oSRS.SetMercator(0.0, dParmeters[0], dParmeters[5], dParmeters[6], dParmeters[7]);
-		break;
-	case 9:	//ƒ´ø®Õ–’˝÷·µ»Ω«∏Ó‘≤÷˘
-		oSRS.SetMercator(dParmeters[1], dParmeters[0], dParmeters[5], dParmeters[6], dParmeters[7]);
-		break;
-	case 10:	//≤®ÀπÕ–µ»æ‡«–∑ΩŒª
-		oSRS.SetAE(dParmeters[1], dParmeters[0], dParmeters[6], dParmeters[7]);
-		break;
-	case 11:	//≈Ìƒ…µ»ª˝Œ±‘≤◊∂
-		// dont know which one is match
-		break;
-	case 12:	//µ»ª˝’˝÷·«–‘≤÷˘
-		oSRS.SetCEA(0.0, dParmeters[0], dParmeters[6], dParmeters[7]);
-		break;
-	case 13:	//µ»ª˝’˝÷·∏Ó‘≤÷˘
-		oSRS.SetCEA(dParmeters[1], dParmeters[0], dParmeters[6], dParmeters[7]);
-		break;
-	case 14:	//µ»æ‡’˝÷·«–‘≤◊∂
-		oSRS.SetMC(dParmeters[1], dParmeters[0], dParmeters[6], dParmeters[7]);
-		break;
-	case 15:	//µ»æ‡’˝÷·∏Ó‘≤◊∂
-		oSRS.SetEC(dParmeters[2], dParmeters[3], dParmeters[1], dParmeters[0], dParmeters[6], dParmeters[7]);
-		break;
-	case 16:	//µ»ª˝–±÷·«–∑ΩŒª
-		// dont know which one is match
-		break;
-	default:
-		{
-			CSLDestroy( papszParametersTokens );
-			CSLDestroy( papszTokens );
-			CPLDebug( "CNSDTF Grid", "Can not support this projection %s", papszProjectionName);
-			return "";
-		}
-	}
+        oSRS.SetUTM(dZone, bIsNorth);
+    }
+    break;
+    case 8:	//Â¢®Âç°ÊâòÊ≠£ËΩ¥Á≠âËßíÂàáÂúÜÊü±
+        oSRS.SetMercator(0.0, dParmeters[0], dParmeters[5], dParmeters[6], dParmeters[7]);
+        break;
+    case 9:	//Â¢®Âç°ÊâòÊ≠£ËΩ¥Á≠âËßíÂâ≤ÂúÜÊü±
+        oSRS.SetMercator(dParmeters[1], dParmeters[0], dParmeters[5], dParmeters[6], dParmeters[7]);
+        break;
+    case 10:	//Ê≥¢ÊñØÊâòÁ≠âË∑ùÂàáÊñπ‰Ωç
+        oSRS.SetAE(dParmeters[1], dParmeters[0], dParmeters[6], dParmeters[7]);
+        break;
+    case 11:	//ÂΩ≠Á∫≥Á≠âÁßØ‰º™ÂúÜÈî•
+        // dont know which one is match
+        break;
+    case 12:	//Á≠âÁßØÊ≠£ËΩ¥ÂàáÂúÜÊü±
+        oSRS.SetCEA(0.0, dParmeters[0], dParmeters[6], dParmeters[7]);
+        break;
+    case 13:	//Á≠âÁßØÊ≠£ËΩ¥Ââ≤ÂúÜÊü±
+        oSRS.SetCEA(dParmeters[1], dParmeters[0], dParmeters[6], dParmeters[7]);
+        break;
+    case 14:	//Á≠âË∑ùÊ≠£ËΩ¥ÂàáÂúÜÈî•
+        oSRS.SetMC(dParmeters[1], dParmeters[0], dParmeters[6], dParmeters[7]);
+        break;
+    case 15:	//Á≠âË∑ùÊ≠£ËΩ¥Ââ≤ÂúÜÈî•
+        oSRS.SetEC(dParmeters[2], dParmeters[3], dParmeters[1], dParmeters[0], dParmeters[6], dParmeters[7]);
+        break;
+    case 16:	//Á≠âÁßØÊñúËΩ¥ÂàáÊñπ‰Ωç
+        // dont know which one is match
+        break;
+    default:
+    {
+        CSLDestroy(papszParametersTokens);
+        CSLDestroy(papszTokens);
+        CPLDebug("CNSDTF Grid", "Can not support this projection %s", papszProjectionName);
+        return "";
+    }
+    }
 
-	CSLDestroy( papszParametersTokens );
+    CSLDestroy(papszParametersTokens);
 
-	oSRS.exportToWkt( &pszWkt );
-	CSLDestroy( papszTokens );
-	return CPLString(pszWkt);
+    oSRS.exportToWkt(&pszWkt);
+    CSLDestroy(papszTokens);
+    return CPLString(pszWkt);
 }
 
 /************************************************************************/
@@ -330,5 +330,43 @@ CPLString ParseSpatialReference(const char* pszHeader)
 
 int ParseOSR2Header(const char* pszProjection, char** papszHeader)
 {
-	return TRUE;
+    return TRUE;
+}
+
+
+/************************************************************************/
+/*                              OSR_GDS()                               */
+/************************************************************************/
+
+CPLString OSR_GDS(char** papszNV, const char* pszField, const char* pszDefaultValue)
+
+{
+    int         iLine;
+
+    if (papszNV == nullptr || papszNV[0] == nullptr)
+        return pszDefaultValue;
+
+    for (iLine = 0;
+        papszNV[iLine] != nullptr &&
+        !EQUALN(papszNV[iLine], pszField, strlen(pszField));
+        iLine++) {
+    }
+
+    if (papszNV[iLine] == nullptr)
+        return pszDefaultValue;
+    else
+    {
+        CPLString osResult;
+        char** papszTokens;
+
+        papszTokens = CSLTokenizeString(papszNV[iLine]);
+
+        if (CSLCount(papszTokens) > 1)
+            osResult = papszTokens[1];
+        else
+            osResult = pszDefaultValue;
+
+        CSLDestroy(papszTokens);
+        return osResult;
+    }
 }

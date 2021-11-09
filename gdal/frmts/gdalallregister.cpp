@@ -591,6 +591,11 @@ void CPL_STDCALL GDALAllRegister()
 
 #ifdef FRMT_cnsdtf
     GDALRegister_CNSDTF();
+    GDALRegister_NSDTF();
+#endif
+
+#ifdef FRMT_iiq
+    GDALRegister_IIQ();
 #endif
 
     // NOTE: you need to generally your own driver before that line.
