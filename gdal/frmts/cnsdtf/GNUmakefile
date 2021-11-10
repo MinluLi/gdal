@@ -1,15 +1,15 @@
 
-include ../../GDALmake.opt
+include .. / .. / GDALmake.opt
 
-OBJ	=	cnsdtfdataset.o nsdtfdataset.o cnsdtfsrs.o
+OBJ = cnsdtfsrs.o ascdataset.o cnsdtfdataset.o nsdtfdataset.o imageinfodataset.o
 
-CPPFLAGS	:=	$(GDAL_INCLUDE) $(CPPFLAGS) $(XTRA_OPT)
+CPPFLAGS : = $(GDAL_INCLUDE) $(CPPFLAGS) $(XTRA_OPT)
 
-default:	$(OBJ:.o=.$(OBJ_EXT))
+default:	$(OBJ : .o = .$(OBJ_EXT))
 
-clean:
-	rm -f *.o
+	clean :
+	rm - f * .o
 
-all:	$(OBJ:.o=.$(OBJ_EXT))
+	all : $(OBJ : .o = .$(OBJ_EXT))
 
-install-obj:	$(O_OBJ:.o=.$(OBJ_EXT))
+	install - obj : $(O_OBJ : .o = .$(OBJ_EXT))

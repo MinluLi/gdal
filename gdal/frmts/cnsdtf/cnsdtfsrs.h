@@ -1,12 +1,12 @@
-﻿/******************************************************************************
+/******************************************************************************
 *
 * Project:  GDAL
-* Purpose:  Implements China Geospatial Data Transfer Grid Format.
-* Author:   Minlu Li, liminlu0314@gmail.com
-* Describe: Chinese Spatial Data Transfer format. Reference:GB/T 17798-2007
+* Purpose:  Implements CNSDTF\NSDTF\ImageInfo Grid Format.
+* Author:   Minlu Li, liminlu0314@163.com
+* Describe: CNSDTF\NSDTF\ImageInfo Grid format. Reference:GB/T 17798-2007
 *
 ******************************************************************************
-* Copyright (c) 2013, Minlu Li (liminlu0314@gmail.com)
+* Copyright (c) 2013, Minlu Li (liminlu0314@163.com)
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -43,6 +43,6 @@ CPLString OSR_GDS(char** papszNV, const char* pszField, const char* pszDefaultVa
 
 int FindString(const char* pszString, const char* pszMatch);
 
-CPLString ParseKeyValue(const char* pszString);
+CPLString ParseKeyValue(char** papszList, const char* pszKey);
 
 #endif /* _CNSDTFSRS_H_INCLUDED */

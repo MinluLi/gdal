@@ -1,5 +1,5 @@
 
-OBJ	=	cnsdtfdataset.obj nsdtfdataset.obj cnsdtfsrs.obj
+OBJ	= cnsdtfsrs.obj ascdataset.obj cnsdtfdataset.obj nsdtfdataset.obj imageinfodataset.obj
 
 GDAL_ROOT	=	..\..
 

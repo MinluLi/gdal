@@ -1,12 +1,12 @@
-﻿/******************************************************************************
+/******************************************************************************
 *
 * Project:  GDAL
-* Purpose:  Implements China Geospatial Data Transfer Grid Format.
-* Author:   Minlu Li, liminlu0314@gmail.com
-* Describe: Chinese Spatial Data Transfer format. Reference:GB/T 17798-2007
+* Purpose:  Implements NSDTF Grid Format.
+* Author:   Minlu Li, liminlu0314@163.com
+* Describe: NSDTF Grid format. Reference:GB/T 17798-2007
 *
 ******************************************************************************
-* Copyright (c) 2013, Minlu Li (liminlu0314@gmail.com)
+* Copyright (c) 2013, Minlu Li (liminlu0314@163.com)
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -28,7 +28,7 @@
 ****************************************************************************/
 
 #include "cnsdtfsrs.h"
-#include "gdal_pam.h"
+#include "ascdataset.h"
 
 /************************************************************************/
 /* ==================================================================== */
@@ -36,333 +36,42 @@
 /* ==================================================================== */
 /************************************************************************/
 
-class NSDTFRasterBand;
-
-class CPL_DLL NSDTFDataset : public GDALPamDataset
+class CPL_DLL NSDTFDataset : public AscDataset
 {
-    friend class NSDTFRasterBand;
-
-    VSILFILE* fp;
-
-    char** papszPrj;
-    CPLString   osPrjFilename;
-    char* pszProjection;
+    friend class AscRasterBand;
 
     // DataMark Version Compress Alpha
     CPLString	osDataMark;
     CPLString	osDataVersion;
     GBool       bIsCompress;
-    double      adfAlphaValue;
-    int			nHZoom;
+    double      dfAlphaValue;
     CPLString   osUnitType;
 
-    unsigned char achReadBuf[256];
-    GUIntBig    nBufferOffset;
-    int         nOffsetInBuffer;
-
-    char        Getc();
-    GUIntBig    Tell();
-    int         Seek(GUIntBig nOffset);
-
 protected:
-    GDALDataType eDataType;
-    double      adfGeoTransform[6];
-    int         bNoDataSet;
-    double      dfNoDataValue;
-
-    int ParseHeader(const char* pszHeader, int& nStartOfData);
+    virtual int ParseHeader(const char* pszHeader, int& nStartOfData);
 
 public:
     NSDTFDataset();
     ~NSDTFDataset();
-
-    virtual char** GetFileList(void);
 
     static GDALDataset* Open(GDALOpenInfo* poOpenInfo);
     static int          Identify(GDALOpenInfo* poOpenInfo);
     static GDALDataset* CreateCopy(const char* pszFilename,
         GDALDataset* poSrcDS, int bStrict, char** papszOptions,
         GDALProgressFunc pfnProgress, void* pProgressData);
-
-    virtual CPLErr GetGeoTransform(double* padfTransform);
-    virtual const char* GetProjectionRef(void);
 };
-
-/************************************************************************/
-/* ==================================================================== */
-/*                            NSDTFRasterBand                          */
-/* ==================================================================== */
-/************************************************************************/
-
-class NSDTFRasterBand : public GDALPamRasterBand
-{
-    friend class NSDTFDataset;
-
-    GUIntBig* panLineOffset;
-    char* pszUnitType;
-    double        dfScale;
-
-public:
-
-    NSDTFRasterBand(NSDTFDataset* poDS, int nDataStart);
-    virtual       ~NSDTFRasterBand();
-
-    virtual double GetNoDataValue(int* pbSuccess);
-    virtual CPLErr SetNoDataValue(double dfNoData);
-    virtual const char* GetUnitType();
-    CPLErr SetUnitType(const char* pszNewValue);
-    virtual double GetScale(int* pbSuccess = nullptr);
-    CPLErr SetScale(double dfNewScale);
-
-    virtual CPLErr IReadBlock(int nBlockXOff, int nBlockYOff, void* pImage);
-};
-
-/************************************************************************/
-/*                           NSDTFRasterBand()                         */
-/************************************************************************/
-
-NSDTFRasterBand::NSDTFRasterBand(NSDTFDataset* poDS, int nDataStart)
-
-{
-    this->poDS = poDS;
-
-    nBand = 1;
-    eDataType = poDS->eDataType;
-
-    nBlockXSize = poDS->nRasterXSize;
-    nBlockYSize = 1;
-
-    panLineOffset =
-        (GUIntBig*)VSICalloc(poDS->nRasterYSize, sizeof(GUIntBig));
-    if (panLineOffset == nullptr)
-    {
-        CPLError(CE_Failure, CPLE_OutOfMemory,
-            "NSDTFRasterBand::NSDTFRasterBand : Out of memory (nRasterYSize = %d)",
-            poDS->nRasterYSize);
-        return;
-    }
-
-    panLineOffset[0] = nDataStart;
-    dfScale = poDS->nHZoom;
-    pszUnitType = CPLStrdup(poDS->osUnitType.c_str());
-}
-
-/************************************************************************/
-/*                          ~NSDTFRasterBand()                         */
-/************************************************************************/
-
-NSDTFRasterBand::~NSDTFRasterBand()
-
-{
-    CPLFree(panLineOffset);
-    CPLFree(pszUnitType);
-}
-
-/************************************************************************/
-/*                             IReadBlock()                             */
-/************************************************************************/
-
-CPLErr NSDTFRasterBand::IReadBlock(int nBlockXOff, int nBlockYOff,
-    void* pImage)
-
-{
-    NSDTFDataset* poODS = (NSDTFDataset*)poDS;
-    int         iPixel;
-
-    if (nBlockYOff < 0 || nBlockYOff > poODS->nRasterYSize - 1
-        || nBlockXOff != 0 || panLineOffset == nullptr || poODS->fp == nullptr)
-        return CE_Failure;
-
-    if (panLineOffset[nBlockYOff] == 0)
-    {
-        int iPrevLine;
-
-        for (iPrevLine = 1; iPrevLine <= nBlockYOff; iPrevLine++)
-            if (panLineOffset[iPrevLine] == 0)
-                IReadBlock(nBlockXOff, iPrevLine - 1, nullptr);
-    }
-
-    if (panLineOffset[nBlockYOff] == 0)
-        return CE_Failure;
-
-
-    if (poODS->Seek(panLineOffset[nBlockYOff]) != 0)
-    {
-        CPLError(CE_Failure, CPLE_FileIO,
-            "Can't seek to offset %lu in input file to read data.",
-            (long unsigned int)panLineOffset[nBlockYOff]);
-        return CE_Failure;
-    }
-
-    for (iPixel = 0; iPixel < poODS->nRasterXSize; )
-    {
-        char szToken[500];
-        char chNext;
-        int  iTokenChar = 0;
-
-        /* suck up any pre-white space. */
-        do {
-            chNext = poODS->Getc();
-        } while (isspace((unsigned char)chNext));
-
-        while (chNext != '\0' && !isspace((unsigned char)chNext))
-        {
-            if (iTokenChar == sizeof(szToken) - 2)
-            {
-                CPLError(CE_Failure, CPLE_FileIO,
-                    "Token too long at scanline %d.",
-                    nBlockYOff);
-                return CE_Failure;
-            }
-
-            szToken[iTokenChar++] = chNext;
-            chNext = poODS->Getc();
-        }
-
-        if (chNext == '\0' &&
-            (iPixel != poODS->nRasterXSize - 1 ||
-                nBlockYOff != poODS->nRasterYSize - 1))
-        {
-            CPLError(CE_Failure, CPLE_FileIO,
-                "File short, can't read line %d.",
-                nBlockYOff);
-            return CE_Failure;
-        }
-
-        szToken[iTokenChar] = '\0';
-
-        if (pImage != nullptr)
-        {
-            if (eDataType == GDT_Float64)
-                ((double*)pImage)[iPixel] = CPLAtofM(szToken);
-            else if (eDataType == GDT_Float32)
-                ((float*)pImage)[iPixel] = (float)CPLAtofM(szToken);
-            else
-                ((GInt32*)pImage)[iPixel] = (GInt32)atoi(szToken);
-        }
-
-        iPixel++;
-    }
-
-    if (nBlockYOff < poODS->nRasterYSize - 1)
-        panLineOffset[nBlockYOff + 1] = poODS->Tell();
-
-    return CE_None;
-}
-
-/************************************************************************/
-/*                           GetNoDataValue()                           */
-/************************************************************************/
-
-double NSDTFRasterBand::GetNoDataValue(int* pbSuccess)
-
-{
-    NSDTFDataset* poODS = (NSDTFDataset*)poDS;
-
-    if (pbSuccess)
-        *pbSuccess = poODS->bNoDataSet;
-
-    return poODS->dfNoDataValue;
-}
-
-
-/************************************************************************/
-/*                           SetNoDataValue()                           */
-/************************************************************************/
-
-CPLErr NSDTFRasterBand::SetNoDataValue(double dfNoData)
-
-{
-    NSDTFDataset* poODS = (NSDTFDataset*)poDS;
-
-    poODS->bNoDataSet = TRUE;
-    poODS->dfNoDataValue = dfNoData;
-
-    return CE_None;
-}
-
-/************************************************************************/
-/*                            GetUnitType()                             */
-/************************************************************************/
-
-const char* NSDTFRasterBand::GetUnitType()
-
-{
-    if (pszUnitType == nullptr)
-        return "";
-    else
-        return pszUnitType;
-}
-
-/************************************************************************/
-/*                            SetUnitType()                             */
-/************************************************************************/
-
-CPLErr NSDTFRasterBand::SetUnitType(const char* pszNewValue)
-
-{
-    CPLFree(pszUnitType);
-
-    if (pszNewValue == nullptr)
-        pszUnitType = nullptr;
-    else
-        pszUnitType = CPLStrdup(pszNewValue);
-
-    return CE_None;
-}
-
-/************************************************************************/
-/*                              GetScale()                              */
-/************************************************************************/
-
-double NSDTFRasterBand::GetScale(int* pbSuccess)
-
-{
-    if (pbSuccess != nullptr)
-        *pbSuccess = TRUE;
-
-    return dfScale;
-}
-
-/************************************************************************/
-/*                              SetScale()                              */
-/************************************************************************/
-
-CPLErr NSDTFRasterBand::SetScale(double dfNewScale)
-
-{
-    dfScale = dfNewScale;
-    return CE_None;
-}
 
 /************************************************************************/
 /*                            NSDTFDataset()                           */
 /************************************************************************/
 
 NSDTFDataset::NSDTFDataset()
+    :AscDataset()
 {
-    papszPrj = nullptr;
-    pszProjection = CPLStrdup("");
-    fp = nullptr;
-    eDataType = GDT_Int32;
-    bNoDataSet = TRUE;
-    dfNoDataValue = -99999.0;
-
-    adfGeoTransform[0] = 0.0;
-    adfGeoTransform[1] = 1.0;
-    adfGeoTransform[2] = 0.0;
-    adfGeoTransform[3] = 0.0;
-    adfGeoTransform[4] = 0.0;
-    adfGeoTransform[5] = 1.0;
-
-    nOffsetInBuffer = 256;
-    nBufferOffset = 0;
-
     osDataMark = "NSDTF-DEM";
     osDataVersion = "1.0";
     bIsCompress = FALSE;
-    adfAlphaValue = 0.0;
-    nHZoom = 1;
+    dfAlphaValue = 0.0;
 }
 
 /************************************************************************/
@@ -370,75 +79,7 @@ NSDTFDataset::NSDTFDataset()
 /************************************************************************/
 
 NSDTFDataset::~NSDTFDataset()
-
 {
-    FlushCache();
-
-    if (fp != nullptr)
-        VSIFCloseL(fp);
-
-    CPLFree(pszProjection);
-    CSLDestroy(papszPrj);
-}
-
-/************************************************************************/
-/*                                Tell()                                */
-/************************************************************************/
-
-GUIntBig NSDTFDataset::Tell()
-
-{
-    return nBufferOffset + nOffsetInBuffer;
-}
-
-/************************************************************************/
-/*                                Seek()                                */
-/************************************************************************/
-
-int NSDTFDataset::Seek(GUIntBig nNewOffset)
-
-{
-    nOffsetInBuffer = sizeof(achReadBuf);
-    return VSIFSeekL(fp, nNewOffset, SEEK_SET);
-}
-
-/************************************************************************/
-/*                                Getc()                                */
-/*                                                                      */
-/*      Read a single character from the input file (efficiently we     */
-/*      hope).                                                          */
-/************************************************************************/
-
-char NSDTFDataset::Getc()
-
-{
-    if (nOffsetInBuffer < (int)sizeof(achReadBuf))
-        return achReadBuf[nOffsetInBuffer++];
-
-    nBufferOffset = VSIFTellL(fp);
-    auto nRead = VSIFReadL(achReadBuf, 1, sizeof(achReadBuf), fp);
-
-    for (size_t i = nRead; i < sizeof(achReadBuf); i++)
-        achReadBuf[i] = '\0';
-
-    nOffsetInBuffer = 0;
-
-    return achReadBuf[nOffsetInBuffer++];
-}
-
-/************************************************************************/
-/*                            GetFileList()                             */
-/************************************************************************/
-
-char** NSDTFDataset::GetFileList()
-
-{
-    char** papszFileList = GDALPamDataset::GetFileList();
-
-    if (papszPrj != nullptr)
-        papszFileList = CSLAddString(papszFileList, osPrjFilename);
-
-    return papszFileList;
 }
 
 /************************************************************************/
@@ -466,6 +107,78 @@ int NSDTFDataset::Identify(GDALOpenInfo* poOpenInfo)
     if (poOpenInfo->nHeaderBytes < 40 ||
         !(EQUALN(papszTokens[0], "NSDTF-DEM", 9))
         )
+    {
+        CSLDestroy(papszTokens);
+        return FALSE;
+    }
+
+    CSLDestroy(papszTokens);
+    return TRUE;
+}
+
+/************************************************************************/
+/*                          ParseHeader()                               */
+/************************************************************************/
+
+int NSDTFDataset::ParseHeader(const char* pszHeader, int& nStartOfData)
+{
+    char** papszTokens = CSLTokenizeString2(pszHeader, "\n\r", 0);
+    int nTokens = CSLCount(papszTokens);
+    if (nTokens < 14)
+    {
+        CSLDestroy(papszTokens);
+        return FALSE;
+    }
+
+    if (!EQUAL(papszTokens[0], "NSDTF-DEM"))
+    {
+        CSLDestroy(papszTokens);
+        return FALSE;
+    }
+
+    if (!EQUAL(papszTokens[2], "M") && !EQUAL(papszTokens[2], "D") && !EQUAL(papszTokens[2], "K"))
+    {
+        CSLDestroy(papszTokens);
+        return FALSE;
+    }
+
+    osDataMark = "NSDTF-DEM";
+    osDataVersion = papszTokens[1];
+    osUnitType = papszTokens[2];
+    dfAlphaValue = CPLAtofM(papszTokens[3]);
+    bIsCompress = atoi(papszTokens[4]);
+
+    adfGeoTransform[0] = CPLAtofM(papszTokens[5]);
+    adfGeoTransform[1] = CPLAtofM(papszTokens[7]);
+    adfGeoTransform[2] = 0.0;
+    adfGeoTransform[3] = CPLAtofM(papszTokens[6]);
+    adfGeoTransform[4] = 0.0;
+    adfGeoTransform[5] = -CPLAtofM(papszTokens[8]);
+
+    nRasterYSize = atoi(papszTokens[9]);
+    nRasterXSize = atoi(papszTokens[10]);
+
+    if (!GDALCheckDatasetDimensions(nRasterXSize, nRasterYSize))
+    {
+        CSLDestroy(papszTokens);
+        return FALSE;
+    }
+
+    dfScale = atoi(papszTokens[11]);
+    eDataType = GDT_Int32;
+    bHaveNoDataValue = TRUE;
+    dfNoDataValue = -9999.0;
+
+    int nPos = FindString(pszHeader, papszTokens[11]);
+    nStartOfData = nPos + static_cast<int>(strlen(papszTokens[11]));
+
+    while (pszHeader[nStartOfData] == ' ' || pszHeader[nStartOfData] == '\n' || pszHeader[nStartOfData] == '\r')
+    {
+        nStartOfData++;
+    }
+
+    size_t nLine13Len = strlen(papszTokens[12]);
+    if (!EQUALN(pszHeader + nStartOfData, papszTokens[12], nLine13Len))
     {
         CSLDestroy(papszTokens);
         return FALSE;
@@ -522,7 +235,7 @@ GDALDataset* NSDTFDataset::Open(GDALOpenInfo* poOpenInfo)
     /* -------------------------------------------------------------------- */
     /*      Create band information objects.                                */
     /* -------------------------------------------------------------------- */
-    NSDTFRasterBand* band = new NSDTFRasterBand(poDS, nStartOfData);
+    AscRasterBand* band = new AscRasterBand(poDS, nStartOfData);
     poDS->SetBand(1, band);
     if (band->panLineOffset == nullptr)
     {
@@ -605,109 +318,6 @@ GDALDataset* NSDTFDataset::Open(GDALOpenInfo* poOpenInfo)
     poDS->oOvManager.Initialize(poDS, poOpenInfo->pszFilename);
 
     return(poDS);
-}
-
-/************************************************************************/
-/*                          ParseHeader()                               */
-/************************************************************************/
-
-int NSDTFDataset::ParseHeader(const char* pszHeader, int& nStartOfData)
-{
-    char** papszTokens = CSLTokenizeString2(pszHeader, "\n\r", 0);
-    int nTokens = CSLCount(papszTokens);
-    if (nTokens < 14)
-    {
-        CSLDestroy(papszTokens);
-        return FALSE;
-    }
-
-    if (!EQUAL(papszTokens[0], "NSDTF-DEM"))
-    {
-        CSLDestroy(papszTokens);
-        return FALSE;
-    }
-
-    if (!EQUAL(papszTokens[2], "M") && !EQUAL(papszTokens[2], "D") && !EQUAL(papszTokens[2], "K"))
-    {
-        CSLDestroy(papszTokens);
-        return FALSE;
-    }
-
-    osDataMark = "NSDTF-DEM";
-    osDataVersion = papszTokens[1];
-    osUnitType = papszTokens[2];
-    adfAlphaValue = CPLAtofM(papszTokens[3]);
-    bIsCompress = atoi(papszTokens[4]);
-
-    adfGeoTransform[0] = CPLAtofM(papszTokens[5]);
-    adfGeoTransform[1] = CPLAtofM(papszTokens[7]);
-    adfGeoTransform[2] = 0.0;
-    adfGeoTransform[3] = CPLAtofM(papszTokens[6]);
-    adfGeoTransform[4] = 0.0;
-    adfGeoTransform[5] = -CPLAtofM(papszTokens[8]);
-
-    nRasterYSize = atoi(papszTokens[9]);
-    nRasterXSize = atoi(papszTokens[10]);
-
-    if (!GDALCheckDatasetDimensions(nRasterXSize, nRasterYSize))
-    {
-        CSLDestroy(papszTokens);
-        return FALSE;
-    }
-
-    nHZoom = atoi(papszTokens[11]);
-    eDataType = GDT_Int32;
-    bNoDataSet = TRUE;
-    dfNoDataValue = CPLAtofM(papszTokens[12]);
-
-    int nPos = FindString(pszHeader, papszTokens[12]);
-    nStartOfData = nPos + static_cast<int>(strlen(papszTokens[12]));
-
-    while (pszHeader[nStartOfData] == ' ' || pszHeader[nStartOfData] == '\n' || pszHeader[nStartOfData] == '\r')
-    {
-        nStartOfData++;
-    }
-
-    size_t nLine13Len = strlen(papszTokens[13]);
-    if (!EQUALN(pszHeader + nStartOfData, papszTokens[13], nLine13Len))
-    {
-        CSLDestroy(papszTokens);
-        return FALSE;
-    }
-
-    char** papsz13Tokens = CSLTokenizeString2(papszTokens[13], " ", 0);
-    int n13Tokens = CSLCount(papsz13Tokens);
-    CSLDestroy(papsz13Tokens);
-    if (n13Tokens != 10)
-    {
-        CSLDestroy(papszTokens);
-        return FALSE;
-    }
-
-    CSLDestroy(papszTokens);
-    return TRUE;
-}
-
-
-/************************************************************************/
-/*                          GetGeoTransform()                           */
-/************************************************************************/
-
-CPLErr NSDTFDataset::GetGeoTransform(double* padfTransform)
-
-{
-    memcpy(padfTransform, adfGeoTransform, sizeof(double) * 6);
-    return(CE_None);
-}
-
-/************************************************************************/
-/*                          GetProjectionRef()                          */
-/************************************************************************/
-
-const char* NSDTFDataset::GetProjectionRef()
-
-{
-    return pszProjection;
 }
 
 /************************************************************************/
@@ -830,109 +440,14 @@ GDALDataset* NSDTFDataset::CreateCopy(
         ABS(adfGeoTransform[5]),
         nYSize, nXSize, static_cast<int>(dfScale));
 
-    // Write `nodata' value to header if it is exists in source dataset
-    double dfNoData = poBand->GetNoDataValue(&bSuccess);
-    if (bSuccess)
-        sprintf(szHeader + strlen(szHeader), "%6.20g\n", dfNoData);
-    else
-        sprintf(szHeader + strlen(szHeader), "-9999000\n");
-
     VSIFWriteL(szHeader, 1, strlen(szHeader), fpImage);
 
     /* -------------------------------------------------------------------- */
-    /*     Builds the format string used for printing float values.         */
+    /*      writeing image data.                                            */
     /* -------------------------------------------------------------------- */
-    char szFormatFloat[32];
-    strcpy(szFormatFloat, " %.20g");
-    const char* pszDecimalPrecision = CSLFetchNameValue(papszOptions, "DECIMAL_PRECISION");
-    if (pszDecimalPrecision)
-    {
-        int nDecimal = atoi(pszDecimalPrecision);
-        if (nDecimal >= 0)
-            sprintf(szFormatFloat, " %%.%dg", nDecimal);
-    }
+    CPLErr eErr = WriteImageData(poBand, nXSize, nYSize, dfScale, fpImage,
+        papszOptions, pfnProgress, pProgressData);
 
-    /* -------------------------------------------------------------------- */
-    /*      Loop over image, copying image data.                            */
-    /* -------------------------------------------------------------------- */
-    int* panScanline = nullptr;
-    double* padfScanline = nullptr;
-    int         bReadAsInt;
-    int         iLine, iPixel;
-    CPLErr      eErr = CE_None;
-
-    bReadAsInt = (poBand->GetRasterDataType() == GDT_Byte
-        || poBand->GetRasterDataType() == GDT_Int16
-        || poBand->GetRasterDataType() == GDT_UInt16
-        || poBand->GetRasterDataType() == GDT_Int32);
-
-    // Write scanlines to output file
-    if (bReadAsInt)
-        panScanline = (int*)CPLMalloc(nXSize * GDALGetDataTypeSize(GDT_Int32) / 8);
-    else
-        padfScanline = (double*)CPLMalloc(nXSize * GDALGetDataTypeSize(GDT_Float64) / 8);
-
-    for (iLine = 0; eErr == CE_None && iLine < nYSize; iLine++)
-    {
-        CPLString osBuf;
-        eErr = poBand->RasterIO(GF_Read, 0, iLine, nXSize, 1,
-            (bReadAsInt) ? (void*)panScanline : (void*)padfScanline,
-            nXSize, 1, (bReadAsInt) ? GDT_Int32 : GDT_Float64, 0, 0, nullptr);
-
-        if (bReadAsInt)
-        {
-            for (iPixel = 0; iPixel < nXSize; iPixel++)
-            {
-                sprintf(szHeader, "%d ", panScanline[iPixel]);
-                if (iPixel % 10 == 9)
-                    sprintf(szHeader + strlen(szHeader), "\n");
-
-                osBuf += szHeader;
-                if ((iPixel & 1023) == 0 || iPixel == nXSize - 1)
-                {
-                    if (VSIFWriteL(osBuf, (int)osBuf.size(), 1, fpImage) != 1)
-                    {
-                        eErr = CE_Failure;
-                        CPLError(CE_Failure, CPLE_AppDefined, "Write failed, disk full?\n");
-                        break;
-                    }
-                    osBuf = "";
-                }
-            }
-        }
-        else
-        {
-            for (iPixel = 0; iPixel < nXSize; iPixel++)
-            {
-                sprintf(szHeader, "%d ", static_cast<int>(padfScanline[iPixel] * dfScale));
-                if (iPixel % 10 == 9)
-                    sprintf(szHeader + strlen(szHeader), "\n");
-
-                osBuf += szHeader;
-                if ((iPixel & 1023) == 0 || iPixel == nXSize - 1)
-                {
-                    if (VSIFWriteL(osBuf, (int)osBuf.size(), 1, fpImage) != 1)
-                    {
-                        eErr = CE_Failure;
-                        CPLError(CE_Failure, CPLE_AppDefined, "Write failed, disk full?\n");
-                        break;
-                    }
-                    osBuf = "";
-                }
-            }
-        }
-        VSIFWriteL((void*)"\n", 1, 1, fpImage);
-
-        if (eErr == CE_None &&
-            !pfnProgress((iLine + 1) / ((double)nYSize), nullptr, pProgressData))
-        {
-            eErr = CE_Failure;
-            CPLError(CE_Failure, CPLE_UserInterrupt, "User terminated CreateCopy()");
-        }
-    }
-
-    CPLFree(panScanline);
-    CPLFree(padfScanline);
     VSIFCloseL(fpImage);
 
     if (eErr != CE_None)
@@ -959,7 +474,7 @@ GDALDataset* NSDTFDataset::CreateCopy(
     poNsdtfDS->nRasterXSize = nXSize;
     poNsdtfDS->nRasterYSize = nYSize;
     poNsdtfDS->nBands = 1;
-    poNsdtfDS->SetBand(1, new NSDTFRasterBand(poNsdtfDS, 1));
+    poNsdtfDS->SetBand(1, new AscRasterBand(poNsdtfDS, 1));
     return poNsdtfDS;
 }
 
@@ -968,7 +483,6 @@ GDALDataset* NSDTFDataset::CreateCopy(
 /************************************************************************/
 
 void GDALRegister_NSDTF()
-
 {
     if (GDALGetDriverByName("NSDTF") != nullptr)
         return;

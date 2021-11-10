@@ -42,3 +42,5 @@ gdal/share
 
 
 gdal/autotest/cpp/x64/
+/x64/Debug
+/gdal_vs2017.sln

@@ -1,12 +1,12 @@
 ﻿/******************************************************************************
 *
 * Project:  GDAL
-* Purpose:  Implements China Geospatial Data Transfer Grid Format.
-* Author:   Minlu Li, liminlu0314@gmail.com
-* Describe: Chinese Spatial Data Transfer format. Reference:GB/T 17798-2007
+* Purpose:  Implements CNSDTF\NSDTF\ImageInfo Grid Format.
+* Author:   Minlu Li, liminlu0314@163.com
+* Describe: CNSDTF\NSDTF\ImageInfo Grid format. Reference:GB/T 17798-2007
 *
 ******************************************************************************
-* Copyright (c) 2013, Minlu Li (liminlu0314@gmail.com)
+* Copyright (c) 2013, Minlu Li (liminlu0314@163.com)
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -382,15 +382,23 @@ int FindString(const char* pszString, const char* pszMatch)
     return static_cast<int>(pos);
 }
 
-CPLString ParseKeyValue(const char* pszString)
+CPLString ParseKeyValue(char** papszList, const char* pszKey)
 {
-    char** papszTokens = CSLTokenizeString2(pszString, " :：", 0);
-    int nTokens = CSLCount(papszTokens);
-    if (nTokens != 2)
-        return "";
+    for (int i = 0; i < CSLCount(papszList); i++)
+    {
+        char** papszTokens = CSLTokenizeString2(papszList[i], " :：", 0);
+        int nTokens = CSLCount(papszTokens);
+        if (nTokens != 2)
+            continue;
 
-    CPLString strValue = papszTokens[1];
-    CSLDestroy(papszTokens);
+        if (!EQUAL(papszTokens[0], pszKey))
+            continue;
 
-    return strValue;
+        CPLString strValue = papszTokens[1];
+        CSLDestroy(papszTokens);
+
+        return strValue;
+    }
+
+    return "";
 }
