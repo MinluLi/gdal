@@ -28,6 +28,7 @@
 ****************************************************************************/
 
 #include "cnsdtfsrs.h"
+#include <string>
 
 GIntBig GetFilePosition(VSILFILE* fp, const char* pszMark, int bBegin = TRUE)
 {
@@ -339,13 +340,11 @@ int ParseOSR2Header(const char* pszProjection, char** papszHeader)
 /************************************************************************/
 
 CPLString OSR_GDS(char** papszNV, const char* pszField, const char* pszDefaultValue)
-
 {
-    int         iLine;
-
     if (papszNV == nullptr || papszNV[0] == nullptr)
         return pszDefaultValue;
 
+    int iLine = 0;
     for (iLine = 0;
         papszNV[iLine] != nullptr &&
         !EQUALN(papszNV[iLine], pszField, strlen(pszField));
@@ -354,19 +353,44 @@ CPLString OSR_GDS(char** papszNV, const char* pszField, const char* pszDefaultVa
 
     if (papszNV[iLine] == nullptr)
         return pszDefaultValue;
+
+
+    CPLString osResult;
+    char** papszTokens;
+
+    papszTokens = CSLTokenizeString(papszNV[iLine]);
+
+    if (CSLCount(papszTokens) > 1)
+        osResult = papszTokens[1];
     else
-    {
-        CPLString osResult;
-        char** papszTokens;
+        osResult = pszDefaultValue;
 
-        papszTokens = CSLTokenizeString(papszNV[iLine]);
+    CSLDestroy(papszTokens);
+    return osResult;
+}
 
-        if (CSLCount(papszTokens) > 1)
-            osResult = papszTokens[1];
-        else
-            osResult = pszDefaultValue;
+int FindString(const char* pszString, const char* pszMatch)
+//char const* find_char_strs(char const* p, char const* q)
+{
+    if (nullptr == pszString && nullptr == pszMatch)
+        return -1;
 
-        CSLDestroy(papszTokens);
-        return osResult;
-    }
+    std::string p = pszString;
+    std::string q = pszMatch;
+
+    auto pos = p.find(q);
+    return static_cast<int>(pos);
+}
+
+CPLString ParseKeyValue(const char* pszString)
+{
+    char** papszTokens = CSLTokenizeString2(pszString, " :：", 0);
+    int nTokens = CSLCount(papszTokens);
+    if (nTokens != 2)
+        return "";
+
+    CPLString strValue = papszTokens[1];
+    CSLDestroy(papszTokens);
+
+    return strValue;
 }

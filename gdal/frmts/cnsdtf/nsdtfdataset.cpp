@@ -70,7 +70,7 @@ protected:
     int         bNoDataSet;
     double      dfNoDataValue;
 
-    int ParseHeader(const char* pszHeader);
+    int ParseHeader(const char* pszHeader, int& nStartOfData);
 
 public:
     NSDTFDataset();
@@ -416,7 +416,7 @@ char NSDTFDataset::Getc()
         return achReadBuf[nOffsetInBuffer++];
 
     nBufferOffset = VSIFTellL(fp);
-    int nRead = VSIFReadL(achReadBuf, 1, sizeof(achReadBuf), fp);
+    auto nRead = VSIFReadL(achReadBuf, 1, sizeof(achReadBuf), fp);
 
     for (size_t i = nRead; i < sizeof(achReadBuf); i++)
         achReadBuf[i] = '\0';
@@ -484,8 +484,6 @@ GDALDataset* NSDTFDataset::Open(GDALOpenInfo* poOpenInfo)
     if (!Identify(poOpenInfo))
         return nullptr;
 
-    int i = 0;
-
     /* -------------------------------------------------------------------- */
     /*      Create a corresponding GDALDataset.                             */
     /* -------------------------------------------------------------------- */
@@ -495,7 +493,8 @@ GDALDataset* NSDTFDataset::Open(GDALOpenInfo* poOpenInfo)
     /* -------------------------------------------------------------------- */
     /*      Parse the header.                                               */
     /* -------------------------------------------------------------------- */
-    if (!poDS->ParseHeader((const char*)poOpenInfo->pabyHeader))
+    int nStartOfData = -1;
+    if (!poDS->ParseHeader((const char*)poOpenInfo->pabyHeader, nStartOfData))
     {
         delete poDS;
         return nullptr;
@@ -513,39 +512,6 @@ GDALDataset* NSDTFDataset::Open(GDALOpenInfo* poOpenInfo)
             poOpenInfo->pszFilename);
         delete poDS;
         return nullptr;
-    }
-
-    /* -------------------------------------------------------------------- */
-    /*      Find the start of real data.                                    */
-    /* -------------------------------------------------------------------- */
-    int         nStartOfData;
-
-    for (i = 0; TRUE; i++)
-    {
-        char cChar = poOpenInfo->pabyHeader[i];
-        if (cChar == '\0')
-        {
-            CPLError(CE_Failure, CPLE_AppDefined,
-                "Couldn't find data values in NSDTF Grid file.\n");
-            delete poDS;
-            return nullptr;
-        }
-
-        if (cChar == '\r' || cChar == '\n')
-        {
-            char cNext = poOpenInfo->pabyHeader[i + 1];
-            if (isalpha(cNext) || isalpha(poOpenInfo->pabyHeader[i + 2]))
-                continue;
-
-            if ((cNext >= '0' && cNext <= '9')
-                || cNext == '-'
-                || cNext == '.')
-            {
-                nStartOfData = i + 1;
-                /* Beginning of real data found. */
-                break;
-            }
-        }
     }
 
     /* -------------------------------------------------------------------- */
@@ -645,9 +611,9 @@ GDALDataset* NSDTFDataset::Open(GDALOpenInfo* poOpenInfo)
 /*                          ParseHeader()                               */
 /************************************************************************/
 
-int NSDTFDataset::ParseHeader(const char* pszHeader)
+int NSDTFDataset::ParseHeader(const char* pszHeader, int& nStartOfData)
 {
-    char** papszTokens = CSLTokenizeString2(pszHeader, " \n\r", 0);
+    char** papszTokens = CSLTokenizeString2(pszHeader, "\n\r", 0);
     int nTokens = CSLCount(papszTokens);
     if (nTokens < 14)
     {
@@ -680,8 +646,8 @@ int NSDTFDataset::ParseHeader(const char* pszHeader)
     adfGeoTransform[4] = 0.0;
     adfGeoTransform[5] = -CPLAtofM(papszTokens[8]);
 
-    nRasterXSize = atoi(papszTokens[9]);
-    nRasterYSize = atoi(papszTokens[10]);
+    nRasterYSize = atoi(papszTokens[9]);
+    nRasterXSize = atoi(papszTokens[10]);
 
     if (!GDALCheckDatasetDimensions(nRasterXSize, nRasterYSize))
     {
@@ -693,6 +659,30 @@ int NSDTFDataset::ParseHeader(const char* pszHeader)
     eDataType = GDT_Int32;
     bNoDataSet = TRUE;
     dfNoDataValue = CPLAtofM(papszTokens[12]);
+
+    int nPos = FindString(pszHeader, papszTokens[12]);
+    nStartOfData = nPos + static_cast<int>(strlen(papszTokens[12]));
+
+    while (pszHeader[nStartOfData] == ' ' || pszHeader[nStartOfData] == '\n' || pszHeader[nStartOfData] == '\r')
+    {
+        nStartOfData++;
+    }
+
+    size_t nLine13Len = strlen(papszTokens[13]);
+    if (!EQUALN(pszHeader + nStartOfData, papszTokens[13], nLine13Len))
+    {
+        CSLDestroy(papszTokens);
+        return FALSE;
+    }
+
+    char** papsz13Tokens = CSLTokenizeString2(papszTokens[13], " ", 0);
+    int n13Tokens = CSLCount(papsz13Tokens);
+    CSLDestroy(papsz13Tokens);
+    if (n13Tokens != 10)
+    {
+        CSLDestroy(papszTokens);
+        return FALSE;
+    }
 
     CSLDestroy(papszTokens);
     return TRUE;
@@ -823,16 +813,17 @@ GDALDataset* NSDTFDataset::CreateCopy(
         "NSDTF-DEM\n"
         "1.0\n"
         "%s\n"
-        "0.0\n"
+        "%.6f\n"
         "0\n"
-        "%.12f\n"
-        "%.12f\n"
-        "%.12f\n"
-        "%.12f\n"
+        "%.6f\n"
+        "%.6f\n"
+        "%.6f\n"
+        "%.6f\n"
         "%d\n"
         "%d\n"
         "%d\n",	//Scale
         pszMeterUnit,
+        0.0, //alpha
         adfGeoTransform[0],
         adfGeoTransform[3],
         ABS(adfGeoTransform[1]),

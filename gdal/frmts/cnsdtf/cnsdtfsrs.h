@@ -41,5 +41,8 @@ int ParseOSR2Header(const char* pszProjection, char** papszHeader);
 
 CPLString OSR_GDS(char** papszNV, const char* pszField, const char* pszDefaultValue);
 
+int FindString(const char* pszString, const char* pszMatch);
+
+CPLString ParseKeyValue(const char* pszString);
 
 #endif /* _CNSDTFSRS_H_INCLUDED */

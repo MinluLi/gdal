@@ -73,7 +73,7 @@ protected:
     double      dfMin;
     double      dfMax;
 
-    int ParseHeader(const char* pszHeader);
+    int ParseHeader(const char* pszHeader, int& nStartOfData);
 
 public:
     CNSDTFDataset();
@@ -504,7 +504,7 @@ int CNSDTFDataset::Identify(GDALOpenInfo* poOpenInfo)
             EQUALN((const char*)poOpenInfo->pabyHeader, "HZoom", 5)))
         return FALSE;
 
-    char** papszTokens = CSLTokenizeString2((const char*)poOpenInfo->pabyHeader, " \n\r\t", 0);
+    char** papszTokens = CSLTokenizeString2((const char*)poOpenInfo->pabyHeader, "\n\r", 0);
     int nTokens = CSLCount(papszTokens);
     if (nTokens < 11)	//the header at (the) least 11 lines
     {
@@ -513,10 +513,9 @@ int CNSDTFDataset::Identify(GDALOpenInfo* poOpenInfo)
     }
 
     if (poOpenInfo->nHeaderBytes < 40 ||
-        !(EQUALN(papszTokens[0], "DataMark:CNSDTF-DEM", 19) ||
-            EQUALN(papszTokens[0], "DataMark:CNSDTF-RAS", 19) ||
-            EQUALN(papszTokens[0], "DataMark:CSDTF-DEM", 18) ||
-            EQUALN(papszTokens[0], "DataMark:CSDTF-RAS", 18))
+        !(EQUALN(papszTokens[0], "DataMark:", 9) &&
+            (EQUALN(papszTokens[1], "CNSDTF-DEM", 10) ||
+                EQUALN(papszTokens[1], "CNSDTF-RAS", 10)))
         )
     {
         CSLDestroy(papszTokens);
@@ -537,6 +536,7 @@ GDALDataset* CNSDTFDataset::Open(GDALOpenInfo* poOpenInfo)
         return nullptr;
 
     int i = 0;
+    int         nStartOfData;
 
     /* -------------------------------------------------------------------- */
     /*      Create a corresponding GDALDataset.                             */
@@ -547,7 +547,7 @@ GDALDataset* CNSDTFDataset::Open(GDALOpenInfo* poOpenInfo)
     /* -------------------------------------------------------------------- */
     /*      Parse the header.                                               */
     /* -------------------------------------------------------------------- */
-    if (!poDS->ParseHeader((const char*)poOpenInfo->pabyHeader))
+    if (!poDS->ParseHeader((const char*)poOpenInfo->pabyHeader, nStartOfData))
     {
         delete poDS;
         return nullptr;
@@ -570,7 +570,6 @@ GDALDataset* CNSDTFDataset::Open(GDALOpenInfo* poOpenInfo)
     /* -------------------------------------------------------------------- */
     /*      Find the start of real data.                                    */
     /* -------------------------------------------------------------------- */
-    int         nStartOfData;
 
     for (i = 0; TRUE; i++)
     {
@@ -697,12 +696,12 @@ GDALDataset* CNSDTFDataset::Open(GDALOpenInfo* poOpenInfo)
 /*                          ParseHeader()                               */
 /************************************************************************/
 
-int CNSDTFDataset::ParseHeader(const char* pszHeader)
+int CNSDTFDataset::ParseHeader(const char* pszHeader, int& nStartOfData)
 {
-    int i, j;
-    char** papszTokens = CSLTokenizeString2(pszHeader, " \n\r\t:：", 0);
+    char** papszTokens = CSLTokenizeString2(pszHeader, "\n\r", 0);
     int nTokens = CSLCount(papszTokens);
 
+    int i, j;
     if ((i = CSLFindString(papszTokens, "DataMark")) < 0 || i + 1 >= nTokens)
     {
         CSLDestroy(papszTokens);
@@ -859,6 +858,14 @@ int CNSDTFDataset::ParseHeader(const char* pszHeader)
 
     if ((i = CSLFindString(papszTokens, "ZUnit")) >= 0 && i + 1 < nTokens)
         osUnitType = papszTokens[i + 1];
+
+    int nPos = FindString(pszHeader, "MaxV:");
+    nStartOfData = nPos + 5;
+
+    while (pszHeader[nStartOfData] == ' ' || pszHeader[nStartOfData] == '\n' || pszHeader[nStartOfData] == '\r')
+    {
+        nStartOfData++;
+    }
 
     CSLDestroy(papszTokens);
     return TRUE;
