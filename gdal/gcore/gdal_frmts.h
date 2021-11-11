@@ -209,6 +209,7 @@ void CPL_DLL GDALRegister_TFATMBTiles(void);
 void CPL_DLL GDALRegister_NSDTF(void);
 void CPL_DLL GDALRegister_CNSDTF(void);
 void CPL_DLL GDALRegister_ImageInfo(void);
+void CPL_DLL GDALRegister_VirtuoZo(void);
 //void CPL_DLL GDALRegister_IIQ(void);
 
 CPL_C_END

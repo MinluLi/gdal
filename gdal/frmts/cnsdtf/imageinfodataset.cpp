@@ -1,9 +1,9 @@
-/******************************************************************************
+﻿/******************************************************************************
 *
 * Project:  GDAL
 * Purpose:  Implements ImageInfo Grid Format.
 * Author:   Minlu Li, liminlu0314@163.com
-* Describe: ImageInfo Grid format. Reference:GB/T 17798-2007
+* Describe: ImageInfo Grid format.
 *
 ******************************************************************************
 * Copyright (c) 2013, Minlu Li (liminlu0314@163.com)
@@ -335,7 +335,6 @@ GDALDataset* ImageInfoDataset::CreateCopy(
     poSrcDS->GetGeoTransform(adfGeoTransform);
 
     GDALRasterBand* poBand = poSrcDS->GetRasterBand(1);
-    int bSuccess;
 
     char szHeader[400];
     sprintf(szHeader,
@@ -384,12 +383,12 @@ GDALDataset* ImageInfoDataset::CreateCopy(
 
     CPLErrorReset();
 
-    ImageInfoDataset* poNsdtfDS = new ImageInfoDataset();
-    poNsdtfDS->nRasterXSize = nXSize;
-    poNsdtfDS->nRasterYSize = nYSize;
-    poNsdtfDS->nBands = 1;
-    poNsdtfDS->SetBand(1, new AscRasterBand(poNsdtfDS, 1));
-    return poNsdtfDS;
+    ImageInfoDataset* poTmpDS = new ImageInfoDataset();
+    poTmpDS->nRasterXSize = nXSize;
+    poTmpDS->nRasterYSize = nYSize;
+    poTmpDS->nBands = 1;
+    poTmpDS->SetBand(1, new AscRasterBand(poTmpDS, 1));
+    return poTmpDS;
 }
 
 /************************************************************************/

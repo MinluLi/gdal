@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
 *
 * Project:  GDAL
 * Purpose:  Implements NSDTF Grid Format.
@@ -87,7 +87,6 @@ NSDTFDataset::~NSDTFDataset()
 /************************************************************************/
 
 int NSDTFDataset::Identify(GDALOpenInfo* poOpenInfo)
-
 {
     /* -------------------------------------------------------------------- */
     /*      Does this look like an NSDTF grid file?                         */
@@ -470,12 +469,12 @@ GDALDataset* NSDTFDataset::CreateCopy(
 
     CPLErrorReset();
 
-    NSDTFDataset* poNsdtfDS = new NSDTFDataset();
-    poNsdtfDS->nRasterXSize = nXSize;
-    poNsdtfDS->nRasterYSize = nYSize;
-    poNsdtfDS->nBands = 1;
-    poNsdtfDS->SetBand(1, new AscRasterBand(poNsdtfDS, 1));
-    return poNsdtfDS;
+    NSDTFDataset* poTmpDS = new NSDTFDataset();
+    poTmpDS->nRasterXSize = nXSize;
+    poTmpDS->nRasterYSize = nYSize;
+    poTmpDS->nBands = 1;
+    poTmpDS->SetBand(1, new AscRasterBand(poTmpDS, 1));
+    return poTmpDS;
 }
 
 /************************************************************************/

@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
 *
 * Project:  GDAL
 * Purpose:  Implements CNSDTF\NSDTF\ImageInfo Grid Format.
@@ -37,14 +37,17 @@ CPLErr WriteImageData(GDALRasterBand* poBand, int nXSize, int nYSize,
     /*     Builds the format string used for printing float values.         */
     /* -------------------------------------------------------------------- */
     char szFormatFloat[32];
-    strcpy(szFormatFloat, " %.20f ");
+    strcpy(szFormatFloat, "%.6f ");
     const char* pszDecimalPrecision = CSLFetchNameValue(papszOptions, "DECIMAL_PRECISION");
     if (pszDecimalPrecision)
     {
         int nDecimal = atoi(pszDecimalPrecision);
         if (nDecimal >= 0)
-            sprintf(szFormatFloat, " %%.%df ", nDecimal);
+            sprintf(szFormatFloat, "%%.%df ", nDecimal);
     }
+
+    // invert line
+    bool bInvertLine = CPLTestBool(CSLFetchNameValueDef(papszOptions, "INVERTLINE", "FALSE"));
 
     char szHeader[2000];
 
@@ -67,62 +70,126 @@ CPLErr WriteImageData(GDALRasterBand* poBand, int nXSize, int nYSize,
     else
         padfScanline = (double*)CPLMalloc(nXSize * GDALGetDataTypeSize(GDT_Float64) / 8);
 
-    for (int iLine = 0; eErr == CE_None && iLine < nYSize; iLine++)
+    if (bInvertLine)// from down to up
     {
-        CPLString osBuf;
-        eErr = poBand->RasterIO(GF_Read, 0, iLine, nXSize, 1,
-            (bReadAsInt) ? (void*)panScanline : (void*)padfScanline,
-            nXSize, 1, (bReadAsInt) ? GDT_Int32 : GDT_Float64, 0, 0, nullptr);
-
-        if (bReadAsInt)
+        for (int iLine = nYSize - 1; eErr == CE_None && iLine >= 0; iLine--)
         {
-            for (int iPixel = 0; iPixel < nXSize; iPixel++)
-            {
-                sprintf(szHeader, "%d ", static_cast<int>(padfScanline[iPixel] * dfScale));
-                if (iPixel % 10 == 9)
-                    sprintf(szHeader + strlen(szHeader), "\n");
+            CPLString osBuf;
+            eErr = poBand->RasterIO(GF_Read, 0, iLine, nXSize, 1,
+                (bReadAsInt) ? (void*)panScanline : (void*)padfScanline,
+                nXSize, 1, (bReadAsInt) ? GDT_Int32 : GDT_Float64, 0, 0, nullptr);
 
-                osBuf += szHeader;
-                if ((iPixel & 1023) == 0 || iPixel == nXSize - 1)
+            if (bReadAsInt)
+            {
+                for (int iPixel = 0; iPixel < nXSize; iPixel++)
                 {
-                    if (VSIFWriteL(osBuf, (int)osBuf.size(), 1, fpImage) != 1)
+                    sprintf(szHeader, "%d ", static_cast<int>(panScanline[iPixel] * dfScale));
+                    if (iPixel % 10 == 9)
+                        sprintf(szHeader + strlen(szHeader), "\n");
+
+                    osBuf += szHeader;
+                    if ((iPixel & 1023) == 0 || iPixel == nXSize - 1)
                     {
-                        eErr = CE_Failure;
-                        CPLError(CE_Failure, CPLE_AppDefined, "Write failed, disk full?\n");
-                        break;
+                        if (VSIFWriteL(osBuf, (int)osBuf.size(), 1, fpImage) != 1)
+                        {
+                            eErr = CE_Failure;
+                            CPLError(CE_Failure, CPLE_AppDefined, "Write failed, disk full?\n");
+                            break;
+                        }
+                        osBuf = "";
                     }
-                    osBuf = "";
                 }
             }
-        }
-        else
-        {
-            for (int iPixel = 0; iPixel < nXSize; iPixel++)
+            else
             {
-                sprintf(szHeader, szFormatFloat, padfScanline[iPixel] * dfScale);
-                if (iPixel % 10 == 9)
-                    sprintf(szHeader + strlen(szHeader), "\n");
-
-                osBuf += szHeader;
-                if ((iPixel & 1023) == 0 || iPixel == nXSize - 1)
+                for (int iPixel = 0; iPixel < nXSize; iPixel++)
                 {
-                    if (VSIFWriteL(osBuf, (int)osBuf.size(), 1, fpImage) != 1)
+                    sprintf(szHeader, szFormatFloat, padfScanline[iPixel] * dfScale);
+                    if (iPixel % 10 == 9)
+                        sprintf(szHeader + strlen(szHeader), "\n");
+
+                    osBuf += szHeader;
+                    if ((iPixel & 1023) == 0 || iPixel == nXSize - 1)
                     {
-                        eErr = CE_Failure;
-                        CPLError(CE_Failure, CPLE_AppDefined, "Write failed, disk full?\n");
-                        break;
+                        if (VSIFWriteL(osBuf, (int)osBuf.size(), 1, fpImage) != 1)
+                        {
+                            eErr = CE_Failure;
+                            CPLError(CE_Failure, CPLE_AppDefined, "Write failed, disk full?\n");
+                            break;
+                        }
+                        osBuf = "";
                     }
-                    osBuf = "";
                 }
             }
-        }
-        VSIFWriteL((void*)"\n", 1, 1, fpImage);
+            VSIFWriteL((void*)"\n", 1, 1, fpImage);
 
-        if (eErr == CE_None &&
-            !pfnProgress((iLine + 1) / ((double)nYSize), nullptr, pProgressData))
+            if (eErr == CE_None &&
+                !pfnProgress((iLine + 1) / ((double)nYSize), nullptr, pProgressData))
+            {
+                eErr = CE_Failure;
+                CPLError(CE_Failure, CPLE_UserInterrupt, "User terminated CreateCopy()");
+            }
+        }
+    }
+    else // from up to down
+    {
+        for (int iLine = 0; eErr == CE_None && iLine < nYSize; iLine++)
         {
-            eErr = CE_Failure;
-            CPLError(CE_Failure, CPLE_UserInterrupt, "User terminated CreateCopy()");
+            CPLString osBuf;
+            eErr = poBand->RasterIO(GF_Read, 0, iLine, nXSize, 1,
+                (bReadAsInt) ? (void*)panScanline : (void*)padfScanline,
+                nXSize, 1, (bReadAsInt) ? GDT_Int32 : GDT_Float64, 0, 0, nullptr);
+
+            if (bReadAsInt)
+            {
+                for (int iPixel = 0; iPixel < nXSize; iPixel++)
+                {
+                    sprintf(szHeader, "%d ", static_cast<int>(panScanline[iPixel] * dfScale));
+                    if (iPixel % 10 == 9)
+                        sprintf(szHeader + strlen(szHeader), "\n");
+
+                    osBuf += szHeader;
+                    if ((iPixel & 1023) == 0 || iPixel == nXSize - 1)
+                    {
+                        if (VSIFWriteL(osBuf, (int)osBuf.size(), 1, fpImage) != 1)
+                        {
+                            eErr = CE_Failure;
+                            CPLError(CE_Failure, CPLE_AppDefined, "Write failed, disk full?\n");
+                            break;
+                        }
+                        osBuf = "";
+                    }
+                }
+            }
+            else
+            {
+                for (int iPixel = 0; iPixel < nXSize; iPixel++)
+                {
+                    sprintf(szHeader, szFormatFloat, padfScanline[iPixel] * dfScale);
+                    if (iPixel % 10 == 9)
+                        sprintf(szHeader + strlen(szHeader), "\n");
+
+                    osBuf += szHeader;
+                    if ((iPixel & 1023) == 0 || iPixel == nXSize - 1)
+                    {
+                        if (VSIFWriteL(osBuf, (int)osBuf.size(), 1, fpImage) != 1)
+                        {
+                            eErr = CE_Failure;
+                            CPLError(CE_Failure, CPLE_AppDefined, "Write failed, disk full?\n");
+                            break;
+                        }
+                        osBuf = "";
+                    }
+                }
+            }
+            VSIFWriteL((void*)"\n", 1, 1, fpImage);
+
+            if (eErr == CE_None &&
+                !pfnProgress((iLine + 1) / ((double)nYSize), nullptr, pProgressData))
+            {
+                eErr = CE_Failure;
+                CPLError(CE_Failure, CPLE_UserInterrupt, "User terminated CreateCopy()");
+            }
         }
     }
 
@@ -136,9 +203,10 @@ CPLErr WriteImageData(GDALRasterBand* poBand, int nXSize, int nYSize,
 /*                             AscRasterBand()                          */
 /************************************************************************/
 
-AscRasterBand::AscRasterBand(AscDataset* poDS, int nDataStart)
+AscRasterBand::AscRasterBand(AscDataset* poDS, int nDataStart, bool bInvertLine)
 {
     this->poDS = poDS;
+    this->bInvertLine = bInvertLine;
 
     nBand = 1;
     eDataType = poDS->eDataType;
@@ -157,6 +225,7 @@ AscRasterBand::AscRasterBand(AscDataset* poDS, int nDataStart)
     }
 
     panLineOffset[0] = nDataStart;
+
     dfScale = poDS->dfScale;
 }
 
@@ -182,6 +251,10 @@ CPLErr AscRasterBand::IReadBlock(int nBlockXOff, int nBlockYOff,
     if (nBlockYOff < 0 || nBlockYOff > poODS->nRasterYSize - 1
         || nBlockXOff != 0 || panLineOffset == nullptr || poODS->fp == nullptr)
         return CE_Failure;
+
+    // TODO 需要根据bInvertLine来改变读取数据内容
+    if (bInvertLine)
+        nBlockYOff = poODS->nRasterYSize - nBlockYOff;
 
     if (panLineOffset[nBlockYOff] == 0)
     {

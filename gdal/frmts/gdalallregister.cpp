@@ -593,6 +593,7 @@ void CPL_STDCALL GDALAllRegister()
     GDALRegister_NSDTF();
     GDALRegister_CNSDTF();
     GDALRegister_ImageInfo();
+    GDALRegister_VirtuoZo();
 #endif
 
 #ifdef FRMT_iiq

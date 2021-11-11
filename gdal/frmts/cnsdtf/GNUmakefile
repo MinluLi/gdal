@@ -1,7 +1,7 @@
 
 include .. / .. / GDALmake.opt
 
-OBJ = cnsdtfsrs.o ascdataset.o cnsdtfdataset.o nsdtfdataset.o imageinfodataset.o
+OBJ = cnsdtfsrs.o ascdataset.o cnsdtfdataset.o nsdtfdataset.o imageinfodataset.o virtuozodataset.o
 
 CPPFLAGS : = $(GDAL_INCLUDE) $(CPPFLAGS) $(XTRA_OPT)
 

@@ -456,7 +456,7 @@ GDALDataset* CNSDTFDataset::CreateCopy(
         nYSize, nXSize);
 
     GDALRasterBand* poBand = poSrcDS->GetRasterBand(1);
-    double dfNoData, dfScale, dfMin, dfMax;
+    double dfScale, dfMin, dfMax;
     int bSuccess;
 
     const char* pszUnitType = poBand->GetUnitType();
@@ -512,12 +512,12 @@ GDALDataset* CNSDTFDataset::CreateCopy(
 
     CPLErrorReset();
 
-    CNSDTFDataset* poCnsdtfDS = new CNSDTFDataset();
-    poCnsdtfDS->nRasterXSize = nXSize;
-    poCnsdtfDS->nRasterYSize = nYSize;
-    poCnsdtfDS->nBands = 1;
-    poCnsdtfDS->SetBand(1, new AscRasterBand(poCnsdtfDS, 1));
-    return poCnsdtfDS;
+    CNSDTFDataset* poTmpDS = new CNSDTFDataset();
+    poTmpDS->nRasterXSize = nXSize;
+    poTmpDS->nRasterYSize = nYSize;
+    poTmpDS->nBands = 1;
+    poTmpDS->SetBand(1, new AscRasterBand(poTmpDS, 1));
+    return poTmpDS;
 }
 
 /************************************************************************/

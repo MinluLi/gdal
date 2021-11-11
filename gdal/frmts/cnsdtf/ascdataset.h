@@ -86,10 +86,11 @@ class AscRasterBand : public GDALPamRasterBand
 public:
     GUIntBig* panLineOffset;
     double dfScale;
+    bool bInvertLine;
 
 public:
 
-    AscRasterBand(AscDataset* poDS, int nDataStart);
+    AscRasterBand(AscDataset* poDS, int nDataStart, bool bInvertLine = false);
     virtual ~AscRasterBand();
 
     virtual double GetNoDataValue(int* pbSuccess);
