@@ -1,0 +1,82 @@
+﻿  
+  Microsoft (R) ����ά��ʵ�ù��� 14.29.30038.1 ��
+  ��Ȩ���� (C) Microsoft Corporation��  ��������Ȩ����
+  
+  	cl  /Zi /Fd..\..\gdal\gdal301_d.pdb /nologo /MP%NUMBER_OF_PROCESSORS% /MDd /EHsc /FC /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE /DDEBUG /DDEBUG_VSIMALLOC /W4 /wd4127 /wd4251 /wd4275 /wd4786 /wd4100 /wd4245 /wd4206 /wd4351 /wd4611  /DHAVE_SSE_AT_COMPILE_TIME /DHAVE_SSSE3_AT_COMPILE_TIME -I..\..\gdal\port -I..\..\gdal\ogr -I..\..\gdal\gcore  -I..\..\gdal\alg -I..\..\gdal\ogr\ogrsf_frmts  -I..\..\gdal\gnm -I..\..\gdal\gnm\gnm_frmts -I..\..\gdal\apps /DHAVE_AVX_AT_COMPILE_TIME   -DGNM_ENABLED  -DHAVE_OPENCL -DGDAL_COMPILATION -I.  -Itut  -I\src /c test_cpl.cpp /Fotest_cpl.obj
+  test_cpl.cpp
+E:\GDAL\gdal.lml\autotest\cpp\test_cpl.cpp(29): warning C4005: “GDAL_COMPILATION”: 宏重定义
+  E:\GDAL\gdal.lml\autotest\cpp\test_cpl.cpp: note: 参见“GDAL_COMPILATION”的前一个定义
+  	cl  /Zi /Fd..\..\gdal\gdal301_d.pdb /nologo /MP%NUMBER_OF_PROCESSORS% /MDd /EHsc /FC /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE /DDEBUG /DDEBUG_VSIMALLOC /W4 /wd4127 /wd4251 /wd4275 /wd4786 /wd4100 /wd4245 /wd4206 /wd4351 /wd4611  /DHAVE_SSE_AT_COMPILE_TIME /DHAVE_SSSE3_AT_COMPILE_TIME -I..\..\gdal\port -I..\..\gdal\ogr -I..\..\gdal\gcore  -I..\..\gdal\alg -I..\..\gdal\ogr\ogrsf_frmts  -I..\..\gdal\gnm -I..\..\gdal\gnm\gnm_frmts -I..\..\gdal\apps /DHAVE_AVX_AT_COMPILE_TIME   -DGNM_ENABLED  -DHAVE_OPENCL -DGDAL_COMPILATION -I.  -Itut  -I\src /c test_gdal.cpp /Fotest_gdal.obj
+  test_gdal.cpp
+  	cl  /Zi /Fd..\..\gdal\gdal301_d.pdb /nologo /MP%NUMBER_OF_PROCESSORS% /MDd /EHsc /FC /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE /DDEBUG /DDEBUG_VSIMALLOC /W4 /wd4127 /wd4251 /wd4275 /wd4786 /wd4100 /wd4245 /wd4206 /wd4351 /wd4611  /DHAVE_SSE_AT_COMPILE_TIME /DHAVE_SSSE3_AT_COMPILE_TIME -I..\..\gdal\port -I..\..\gdal\ogr -I..\..\gdal\gcore  -I..\..\gdal\alg -I..\..\gdal\ogr\ogrsf_frmts  -I..\..\gdal\gnm -I..\..\gdal\gnm\gnm_frmts -I..\..\gdal\apps /DHAVE_AVX_AT_COMPILE_TIME   -DGNM_ENABLED  -DHAVE_OPENCL -DGDAL_COMPILATION -I.  -Itut  -I\src /c test_ogr.cpp /Fotest_ogr.obj
+  test_ogr.cpp
+  	cl  /Zi /Fd..\..\gdal\gdal301_d.pdb /nologo /MP%NUMBER_OF_PROCESSORS% /MDd /EHsc /FC /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE /DDEBUG /DDEBUG_VSIMALLOC /W4 /wd4127 /wd4251 /wd4275 /wd4786 /wd4100 /wd4245 /wd4206 /wd4351 /wd4611  /DHAVE_SSE_AT_COMPILE_TIME /DHAVE_SSSE3_AT_COMPILE_TIME -I..\..\gdal\port -I..\..\gdal\ogr -I..\..\gdal\gcore  -I..\..\gdal\alg -I..\..\gdal\ogr\ogrsf_frmts  -I..\..\gdal\gnm -I..\..\gdal\gnm\gnm_frmts -I..\..\gdal\apps /DHAVE_AVX_AT_COMPILE_TIME   -DGNM_ENABLED  -DHAVE_OPENCL -DGDAL_COMPILATION -I.  -Itut  -I\src /c test_osr.cpp /Fotest_osr.obj
+  test_osr.cpp
+  	cl  /Zi /Fd..\..\gdal\gdal301_d.pdb /nologo /MP%NUMBER_OF_PROCESSORS% /MDd /EHsc /FC /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE /DDEBUG /DDEBUG_VSIMALLOC /W4 /wd4127 /wd4251 /wd4275 /wd4786 /wd4100 /wd4245 /wd4206 /wd4351 /wd4611  /DHAVE_SSE_AT_COMPILE_TIME /DHAVE_SSSE3_AT_COMPILE_TIME -I..\..\gdal\port -I..\..\gdal\ogr -I..\..\gdal\gcore  -I..\..\gdal\alg -I..\..\gdal\ogr\ogrsf_frmts  -I..\..\gdal\gnm -I..\..\gdal\gnm\gnm_frmts -I..\..\gdal\apps /DHAVE_AVX_AT_COMPILE_TIME   -DGNM_ENABLED  -DHAVE_OPENCL -DGDAL_COMPILATION -I.  -Itut  -I\src /c test_osr_ct.cpp /Fotest_osr_ct.obj
+  test_osr_ct.cpp
+  	cl gdal_unit_test.cpp  /Zi /Fd..\..\gdal\gdal301_d.pdb /nologo /MP%NUMBER_OF_PROCESSORS% /MDd /EHsc /FC /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE /DDEBUG /DDEBUG_VSIMALLOC /W4 /wd4127 /wd4251 /wd4275 /wd4786 /wd4100 /wd4245 /wd4206 /wd4351 /wd4611  /DHAVE_SSE_AT_COMPILE_TIME /DHAVE_SSSE3_AT_COMPILE_TIME -I..\..\gdal\port -I..\..\gdal\ogr -I..\..\gdal\gcore  -I..\..\gdal\alg -I..\..\gdal\ogr\ogrsf_frmts  -I..\..\gdal\gnm -I..\..\gdal\gnm\gnm_frmts -I..\..\gdal\apps /DHAVE_AVX_AT_COMPILE_TIME   -DGNM_ENABLED  -DHAVE_OPENCL -DGDAL_COMPILATION -I.  -Itut  -I\src test_cpl.obj  test_alg.obj  test_gdal.obj  test_gdal_aaigrid.obj  test_gdal_dted.obj  test_gdal_gtiff.obj  test_triangulation.obj  test_ogr.obj  test_ogr_geos.obj  test_ogr_shape.obj  test_osr.obj  test_osr_ct.obj  test_osr_pci.obj  test_osr_proj4.obj  test_marching_squares_square.obj  test_marching_squares_tile.obj  test_marching_squares_contour.obj  test_marching_squares_polygon.obj  tut/tut_gdal.obj ..\..\gdal\gdal_i.lib E:\GDAL\gdal_need\geos-3.7.1/lib/geos_c.lib 
+  gdal_unit_test.cpp
+test_alg.obj : error LNK2038: 检测到“_ITERATOR_DEBUG_LEVEL”的不匹配项: 值“0”不匹配值“2”(gdal_unit_test.obj 中)
+test_alg.obj : error LNK2038: 检测到“RuntimeLibrary”的不匹配项: 值“MD_DynamicRelease”不匹配值“MDd_DynamicDebug”(gdal_unit_test.obj 中)
+test_gdal_aaigrid.obj : error LNK2038: 检测到“_ITERATOR_DEBUG_LEVEL”的不匹配项: 值“0”不匹配值“2”(gdal_unit_test.obj 中)
+test_gdal_aaigrid.obj : error LNK2038: 检测到“RuntimeLibrary”的不匹配项: 值“MD_DynamicRelease”不匹配值“MDd_DynamicDebug”(gdal_unit_test.obj 中)
+test_gdal_dted.obj : error LNK2038: 检测到“_ITERATOR_DEBUG_LEVEL”的不匹配项: 值“0”不匹配值“2”(gdal_unit_test.obj 中)
+test_gdal_dted.obj : error LNK2038: 检测到“RuntimeLibrary”的不匹配项: 值“MD_DynamicRelease”不匹配值“MDd_DynamicDebug”(gdal_unit_test.obj 中)
+test_gdal_gtiff.obj : error LNK2038: 检测到“_ITERATOR_DEBUG_LEVEL”的不匹配项: 值“0”不匹配值“2”(gdal_unit_test.obj 中)
+test_gdal_gtiff.obj : error LNK2038: 检测到“RuntimeLibrary”的不匹配项: 值“MD_DynamicRelease”不匹配值“MDd_DynamicDebug”(gdal_unit_test.obj 中)
+test_triangulation.obj : error LNK2038: 检测到“_ITERATOR_DEBUG_LEVEL”的不匹配项: 值“0”不匹配值“2”(gdal_unit_test.obj 中)
+test_triangulation.obj : error LNK2038: 检测到“RuntimeLibrary”的不匹配项: 值“MD_DynamicRelease”不匹配值“MDd_DynamicDebug”(gdal_unit_test.obj 中)
+test_ogr_geos.obj : error LNK2038: 检测到“_ITERATOR_DEBUG_LEVEL”的不匹配项: 值“0”不匹配值“2”(gdal_unit_test.obj 中)
+test_ogr_geos.obj : error LNK2038: 检测到“RuntimeLibrary”的不匹配项: 值“MD_DynamicRelease”不匹配值“MDd_DynamicDebug”(gdal_unit_test.obj 中)
+test_ogr_shape.obj : error LNK2038: 检测到“_ITERATOR_DEBUG_LEVEL”的不匹配项: 值“0”不匹配值“2”(gdal_unit_test.obj 中)
+test_ogr_shape.obj : error LNK2038: 检测到“RuntimeLibrary”的不匹配项: 值“MD_DynamicRelease”不匹配值“MDd_DynamicDebug”(gdal_unit_test.obj 中)
+test_osr_pci.obj : error LNK2038: 检测到“_ITERATOR_DEBUG_LEVEL”的不匹配项: 值“0”不匹配值“2”(gdal_unit_test.obj 中)
+test_osr_pci.obj : error LNK2038: 检测到“RuntimeLibrary”的不匹配项: 值“MD_DynamicRelease”不匹配值“MDd_DynamicDebug”(gdal_unit_test.obj 中)
+test_osr_proj4.obj : error LNK2038: 检测到“_ITERATOR_DEBUG_LEVEL”的不匹配项: 值“0”不匹配值“2”(gdal_unit_test.obj 中)
+test_osr_proj4.obj : error LNK2038: 检测到“RuntimeLibrary”的不匹配项: 值“MD_DynamicRelease”不匹配值“MDd_DynamicDebug”(gdal_unit_test.obj 中)
+test_marching_squares_square.obj : error LNK2038: 检测到“_ITERATOR_DEBUG_LEVEL”的不匹配项: 值“0”不匹配值“2”(gdal_unit_test.obj 中)
+test_marching_squares_square.obj : error LNK2038: 检测到“RuntimeLibrary”的不匹配项: 值“MD_DynamicRelease”不匹配值“MDd_DynamicDebug”(gdal_unit_test.obj 中)
+test_marching_squares_tile.obj : error LNK2038: 检测到“_ITERATOR_DEBUG_LEVEL”的不匹配项: 值“0”不匹配值“2”(gdal_unit_test.obj 中)
+test_marching_squares_tile.obj : error LNK2038: 检测到“RuntimeLibrary”的不匹配项: 值“MD_DynamicRelease”不匹配值“MDd_DynamicDebug”(gdal_unit_test.obj 中)
+test_marching_squares_contour.obj : error LNK2038: 检测到“_ITERATOR_DEBUG_LEVEL”的不匹配项: 值“0”不匹配值“2”(gdal_unit_test.obj 中)
+test_marching_squares_contour.obj : error LNK2038: 检测到“RuntimeLibrary”的不匹配项: 值“MD_DynamicRelease”不匹配值“MDd_DynamicDebug”(gdal_unit_test.obj 中)
+test_marching_squares_polygon.obj : error LNK2038: 检测到“_ITERATOR_DEBUG_LEVEL”的不匹配项: 值“0”不匹配值“2”(gdal_unit_test.obj 中)
+test_marching_squares_polygon.obj : error LNK2038: 检测到“RuntimeLibrary”的不匹配项: 值“MD_DynamicRelease”不匹配值“MDd_DynamicDebug”(gdal_unit_test.obj 中)
+tut_gdal.obj : error LNK2038: 检测到“_ITERATOR_DEBUG_LEVEL”的不匹配项: 值“0”不匹配值“2”(gdal_unit_test.obj 中)
+tut_gdal.obj : error LNK2038: 检测到“RuntimeLibrary”的不匹配项: 值“MD_DynamicRelease”不匹配值“MDd_DynamicDebug”(gdal_unit_test.obj 中)
+    正在创建库 gdal_unit_test.lib 和对象 gdal_unit_test.exp
+LINK : warning LNK4098: 默认库“MSVCRT”与其他库的使用冲突；请使用 /NODEFAULTLIB:library
+test_ogr_geos.obj : error LNK2001: 无法解析的外部符号 "public: virtual bool __cdecl GDALGroup::CopyFrom(class std::shared_ptr<class GDALGroup> const &,class GDALDataset *,class std::shared_ptr<class GDALGroup> const &,bool,unsigned __int64 &,unsigned __int64,int (__cdecl*)(double,char const *,void *),void *)" (?CopyFrom@GDALGroup@@UEAA_NAEBV?$shared_ptr@VGDALGroup@@@std@@PEAVGDALDataset@@0_NAEA_K_KP6AHNPEBDPEAX@Z6@Z)
+test_ogr_shape.obj : error LNK2001: 无法解析的外部符号 "public: virtual bool __cdecl GDALGroup::CopyFrom(class std::shared_ptr<class GDALGroup> const &,class GDALDataset *,class std::shared_ptr<class GDALGroup> const &,bool,unsigned __int64 &,unsigned __int64,int (__cdecl*)(double,char const *,void *),void *)" (?CopyFrom@GDALGroup@@UEAA_NAEBV?$shared_ptr@VGDALGroup@@@std@@PEAVGDALDataset@@0_NAEA_K_KP6AHNPEBDPEAX@Z6@Z)
+test_alg.obj : error LNK2001: 无法解析的外部符号 "public: virtual bool __cdecl GDALGroup::CopyFrom(class std::shared_ptr<class GDALGroup> const &,class GDALDataset *,class std::shared_ptr<class GDALGroup> const &,bool,unsigned __int64 &,unsigned __int64,int (__cdecl*)(double,char const *,void *),void *)" (?CopyFrom@GDALGroup@@UEAA_NAEBV?$shared_ptr@VGDALGroup@@@std@@PEAVGDALDataset@@0_NAEA_K_KP6AHNPEBDPEAX@Z6@Z)
+test_gdal_aaigrid.obj : error LNK2001: 无法解析的外部符号 "public: virtual bool __cdecl GDALGroup::CopyFrom(class std::shared_ptr<class GDALGroup> const &,class GDALDataset *,class std::shared_ptr<class GDALGroup> const &,bool,unsigned __int64 &,unsigned __int64,int (__cdecl*)(double,char const *,void *),void *)" (?CopyFrom@GDALGroup@@UEAA_NAEBV?$shared_ptr@VGDALGroup@@@std@@PEAVGDALDataset@@0_NAEA_K_KP6AHNPEBDPEAX@Z6@Z)
+test_gdal_dted.obj : error LNK2001: 无法解析的外部符号 "public: virtual bool __cdecl GDALGroup::CopyFrom(class std::shared_ptr<class GDALGroup> const &,class GDALDataset *,class std::shared_ptr<class GDALGroup> const &,bool,unsigned __int64 &,unsigned __int64,int (__cdecl*)(double,char const *,void *),void *)" (?CopyFrom@GDALGroup@@UEAA_NAEBV?$shared_ptr@VGDALGroup@@@std@@PEAVGDALDataset@@0_NAEA_K_KP6AHNPEBDPEAX@Z6@Z)
+test_gdal_gtiff.obj : error LNK2001: 无法解析的外部符号 "public: virtual bool __cdecl GDALGroup::CopyFrom(class std::shared_ptr<class GDALGroup> const &,class GDALDataset *,class std::shared_ptr<class GDALGroup> const &,bool,unsigned __int64 &,unsigned __int64,int (__cdecl*)(double,char const *,void *),void *)" (?CopyFrom@GDALGroup@@UEAA_NAEBV?$shared_ptr@VGDALGroup@@@std@@PEAVGDALDataset@@0_NAEA_K_KP6AHNPEBDPEAX@Z6@Z)
+test_ogr_geos.obj : error LNK2001: 无法解析的外部符号 "public: virtual double __cdecl GDALMDArray::GetOffset(bool *)const " (?GetOffset@GDALMDArray@@UEBANPEA_N@Z)
+test_ogr_shape.obj : error LNK2001: 无法解析的外部符号 "public: virtual double __cdecl GDALMDArray::GetOffset(bool *)const " (?GetOffset@GDALMDArray@@UEBANPEA_N@Z)
+test_alg.obj : error LNK2001: 无法解析的外部符号 "public: virtual double __cdecl GDALMDArray::GetOffset(bool *)const " (?GetOffset@GDALMDArray@@UEBANPEA_N@Z)
+test_gdal_aaigrid.obj : error LNK2001: 无法解析的外部符号 "public: virtual double __cdecl GDALMDArray::GetOffset(bool *)const " (?GetOffset@GDALMDArray@@UEBANPEA_N@Z)
+test_gdal_dted.obj : error LNK2001: 无法解析的外部符号 "public: virtual double __cdecl GDALMDArray::GetOffset(bool *)const " (?GetOffset@GDALMDArray@@UEBANPEA_N@Z)
+test_gdal_gtiff.obj : error LNK2001: 无法解析的外部符号 "public: virtual double __cdecl GDALMDArray::GetOffset(bool *)const " (?GetOffset@GDALMDArray@@UEBANPEA_N@Z)
+test_ogr_geos.obj : error LNK2001: 无法解析的外部符号 "public: virtual double __cdecl GDALMDArray::GetScale(bool *)const " (?GetScale@GDALMDArray@@UEBANPEA_N@Z)
+test_ogr_shape.obj : error LNK2001: 无法解析的外部符号 "public: virtual double __cdecl GDALMDArray::GetScale(bool *)const " (?GetScale@GDALMDArray@@UEBANPEA_N@Z)
+test_alg.obj : error LNK2001: 无法解析的外部符号 "public: virtual double __cdecl GDALMDArray::GetScale(bool *)const " (?GetScale@GDALMDArray@@UEBANPEA_N@Z)
+test_gdal_aaigrid.obj : error LNK2001: 无法解析的外部符号 "public: virtual double __cdecl GDALMDArray::GetScale(bool *)const " (?GetScale@GDALMDArray@@UEBANPEA_N@Z)
+test_gdal_dted.obj : error LNK2001: 无法解析的外部符号 "public: virtual double __cdecl GDALMDArray::GetScale(bool *)const " (?GetScale@GDALMDArray@@UEBANPEA_N@Z)
+test_gdal_gtiff.obj : error LNK2001: 无法解析的外部符号 "public: virtual double __cdecl GDALMDArray::GetScale(bool *)const " (?GetScale@GDALMDArray@@UEBANPEA_N@Z)
+test_ogr_geos.obj : error LNK2001: 无法解析的外部符号 "public: virtual bool __cdecl GDALMDArray::SetOffset(double)" (?SetOffset@GDALMDArray@@UEAA_NN@Z)
+test_ogr_shape.obj : error LNK2001: 无法解析的外部符号 "public: virtual bool __cdecl GDALMDArray::SetOffset(double)" (?SetOffset@GDALMDArray@@UEAA_NN@Z)
+test_alg.obj : error LNK2001: 无法解析的外部符号 "public: virtual bool __cdecl GDALMDArray::SetOffset(double)" (?SetOffset@GDALMDArray@@UEAA_NN@Z)
+test_gdal_aaigrid.obj : error LNK2001: 无法解析的外部符号 "public: virtual bool __cdecl GDALMDArray::SetOffset(double)" (?SetOffset@GDALMDArray@@UEAA_NN@Z)
+test_gdal_dted.obj : error LNK2001: 无法解析的外部符号 "public: virtual bool __cdecl GDALMDArray::SetOffset(double)" (?SetOffset@GDALMDArray@@UEAA_NN@Z)
+test_gdal_gtiff.obj : error LNK2001: 无法解析的外部符号 "public: virtual bool __cdecl GDALMDArray::SetOffset(double)" (?SetOffset@GDALMDArray@@UEAA_NN@Z)
+test_ogr_geos.obj : error LNK2001: 无法解析的外部符号 "public: virtual bool __cdecl GDALMDArray::SetScale(double)" (?SetScale@GDALMDArray@@UEAA_NN@Z)
+test_ogr_shape.obj : error LNK2001: 无法解析的外部符号 "public: virtual bool __cdecl GDALMDArray::SetScale(double)" (?SetScale@GDALMDArray@@UEAA_NN@Z)
+test_alg.obj : error LNK2001: 无法解析的外部符号 "public: virtual bool __cdecl GDALMDArray::SetScale(double)" (?SetScale@GDALMDArray@@UEAA_NN@Z)
+test_gdal_aaigrid.obj : error LNK2001: 无法解析的外部符号 "public: virtual bool __cdecl GDALMDArray::SetScale(double)" (?SetScale@GDALMDArray@@UEAA_NN@Z)
+test_gdal_dted.obj : error LNK2001: 无法解析的外部符号 "public: virtual bool __cdecl GDALMDArray::SetScale(double)" (?SetScale@GDALMDArray@@UEAA_NN@Z)
+test_gdal_gtiff.obj : error LNK2001: 无法解析的外部符号 "public: virtual bool __cdecl GDALMDArray::SetScale(double)" (?SetScale@GDALMDArray@@UEAA_NN@Z)
+gdal_unit_test.exe : fatal error LNK1120: 5 个无法解析的外部命令
+NMAKE : fatal error U1077: ��cl��: ���ش��롰0x2��
+  Stop.
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\MSBuild\Microsoft\VC\v160\Microsoft.MakeFile.Targets(46,5): error MSB3073: 命令“nmake -f makefile.vc MSVC_VER=1920 WIN64=1 DEBUG=1 WITH_PDB=1”已退出，代码为 2。

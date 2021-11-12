@@ -1,0 +1,12 @@
+﻿  
+  Microsoft (R) 程序维护实用工具 14.16.27045.0 版
+  版权所有 (C) Microsoft Corporation。  保留所有权利。
+  
+  	copy /y ..\..\gdal\gdal301_d.dll .
+  已复制         1 个文件。
+  	cl  /Zi /Fd..\..\gdal\gdal301_d.pdb /nologo /MP%NUMBER_OF_PROCESSORS% /MDd /EHsc /FC /D_CRT_SECURE_NO_DEPRECATE /D_CRT_NONSTDC_NO_DEPRECATE /DDEBUG /DDEBUG_VSIMALLOC /W4 /wd4127 /wd4251 /wd4275 /wd4786 /wd4100 /wd4245 /wd4206 /wd4351 /wd4611  /DHAVE_SSE_AT_COMPILE_TIME /DHAVE_SSSE3_AT_COMPILE_TIME -I..\..\gdal\port -I..\..\gdal\ogr -I..\..\gdal\gcore  -I..\..\gdal\alg -I..\..\gdal\ogr\ogrsf_frmts  -I..\..\gdal\gnm -I..\..\gdal\gnm\gnm_frmts -I..\..\gdal\apps /DHAVE_AVX_AT_COMPILE_TIME   -DGNM_ENABLED  -DHAVE_OPENCL -DGDAL_COMPILATION -I.  -Itut  -I\src /c test_cpl.cpp /Fotest_cpl.obj
+  test_cpl.cpp
+e:\gdal\gdal.lml\autotest\cpp\test_cpl.cpp : fatal error C1041: 无法打开程序数据库“E:\GDAL\gdal.lml\gdal\gdal301_d.pdb”；如果要将多个 CL.EXE 写入同一个 .PDB 文件，请使用 /FS
+NMAKE : fatal error U1077: “cl”: 返回代码“0x2”
+  Stop.
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\MSBuild\Microsoft\VC\v150\Microsoft.MakeFile.Targets(44,5): error MSB3073: 命令“nmake -f makefile.vc MSVC_VER=1910 WIN64=1 DEBUG=1 WITH_PDB=1”已退出，代码为 2。

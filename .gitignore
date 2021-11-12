@@ -170,3 +170,4 @@ gdal/share
 
 /out/build/x64-Debug
 test.cpp
+gdal/x64
