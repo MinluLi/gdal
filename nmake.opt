@@ -98,7 +98,8 @@ PYEXEC = python.exe
 !ENDIF
 
 !IFNDEF GDAL_NEED_DIR
-GDAL_NEED_DIR = "C:\Work\Datum\gdal\gdal_need"
+#GDAL_NEED_DIR = "C:\Work\Datum\gdal\gdal_need"
+GDAL_NEED_DIR = "E:\GDAL\gdal_need"
 !ENDIF
 
 # Set the location of your SWIG installation
