@@ -167,10 +167,10 @@ int CNSDTFDataset::ParseHeader(const char* pszHeader, int& nStartOfData)
     double dfCellDX = CPLAtofM(ParseKeyValue(papszTokens, "DX").c_str());
     double dfCellDY = CPLAtofM(ParseKeyValue(papszTokens, "DY").c_str());
 
-    adfGeoTransform[0] = dfX0;
+    adfGeoTransform[0] = dfX0 - dfCellDX * 0.5; //ulcenter to ulconner
     adfGeoTransform[1] = dfCellDX;
     adfGeoTransform[2] = 0.0;
-    adfGeoTransform[3] = dfY0;
+    adfGeoTransform[3] = dfY0 + dfCellDY * 0.5;
     adfGeoTransform[4] = 0.0;
     adfGeoTransform[5] = -dfCellDY;
 
@@ -449,8 +449,8 @@ GDALDataset* CNSDTFDataset::CreateCopy(
         pszHeaderMark,
         pszMeterUnit,
         0.0,
-        adfGeoTransform[0],
-        adfGeoTransform[3],
+        adfGeoTransform[0] + adfGeoTransform[1] * 0.5,  //ulconner to ulcenter
+        adfGeoTransform[3] + adfGeoTransform[5] * 0.5,
         ABS(adfGeoTransform[1]),
         ABS(adfGeoTransform[5]),
         nYSize, nXSize);

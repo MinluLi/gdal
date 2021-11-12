@@ -147,12 +147,18 @@ int NSDTFDataset::ParseHeader(const char* pszHeader, int& nStartOfData)
     dfAlphaValue = CPLAtofM(papszTokens[3]);
     bIsCompress = atoi(papszTokens[4]);
 
-    adfGeoTransform[0] = CPLAtofM(papszTokens[5]);
-    adfGeoTransform[1] = CPLAtofM(papszTokens[7]);
+    double dfX0 = CPLAtofM(papszTokens[5]);
+    double dfY0 = CPLAtofM(papszTokens[6]);
+
+    double dfCellDX = CPLAtofM(papszTokens[7]);
+    double dfCellDY = CPLAtofM(papszTokens[8]);
+
+    adfGeoTransform[0] = dfX0 - dfCellDX * 0.5; //ulcenter to ulconner
+    adfGeoTransform[1] = dfCellDX;
     adfGeoTransform[2] = 0.0;
-    adfGeoTransform[3] = CPLAtofM(papszTokens[6]);
+    adfGeoTransform[3] = dfY0 + dfCellDY * 0.5;
     adfGeoTransform[4] = 0.0;
-    adfGeoTransform[5] = -CPLAtofM(papszTokens[8]);
+    adfGeoTransform[5] = -dfCellDY;
 
     nRasterYSize = atoi(papszTokens[9]);
     nRasterXSize = atoi(papszTokens[10]);
@@ -433,8 +439,8 @@ GDALDataset* NSDTFDataset::CreateCopy(
         "%d\n",	//Scale
         pszMeterUnit,
         0.0, //alpha
-        adfGeoTransform[0],
-        adfGeoTransform[3],
+        adfGeoTransform[0] + adfGeoTransform[1] * 0.5, //ulconner to ulcenter
+        adfGeoTransform[3] + adfGeoTransform[5] * 0.5,
         ABS(adfGeoTransform[1]),
         ABS(adfGeoTransform[5]),
         nYSize, nXSize, static_cast<int>(dfScale));

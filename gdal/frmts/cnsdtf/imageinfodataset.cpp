@@ -119,16 +119,17 @@ int ImageInfoDataset::ParseHeader(const char* pszHeader, int& nStartOfData)
         return FALSE;
     }
 
+    // llcenter
     double dfX0 = CPLAtofM(ParseKeyValue(papszTokens, "UTM_X0").c_str());
     double dfY0 = CPLAtofM(ParseKeyValue(papszTokens, "UTM_Y0").c_str());
 
     double dfCellDX = CPLAtofM(ParseKeyValue(papszTokens, "DEM_DX").c_str());
     double dfCellDY = CPLAtofM(ParseKeyValue(papszTokens, "DEM_DY").c_str());
 
-    adfGeoTransform[0] = dfX0;
+    adfGeoTransform[0] = dfX0 - dfCellDX * 0.5; //xllconner to xllcenter
     adfGeoTransform[1] = dfCellDX;
     adfGeoTransform[2] = 0.0;
-    adfGeoTransform[3] = dfY0;
+    adfGeoTransform[3] = dfY0 - dfCellDY * 0.5 + nRasterYSize * dfCellDY;  //yllconner to yulcenter
     adfGeoTransform[4] = 0.0;
     adfGeoTransform[5] = -dfCellDY;
 
@@ -344,8 +345,8 @@ GDALDataset* ImageInfoDataset::CreateCopy(
         "DEM_DY: %.15f\n"
         "DEM_COL: %d\n"
         "DEM_ROW: %d\n",
-        adfGeoTransform[0],
-        adfGeoTransform[3],
+        adfGeoTransform[0] + adfGeoTransform[1] * 0.5,  //xulconner to xllcenter
+        adfGeoTransform[3] + adfGeoTransform[5] * (nYSize - 0.5),  //yulconner to yllcenter
         ABS(adfGeoTransform[1]),
         ABS(adfGeoTransform[5]),
         nXSize, nYSize);

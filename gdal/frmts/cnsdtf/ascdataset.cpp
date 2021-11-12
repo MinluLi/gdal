@@ -46,6 +46,12 @@ CPLErr WriteImageData(GDALRasterBand* poBand, int nXSize, int nYSize,
             sprintf(szFormatFloat, "%%.%df ", nDecimal);
     }
 
+    int bSuccess = FALSE;
+    double dfBandScale = poBand->GetScale(&bSuccess);
+    double dfNewScale = dfScale;
+    if (bSuccess)
+        dfNewScale = dfBandScale / dfScale;
+
     // invert line
     bool bInvertLine = CPLTestBool(CSLFetchNameValueDef(papszOptions, "INVERTLINE", "FALSE"));
 
@@ -83,7 +89,7 @@ CPLErr WriteImageData(GDALRasterBand* poBand, int nXSize, int nYSize,
             {
                 for (int iPixel = 0; iPixel < nXSize; iPixel++)
                 {
-                    sprintf(szHeader, "%d ", static_cast<int>(panScanline[iPixel] * dfScale));
+                    sprintf(szHeader, "%d ", static_cast<int>(panScanline[iPixel] * dfNewScale));
                     if (iPixel % 10 == 9)
                         sprintf(szHeader + strlen(szHeader), "\n");
 
@@ -104,7 +110,7 @@ CPLErr WriteImageData(GDALRasterBand* poBand, int nXSize, int nYSize,
             {
                 for (int iPixel = 0; iPixel < nXSize; iPixel++)
                 {
-                    sprintf(szHeader, szFormatFloat, padfScanline[iPixel] * dfScale);
+                    sprintf(szHeader, szFormatFloat, padfScanline[iPixel] * dfNewScale);
                     if (iPixel % 10 == 9)
                         sprintf(szHeader + strlen(szHeader), "\n");
 
@@ -144,7 +150,7 @@ CPLErr WriteImageData(GDALRasterBand* poBand, int nXSize, int nYSize,
             {
                 for (int iPixel = 0; iPixel < nXSize; iPixel++)
                 {
-                    sprintf(szHeader, "%d ", static_cast<int>(panScanline[iPixel] * dfScale));
+                    sprintf(szHeader, "%d ", static_cast<int>(panScanline[iPixel] * dfNewScale));
                     if (iPixel % 10 == 9)
                         sprintf(szHeader + strlen(szHeader), "\n");
 
@@ -165,7 +171,7 @@ CPLErr WriteImageData(GDALRasterBand* poBand, int nXSize, int nYSize,
             {
                 for (int iPixel = 0; iPixel < nXSize; iPixel++)
                 {
-                    sprintf(szHeader, szFormatFloat, padfScanline[iPixel] * dfScale);
+                    sprintf(szHeader, szFormatFloat, padfScanline[iPixel] * dfNewScale);
                     if (iPixel % 10 == 9)
                         sprintf(szHeader + strlen(szHeader), "\n");
 

@@ -126,13 +126,6 @@ int VirtuoZoDataset::ParseHeader(const char* pszHeader, int& nStartOfData)
         return FALSE;
     }
 
-    adfGeoTransform[0] = CPLAtofM(papszFirstLine[0]);
-    adfGeoTransform[1] = CPLAtofM(papszFirstLine[3]);
-    adfGeoTransform[2] = 0.0;
-    adfGeoTransform[3] = CPLAtofM(papszFirstLine[1]);
-    adfGeoTransform[4] = 0.0;
-    adfGeoTransform[5] = -CPLAtofM(papszFirstLine[4]);
-
     nRasterXSize = atoi(papszFirstLine[5]);
     nRasterYSize = atoi(papszFirstLine[6]);
 
@@ -142,6 +135,20 @@ int VirtuoZoDataset::ParseHeader(const char* pszHeader, int& nStartOfData)
         CSLDestroy(papszFirstLine);
         return FALSE;
     }
+
+    // llcenter
+    double dfX0 = CPLAtofM(papszFirstLine[0]);
+    double dfY0 = CPLAtofM(papszFirstLine[1]);
+
+    double dfCellDX = CPLAtofM(papszFirstLine[3]);
+    double dfCellDY = CPLAtofM(papszFirstLine[4]);
+
+    adfGeoTransform[0] = dfX0 - dfCellDX * 0.5; //xllconner to xllcenter
+    adfGeoTransform[1] = dfCellDX;
+    adfGeoTransform[2] = 0.0;
+    adfGeoTransform[3] = dfY0 - dfCellDY * 0.5 + nRasterYSize * dfCellDY;  //yllconner to yulcenter
+    adfGeoTransform[4] = 0.0;
+    adfGeoTransform[5] = -dfCellDY;
 
     dfScale = atoi(papszFirstLine[2]);
     if (dfScale == 0)
@@ -364,8 +371,8 @@ GDALDataset* VirtuoZoDataset::CreateCopy(
     char szHeader[2000];
     sprintf(szHeader,
         "%.6f %.6f %.3f %.3f %.3f %d %d\n",
-        adfGeoTransform[0],
-        adfGeoTransform[3],
+        adfGeoTransform[0] + adfGeoTransform[1] * 0.5,  //xulconner to xllcenter
+        adfGeoTransform[3] + adfGeoTransform[5] * (nYSize - 0.5),  //yulconner to yllcenter
         dfScale,
         ABS(adfGeoTransform[1]),
         ABS(adfGeoTransform[5]),
