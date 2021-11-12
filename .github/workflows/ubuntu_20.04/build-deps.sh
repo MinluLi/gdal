@@ -5,7 +5,7 @@ set -eu
 apt-get update -y
 DEBIAN_FRONTEND=noninteractive apt-get install -y --fix-missing --no-install-recommends \
     software-properties-common build-essential ca-certificates \
-    git make cmake wget unzip libtool automake \
+    git make cmake wget zip unzip libtool automake \
     zlib1g-dev libsqlite3-dev pkg-config libcurl4-gnutls-dev \
     libproj-dev libtiff5-dev \
     libcharls-dev libopenjp2-7-dev libcairo2-dev \
@@ -21,9 +21,10 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y --fix-missing --no-install-rec
     libpq-dev libssl-dev libboost-dev \
     autoconf automake bash-completion libarmadillo-dev \
     libopenexr-dev libheif-dev \
-    libdeflate-dev \
+    libdeflate-dev libblosc-dev liblz4-dev \
     mono-mcs libmono-system-drawing4.0-cil ccache \
     perl ant \
+    libbrotli-dev \
     opencl-c-headers ocl-icd-opencl-dev
 
 # Build likbkea
@@ -57,6 +58,21 @@ mkdir tiledb \
 # Workaround bug in ogdi packaging
 ln -s /usr/lib/ogdi/libvrf.so /usr/lib
 
+# Build libjxl
+# libjxl being still unstable, if the main branch fails to compile/test
+# you can replace JXL_TREEISH=main by JXL_TREEISH=sha1_of_known_working_commit
+JXL_TREEISH=main
+git clone https://github.com/libjxl/libjxl.git --recursive \
+    && cd libjxl \
+    && git checkout ${JXL_TREEISH} \
+    && mkdir build \
+    && cd build \
+    && cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF .. \
+    && make -j$(nproc) \
+    && make -j$(nproc) install \
+    && cd ../.. \
+    && rm -rf libjxl
+
 # Install MrSID SDK
 mkdir mrsid \
     && wget -q https://bin.extensis.com/download/developer/MrSID_DSDK-9.5.4.4709-rhel6.x86-64.gcc531.tar.gz -O - \
@@ -82,5 +98,30 @@ wget -q https://github.com/Esri/file-geodatabase-api/raw/master/FileGDB_API_1.5.
   && cp /usr/local/FileGDB_API/include/* /usr/include \
   && rm -rf FileGDB_API_1_5_1-64gcc51.tar.gz \
   && echo "/usr/local/FileGDB_API/lib" > /etc/ld.so.conf.d/filegdbapi.conf
+
+# Build and install GEOS (3.10dev)
+GEOS_SHA1=cab7d3cc63dc6ffaa48630b517c9ab69be6505e0
+mkdir geos \
+    && wget -q https://github.com/libgeos/geos/archive/${GEOS_SHA1}.tar.gz -O - \
+        | tar xz -C geos --strip-components=1 \
+    && cd geos \
+    && mkdir build_cmake \
+    && cd build_cmake \
+    && cmake .. -DCMAKE_INSTALL_PREFIX=/usr -DBUILD_TESTING=OFF \
+    && make -j$(nproc) \
+    && make install \
+    && cd ../.. \
+    && rm -rf geos
+
+# Install pdfium
+wget -q https://github.com/rouault/pdfium_build_gdal_3_4/releases/download/v2_pdfium_4627/install-ubuntu2004-rev4627.tar.gz \
+  && tar -xzf install-ubuntu2004-rev4627.tar.gz \
+  && chown -R root:root install \
+  && mv install/lib/* /usr/lib/ \
+  && mv install/include/* /usr/include/ \
+  && rm -rf install-ubuntu2004-rev4627.tar.gz install \
+  && apt-get update -y \
+  && apt-get install -y --fix-missing --no-install-recommends liblcms2-dev \
+  && rm -rf /var/lib/apt/lists/*
 
 ldconfig

@@ -178,7 +178,7 @@ def test_vsiaz_fake_basic():
                 print(stat_res)
             pytest.fail()
 
-    
+
 ###############################################################################
 # Test ReadDir() with a fake Azure Blob server
 
@@ -486,7 +486,8 @@ def test_vsiaz_fake_write():
         h = request.headers
         if 'Content-Length' not in h or h['Content-Length'] != '10' or \
            'x-ms-date' not in h or h['x-ms-date'] != 'my_timestamp' or \
-           'x-ms-blob-type' not in h or h['x-ms-blob-type'] != 'AppendBlob':
+           'x-ms-blob-type' not in h or h['x-ms-blob-type'] != 'AppendBlob' or \
+           'x-ms-blob-condition-appendpos' not in h or h['x-ms-blob-condition-appendpos'] != '0':
             sys.stderr.write('Bad headers: %s\n' % str(h))
             request.send_response(403)
             return
@@ -509,7 +510,8 @@ def test_vsiaz_fake_write():
         h = request.headers
         if 'Content-Length' not in h or h['Content-Length'] != '6' or \
            'x-ms-date' not in h or h['x-ms-date'] != 'my_timestamp' or \
-           'x-ms-blob-type' not in h or h['x-ms-blob-type'] != 'AppendBlob':
+           'x-ms-blob-type' not in h or h['x-ms-blob-type'] != 'AppendBlob' or \
+           'x-ms-blob-condition-appendpos' not in h or h['x-ms-blob-condition-appendpos'] != '10':
             sys.stderr.write('Bad headers: %s\n' % str(h))
             request.send_response(403)
             return
@@ -913,6 +915,80 @@ def test_vsiaz_opendir():
     assert entry is None
 
     gdal.CloseDir(d)
+
+    # Prefix filtering on root of bucket
+    handler = webserver.SequentialHandler()
+    handler.add('GET', '/azure/blob/myaccount/opendir?comp=list&prefix=my_prefix&restype=container', 200, {'Content-type': 'application/xml'},
+                """<?xml version="1.0" encoding="UTF-8"?>
+                    <EnumerationResults>
+                        <Prefix>my_prefix</Prefix>
+                        <Blobs>
+                          <Blob>
+                            <Name>my_prefix_test.txt</Name>
+                            <Properties>
+                              <Last-Modified>01 Jan 1970 00:00:01</Last-Modified>
+                              <Content-Length>40</Content-Length>
+                            </Properties>
+                          </Blob>
+                        </Blobs>
+                    </EnumerationResults>""")
+    with webserver.install_http_handler(handler):
+        d = gdal.OpenDir('/vsiaz/opendir', -1, ['PREFIX=my_prefix'])
+    assert d is not None
+
+    entry = gdal.GetNextDirEntry(d)
+    assert entry.name == 'my_prefix_test.txt'
+    assert entry.size == 40
+    assert entry.mode == 32768
+    assert entry.mtime == 1
+
+    entry = gdal.GetNextDirEntry(d)
+    assert entry is None
+
+    gdal.CloseDir(d)
+
+    # Prefix filtering on root of subdir
+    handler = webserver.SequentialHandler()
+    handler.add('GET', '/azure/blob/myaccount/opendir?comp=list&prefix=some_dir%2Fmy_prefix&restype=container', 200, {'Content-type': 'application/xml'},
+                """<?xml version="1.0" encoding="UTF-8"?>
+                    <EnumerationResults>
+                        <Prefix>some_dir/my_prefix</Prefix>
+                        <Blobs>
+                          <Blob>
+                            <Name>some_dir/my_prefix_test.txt</Name>
+                            <Properties>
+                              <Last-Modified>01 Jan 1970 00:00:01</Last-Modified>
+                              <Content-Length>40</Content-Length>
+                            </Properties>
+                          </Blob>
+                        </Blobs>
+                    </EnumerationResults>""")
+    with webserver.install_http_handler(handler):
+        d = gdal.OpenDir('/vsiaz/opendir/some_dir', -1, ['PREFIX=my_prefix'])
+    assert d is not None
+
+    entry = gdal.GetNextDirEntry(d)
+    assert entry.name == 'my_prefix_test.txt'
+    assert entry.size == 40
+    assert entry.mode == 32768
+    assert entry.mtime == 1
+
+    entry = gdal.GetNextDirEntry(d)
+    assert entry is None
+
+    gdal.CloseDir(d)
+
+    # No network access done
+    s = gdal.VSIStatL('/vsiaz/opendir/some_dir/my_prefix_test.txt',
+                      gdal.VSI_STAT_EXISTS_FLAG | gdal.VSI_STAT_NATURE_FLAG | gdal.VSI_STAT_SIZE_FLAG |gdal.VSI_STAT_CACHE_ONLY)
+    assert s
+    assert (s.mode & 32768) != 0
+    assert s.size == 40
+    assert s.mtime == 1
+
+    # No network access done
+    assert gdal.VSIStatL('/vsiaz/opendir/some_dir/i_do_not_exist.txt',
+                         gdal.VSI_STAT_EXISTS_FLAG | gdal.VSI_STAT_NATURE_FLAG | gdal.VSI_STAT_SIZE_FLAG | gdal.VSI_STAT_CACHE_ONLY) is None
 
 
 ###############################################################################

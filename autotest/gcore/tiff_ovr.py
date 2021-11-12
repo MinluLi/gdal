@@ -34,6 +34,7 @@ import os
 import shutil
 import array
 import stat
+import struct
 from osgeo import osr
 from osgeo import gdal
 
@@ -1930,6 +1931,120 @@ def test_tiff_ovr_color_table_bug_3336_bis():
     del ds
     gdal.GetDriverByName('GTiff').Delete(temp_path)
 
+###############################################################################
+
+
+def test_tiff_ovr_nodata_multiband():
+
+    numpy = pytest.importorskip('numpy')
+
+    temp_path = '/vsimem/test.tif'
+    ds = gdal.GetDriverByName('GTiff').Create(temp_path, 4, 4, 2, gdal.GDT_Float32)
+    ds.GetRasterBand(1).SetNoDataValue(-10000)
+    ds.GetRasterBand(1).WriteArray(numpy.array([[0.5, 1.0], [4.5, -10000]]))
+    ds.GetRasterBand(2).SetNoDataValue(-10000)
+    ds.GetRasterBand(2).WriteArray(numpy.array([[-10000, 4.0], [4.5, 0.5]]))
+
+    ds.FlushCache()
+    ds.BuildOverviews('AVERAGE', overviewlist=[2])
+    ds.FlushCache()
+
+    assert ds.GetRasterBand(1).GetOverviewCount() == 1, \
+        'Overview could not be generated'
+
+    pix = ds.GetRasterBand(1).GetOverview(0).ReadAsArray(win_xsize=1, win_ysize=1)
+    assert pix[0,0] == 2.0
+
+    pix = ds.GetRasterBand(2).GetOverview(0).ReadAsArray(win_xsize=1, win_ysize=1)
+    assert pix[0,0] == 3.0
+
+    ds = None
+
+###############################################################################
+
+@pytest.mark.parametrize("external_ovr", [False,True])
+def test_tiff_ovr_nodata_multiband_interleave_band_non_default_color_interp(external_ovr):
+
+    nodatavalue = -10000
+    data = struct.pack('f' * 4 * 4,
+        0.5, 0.2, 0.5, 0.2,
+        0.2, nodatavalue, 0.2, nodatavalue,
+        0.5, 0.2, nodatavalue, nodatavalue,
+        0.2, nodatavalue, nodatavalue, nodatavalue)
+    numbands = 5
+
+    temp_path = '/vsimem/test.tif'
+    ds = gdal.GetDriverByName('GTiff').Create(
+        temp_path, 4, 4, numbands, gdal.GDT_Float32,
+        options=['INTERLEAVE=BAND', 'PHOTOMETRIC=MINISBLACK', 'ALPHA=YES'])
+    for i in range(1, numbands):
+        ds.GetRasterBand(i).SetColorInterpretation(gdal.GCI_GreenBand)
+        ds.GetRasterBand(i).SetNoDataValue(nodatavalue)
+        ds.GetRasterBand(i).WriteRaster(0, 0, 4, 4, data)
+
+    ds.GetRasterBand(numbands).SetColorInterpretation(gdal.GCI_AlphaBand)
+    ds.GetRasterBand(numbands).SetNoDataValue(nodatavalue)
+    ds.GetRasterBand(numbands).WriteRaster(0, 0, 4, 4, struct.pack('f' * 4 * 4,
+        255, 255, 255, 255,
+        255, 255, 255, 255,
+        255, 0, 0, 0,
+        0, 0, 0, 0))
+
+    if external_ovr:
+        ds = None
+        ds = gdal.Open(temp_path)
+    ds.BuildOverviews('AVERAGE', overviewlist=[2, 4])
+    assert ds.GetRasterBand(1).GetOverview(0).GetColorInterpretation() == gdal.GCI_GreenBand
+
+    ds = None
+    ds = gdal.Open(temp_path)
+    assert ds.GetRasterBand(1).GetOverviewCount() == 2, 'Overview could not be generated'
+    assert ds.GetRasterBand(1).GetOverview(0).GetColorInterpretation() == gdal.GCI_GreenBand
+
+    for i in range(1, numbands):
+        pix = struct.unpack('f', ds.GetRasterBand(i).GetOverview(1).ReadRaster(0,0,1,1))[0]
+        assert abs(pix - 0.3) < 0.01, 'Error in band ' + str(i)
+
+    pix = struct.unpack('f', ds.GetRasterBand(numbands).GetOverview(1).ReadRaster(0,0,1,1))[0]
+    assert pix == 255, 'Error in alpha band '
+    ds = None
+
+    gdal.GetDriverByName('GTiff').Delete(temp_path)
+
+###############################################################################
+
+
+@pytest.mark.parametrize("external_ovr_and_msk", [False,True])
+def test_tiff_ovr_clean_with_mask(external_ovr_and_msk):
+    """ Test fix for https://github.com/OSGeo/gdal/issues/1047 """
+
+    filename = '/vsimem/test_tiff_ovr_clean_with_mask.tif'
+    ds = gdal.GetDriverByName('GTiff').Create(filename, 10, 10)
+    with gdaltest.config_option('GDAL_TIFF_INTERNAL_MASK', 'NO' if external_ovr_and_msk else 'YES'):
+        ds.CreateMaskBand(gdal.GMF_PER_DATASET)
+    if external_ovr_and_msk:
+        ds = None
+        ds = gdal.Open(filename)
+    ds.BuildOverviews('NEAR', [2])
+    ds = None
+
+    # Clear overviews
+    ds = gdal.Open(filename, gdal.GA_Update)
+    ds.BuildOverviews(None, [])
+    assert ds.GetRasterBand(1).GetOverviewCount() == 0
+    assert ds.GetRasterBand(1).GetMaskBand().GetOverviewCount() == 0
+    ds = None
+
+    assert gdal.VSIStatL(filename + '.ovr') is None
+    assert gdal.VSIStatL(filename + '.msk.ovr') is None
+
+    # Check after reopening
+    ds = gdal.Open(filename)
+    assert ds.GetRasterBand(1).GetOverviewCount() == 0
+    assert ds.GetRasterBand(1).GetMaskBand().GetOverviewCount() == 0
+    ds = None
+
+    gdal.GetDriverByName('GTiff').Delete(filename)
 
 ###############################################################################
 # Cleanup

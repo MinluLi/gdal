@@ -58,6 +58,8 @@ def test_mem_md_basic():
     assert not rg.OpenGroup("not existing")
     assert not rg.OpenGroupFromFullname("not existing")
     assert not rg.GetAttribute("not existing")
+    assert not rg.GetVectorLayerNames()
+    assert not rg.OpenVectorLayer("not existing")
 
 
 def test_mem_md_subgroup():
@@ -154,6 +156,8 @@ def test_mem_md_array_nodim():
     copy_myarray = copy_rg.OpenMDArray('myarray')
     assert copy_myarray
     assert copy_myarray.Read() == got_data
+
+    assert len(myarray.GetCoordinateVariables()) == 0
 
 
 def test_mem_md_array_single_dim():
@@ -271,6 +275,8 @@ def test_mem_md_array_single_dim():
 
     assert myarray.DeleteNoDataValue() == gdal.CE_None
     assert myarray.GetNoDataValueAsDouble() is None
+    with gdaltest.error_handler():
+        assert myarray.GetNoDataValueAsString() is None
 
     assert myarray.SetUnit('foo') == gdal.CE_None
     assert myarray.GetUnit() == 'foo'
@@ -285,7 +291,13 @@ def test_mem_md_array_string():
     dim = rg.CreateDimension("dim0", "unspecified type", "unspecified direction", 2)
     var = rg.CreateMDArray('var', [dim], gdal.ExtendedDataType.CreateString())
     assert var
+    assert var.Read() == [None, None]
     assert var.Write(['', '0123456789']) == gdal.CE_None
+    assert var.GetNoDataValueAsString() is None
+    assert var.SetNoDataValueString(None) == gdal.CE_None
+    assert var.GetNoDataValueAsString() is None
+    assert var.SetNoDataValueString('123') == gdal.CE_None
+    assert var.GetNoDataValueAsString() == '123'
     var = rg.OpenMDArray('var')
     assert var
     assert var.Read() == ['', '0123456789']
@@ -810,6 +822,20 @@ def test_mem_md_group_attribute_single_string():
     assert attr.Read() == 'bar'
 
 
+def test_mem_md_group_attribute_string_json():
+
+    drv = gdal.GetDriverByName('MEM')
+    ds = drv.CreateMultiDimensional('myds')
+    rg = ds.GetRootGroup()
+
+    attr = rg.CreateAttribute('attr', [], gdal.ExtendedDataType.CreateString(0, gdal.GEDTST_JSON))
+    assert attr
+    assert attr.GetDataType().GetSubType() == gdal.GEDTST_JSON
+    assert attr.Read() is None
+    assert attr.Write({"foo":"bar"}) == gdal.CE_None
+    assert attr.Read() == {"foo" : "bar"}
+
+
 def test_mem_md_group_attribute_multiple_string():
 
     drv = gdal.GetDriverByName('MEM')
@@ -1157,9 +1183,9 @@ def test_mem_md_array_as_classic_dataset():
     data = struct.pack('B' * 3, 0, 1, 2)
     assert ar.Write(data) == gdal.CE_None
     band = ds.GetRasterBand(1)
-    assert len(band.ReadRaster()) == len(data)
-    assert band.ReadRaster() == data
-    assert band.WriteRaster(0, 0, 3, 1, data) == gdal.CE_None
+    assert len(band.ReadRaster(buf_type = gdal.GDT_UInt16)) == len(data) * 2
+    assert band.ReadRaster(buf_type = gdal.GDT_UInt16) == struct.pack('H' * 3, 0, 1, 2)
+    assert band.WriteRaster(0, 0, 3, 1, struct.pack('H' * 3, 0, 1, 2), buf_type = gdal.GDT_UInt16) == gdal.CE_None
     assert band.ReadRaster() == data
 
     ar = rg.CreateMDArray("2d_string", [ dim_y, dim_x ],
@@ -1833,17 +1859,17 @@ def test_mem_md_array_statistics():
     data = struct.pack('d' * 6, 1, 2, 3, 4, 5, 6)
     ar.Write(data)
 
-    stats = ar.ComputeStatistics(None, False)
+    stats = ar.ComputeStatistics(False)
     assert stats.min == 1.0
     assert stats.max == 5.0
     assert stats.mean == 3.0
     assert stats.std_dev == pytest.approx(1.4142135623730951)
     assert stats.valid_count == 5
 
-    stats = ar.GetStatistics(None, False, False)
+    stats = ar.GetStatistics(False, False)
     assert stats is None
 
-    stats = ar.GetStatistics(None, False, True)
+    stats = ar.GetStatistics(False, True)
     assert stats is not None
     assert stats.min == 1.0
     assert stats.max == 5.0
@@ -1865,7 +1891,7 @@ def test_mem_md_array_statistics_float32():
     data = struct.pack('f' * 6, 1, 2, 3, 4, 5, 6)
     ar.Write(data)
 
-    stats = ar.ComputeStatistics(None, False)
+    stats = ar.ComputeStatistics(False)
     assert stats.min == 1.0
     assert stats.max == 5.0
     assert stats.mean == 3.0

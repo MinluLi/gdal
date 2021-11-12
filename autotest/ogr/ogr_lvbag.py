@@ -141,7 +141,7 @@ def test_ogr_lvbag_dataset_num():
     assert lyr.GetSpatialRef() is None, 'bad spatial ref'
     assert lyr.TestCapability(ogr.OLCStringsAsUTF8) == 1
 
-    assert lyr.GetLayerDefn().GetFieldCount() == 21
+    assert lyr.GetLayerDefn().GetFieldCount() == 22
 
     feat = lyr.GetNextFeature()
     if feat.GetField('identificatie') != 'NL.IMBAG.Nummeraanduiding.0106200000002798' or \
@@ -153,6 +153,7 @@ def test_ogr_lvbag_dataset_num():
        feat.GetFieldAsInteger('geconstateerd') != 0 or \
        feat.GetFieldAsString('documentdatum') != '2009/09/14' or \
        feat.GetFieldAsString('documentnummer') != '2009-BB01570' or \
+       feat.GetField('woonplaatsRef') is not None or \
        feat.GetFieldAsInteger('voorkomenidentificatie') != 1 or \
        feat.GetField('beginGeldigheid') != '2009/09/24' or \
        feat.GetField('tijdstipRegistratie') != '2009/11/06 12:21:37' or \
@@ -160,7 +161,25 @@ def test_ogr_lvbag_dataset_num():
         feat.DumpReadable()
         pytest.fail()
 
+    # Test for 'woonplaatsRef'
     feat = lyr.GetNextFeature()
+    if feat.GetField('identificatie') != 'NL.IMBAG.Nummeraanduiding.0106200000002799' or \
+       feat.GetFieldAsInteger('huisnummer') != 24 or \
+       feat.GetField('postcode') != '9403KD' or \
+       feat.GetField('typeAdresseerbaarObject') != 'Verblijfsobject' or \
+       feat.GetField('openbareruimteRef') != 'NL.IMBAG.Openbareruimte.0106300000002560' or \
+       feat.GetField('status') != 'Naamgeving uitgegeven' or \
+       feat.GetFieldAsInteger('geconstateerd') != 0 or \
+       feat.GetFieldAsString('documentdatum') != '2009/09/14' or \
+       feat.GetFieldAsString('documentnummer') != '2009-BB01570' or \
+       feat.GetField('woonplaatsRef') != 'NL.IMBAG.Woonplaats.1050' or \
+       feat.GetFieldAsInteger('voorkomenidentificatie') != 1 or \
+       feat.GetField('beginGeldigheid') != '2009/09/24' or \
+       feat.GetField('tijdstipRegistratie') != '2009/11/06 12:21:38' or \
+       feat.GetField('tijdstipRegistratieLV') != '2009/11/06 12:38:46.748':
+        feat.DumpReadable()
+        pytest.fail()
+
     feat = lyr.GetNextFeature()
     feat = lyr.GetNextFeature()
     assert feat is None
@@ -176,8 +195,29 @@ def test_ogr_lvbag_dataset_opr():
 
     assert lyr.GetGeomType() == ogr.wkbUnknown, 'bad layer geometry type'
     assert lyr.GetSpatialRef() is None, 'bad spatial ref'
-    assert lyr.GetFeatureCount() == 3
-    assert lyr.GetLayerDefn().GetFieldCount() == 18
+    assert lyr.GetFeatureCount() == 4
+    assert lyr.GetLayerDefn().GetFieldCount() == 19
+
+    feat = lyr.GetNextFeature()
+    if feat.GetField('naam') != 'Twaalfsuurlaan' or \
+        feat.GetField('verkorteNaam') is not None:
+        feat.DumpReadable()
+        pytest.fail()
+
+    # Skip Feat 2 and 3
+    lyr.GetNextFeature()
+    lyr.GetNextFeature()
+
+    # Last: contains abbreviated name ('verkorteNaam'), see issue 4286
+    feat = lyr.GetNextFeature()
+    if feat.GetField('naam') != 'Schout bij Nacht Doormansingel' or \
+        feat.GetField('verkorteNaam') != 'Sbn Doormansingel':
+        feat.DumpReadable()
+        pytest.fail()
+
+    # No more Features
+    feat = lyr.GetNextFeature()
+    assert feat is None
 
 def test_ogr_lvbag_dataset_pnd():
 

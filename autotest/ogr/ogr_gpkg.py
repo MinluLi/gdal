@@ -1631,11 +1631,11 @@ def test_ogr_gpkg_write_srs_undefined_geographic():
     gdal.Unlink('tmp/ogr_gpkg_srs_undefined_geographic.gpkg')
 
 
-def test_ogr_gpkg_write_srs_undefined_cartesian():
+def test_ogr_gpkg_write_srs_undefined_Cartesian():
 
-    gdal.Unlink('tmp/ogr_gpkg_srs_cartesian.gpkg')
+    gdal.Unlink('tmp/ogr_gpkg_srs_Cartesian.gpkg')
 
-    gpkg_ds = gdaltest.gpkg_dr.CreateDataSource('tmp/ogr_gpkg_srs_cartesian.gpkg')
+    gpkg_ds = gdaltest.gpkg_dr.CreateDataSource('tmp/ogr_gpkg_srs_Cartesian.gpkg')
     assert gpkg_ds is not None
 
     # Check initial default SRS entries in gpkg_spatial_ref_sys
@@ -1645,14 +1645,14 @@ def test_ogr_gpkg_write_srs_undefined_cartesian():
     gpkg_ds.ReleaseResultSet(sql_lyr)
 
     srs= osr.SpatialReference()
-    srs.SetFromUserInput('LOCAL_CS["Undefined cartesian SRS"]')
-    lyr = gpkg_ds.CreateLayer('srs_test_cartesian_layer', geom_type=ogr.wkbPoint, srs=srs)
+    srs.SetFromUserInput('LOCAL_CS["Undefined Cartesian SRS"]')
+    lyr = gpkg_ds.CreateLayer('srs_test_Cartesian_layer', geom_type=ogr.wkbPoint, srs=srs)
     srs_wkt = lyr.GetSpatialRef().ExportToWkt()
-    assert srs_wkt.find('Undefined cartesian SRS') >= 0
+    assert srs_wkt.find('Undefined Cartesian SRS') >= 0
     assert lyr.GetSpatialRef().IsLocal()
 
     gpkg_ds = None
-    gpkg_ds = ogr.Open('tmp/ogr_gpkg_srs_cartesian.gpkg')
+    gpkg_ds = ogr.Open('tmp/ogr_gpkg_srs_Cartesian.gpkg')
 
     # Check no new SRS entries have been inserted into gpkg_spatial_ref_sys
     sql_lyr = gpkg_ds.ExecuteSQL("SELECT COUNT(*) FROM gpkg_spatial_ref_sys")
@@ -1661,11 +1661,11 @@ def test_ogr_gpkg_write_srs_undefined_cartesian():
 
     lyr = gpkg_ds.GetLayer(0)
     srs_wkt = lyr.GetSpatialRef().ExportToWkt()
-    assert srs_wkt.find('Undefined cartesian SRS') >= 0, srs_wkt
+    assert srs_wkt.find('Undefined Cartesian SRS') >= 0, srs_wkt
     assert lyr.GetSpatialRef().IsLocal()
 
     gpkg_ds = None
-    gdal.Unlink('tmp/ogr_gpkg_srs_cartesian.gpkg')
+    gdal.Unlink('tmp/ogr_gpkg_srs_Cartesian.gpkg')
 
 ###############################################################################
 # Test maximum width of text fields
@@ -3400,16 +3400,17 @@ def test_ogr_gpkg_46():
     f = ogr.Feature(lyr.GetLayerDefn())
     f.SetGeometry(ogr.CreateGeometryFromWkt('POINT(1 1)'))
     lyr.CreateFeature(f)
-    # Note: those definitions of views are non conformant with GPKG 1.3 clarifications on views
+    # Note: this definition of a view is non conformant with GPKG 1.3 clarifications on views
     ds.ExecuteSQL('CREATE VIEW my_view AS SELECT geom AS my_geom, fid AS my_fid FROM foo')
     ds.ExecuteSQL("INSERT INTO gpkg_contents (table_name, identifier, data_type, srs_id) VALUES ( 'my_view', 'my_view', 'features', 0 )")
     ds.ExecuteSQL("INSERT INTO gpkg_geometry_columns (table_name, column_name, geometry_type_name, srs_id, z, m) values ('my_view', 'my_geom', 'GEOMETRY', 0, 0, 0)")
 
+    # Note: this definition of a view is non conformant with GPKG 1.3 clarifications on views
     ds.ExecuteSQL("CREATE VIEW my_view2 AS SELECT geom, fid AS OGC_FID, 'bla' as another_column FROM foo")
     ds.ExecuteSQL("INSERT INTO gpkg_contents (table_name, identifier, data_type, srs_id) VALUES ( 'my_view2', 'my_view2', 'features', 0 )")
     ds.ExecuteSQL("INSERT INTO gpkg_geometry_columns (table_name, column_name, geometry_type_name, srs_id, z, m) values ('my_view2', 'geom', 'GEOMETRY', 0, 0, 0)")
 
-    ds.ExecuteSQL('CREATE VIEW my_view3 AS SELECT a.fid, a.geom, b.fid as fid2 FROM foo a, foo b')
+    ds.ExecuteSQL('CREATE VIEW my_view3 AS SELECT a.fid * 10000 + b.fid as my_fid, a.fid as fid1, a.geom, b.fid as fid2 FROM foo a, foo b')
     ds.ExecuteSQL("INSERT INTO gpkg_contents (table_name, identifier, data_type, srs_id) VALUES ( 'my_view3', 'my_view3', 'features', 0 )")
     ds.ExecuteSQL("INSERT INTO gpkg_geometry_columns (table_name, column_name, geometry_type_name, srs_id, z, m) values ('my_view3', 'geom', 'GEOMETRY', 0, 0, 0)")
 
@@ -3447,7 +3448,7 @@ def test_ogr_gpkg_46():
     f = lyr.GetNextFeature()
     assert f is None
 
-    # View with FID
+    # View with FID in non-first position
     lyr = ds.GetLayerByName('my_view2')
     assert lyr.GetLayerDefn().GetFieldCount() == 1
     assert lyr.GetFIDColumn() == 'OGC_FID'
@@ -3456,23 +3457,15 @@ def test_ogr_gpkg_46():
         f.DumpReadable()
         pytest.fail()
 
-    # View without valid rowid
+    # View with FID in first position
     lyr = ds.GetLayerByName('my_view3')
     assert lyr.GetLayerDefn().GetFieldCount() == 2
     f = lyr.GetNextFeature()
-    if f.GetFID() != 0:
-        f.DumpReadable()
-        pytest.fail()
+    assert f.GetFID() == 10001
     f = lyr.GetNextFeature()
-    if f.GetFID() != 1:
-        f.DumpReadable()
-        pytest.fail()
-    f2 = lyr.GetFeature(1)
-    if not f.Equal(f2):
-        f.DumpReadable()
-        f2.DumpReadable()
-        pytest.fail()
-
+    assert f.GetFID() == 10002
+    f2 = lyr.GetFeature(10002)
+    assert f.Equal(f2)
     ds = None
 
     gdaltest.gpkg_dr.DeleteDataSource('/vsimem/ogr_gpkg_46.gpkg')
@@ -3878,6 +3871,106 @@ def test_ogr_gpkg_56():
     ds.ReleaseResultSet(lyr)
     ds = None
     gdal.Unlink('/vsimem/ogr_gpkg_56.gpkg')
+
+###############################################################################
+# Test creation of a field which is the same as the FID column
+
+
+def test_ogr_gpkg_creation_fid():
+
+    filename = '/vsimem/test_ogr_gpkg_creation_fid.gpkg'
+    ds = ogr.GetDriverByName('GPKG').CreateDataSource(filename)
+
+    lyr = ds.CreateLayer('fid_integer')
+    assert lyr.CreateField(ogr.FieldDefn('fid', ogr.OFTInteger)) == ogr.OGRERR_NONE
+
+    f = ogr.Feature(lyr.GetLayerDefn())
+    f['fid'] = 12
+    assert lyr.CreateFeature(f) == ogr.OGRERR_NONE
+    assert f.GetFID() == 12
+    f = lyr.GetFeature(f.GetFID())
+    assert f is not None
+    assert lyr.SetFeature(f) == ogr.OGRERR_NONE
+    f = None
+
+    f = ogr.Feature(lyr.GetLayerDefn())
+    f['fid'] = 13
+    f.SetFID(13)
+    assert lyr.CreateFeature(f) == ogr.OGRERR_NONE
+    assert f.GetFID() == 13
+    f = lyr.GetFeature(f.GetFID())
+    assert f is not None
+    assert lyr.SetFeature(f) == ogr.OGRERR_NONE
+    f = None
+
+    lyr = ds.CreateLayer('fid_integer64')
+    assert lyr.CreateField(ogr.FieldDefn('fid', ogr.OFTInteger64)) == ogr.OGRERR_NONE
+
+    f = ogr.Feature(lyr.GetLayerDefn())
+    f['fid'] = 1234567890123
+    assert lyr.CreateFeature(f) == ogr.OGRERR_NONE
+    assert f.GetFID() == 1234567890123
+    f = lyr.GetFeature(f.GetFID())
+    assert f is not None
+    assert lyr.SetFeature(f) == ogr.OGRERR_NONE
+    f = None
+
+    f = ogr.Feature(lyr.GetLayerDefn())
+    f['fid'] = 1234567890124
+    f.SetFID(1234567890124)
+    assert lyr.CreateFeature(f) == ogr.OGRERR_NONE
+    assert f.GetFID() == 1234567890124
+    f = lyr.GetFeature(f.GetFID())
+    assert f is not None
+    assert lyr.SetFeature(f) == ogr.OGRERR_NONE
+    f = None
+
+    f = ogr.Feature(lyr.GetLayerDefn())
+    f['fid'] = 1234567890125
+    f.SetFID(1)
+    with gdaltest.error_handler():
+        assert lyr.CreateFeature(f) == ogr.OGRERR_FAILURE
+
+    # Simulates the situation of GeoPackage ---QGIS---> Shapefile --> GeoPackage
+    # See https://github.com/qgis/QGIS/pull/43118
+    lyr = ds.CreateLayer('fid_real')
+    fld_defn = ogr.FieldDefn('fid', ogr.OFTReal)
+    fld_defn.SetWidth(20)
+    fld_defn.SetPrecision(0)
+    assert lyr.CreateField(fld_defn) == ogr.OGRERR_NONE
+
+    f = ogr.Feature(lyr.GetLayerDefn())
+    f['fid'] = 1234567890123
+    assert lyr.CreateFeature(f) == ogr.OGRERR_NONE
+    assert f.GetFID() == 1234567890123
+    f = lyr.GetFeature(f.GetFID())
+    assert f is not None
+    assert lyr.SetFeature(f) == ogr.OGRERR_NONE
+    f = None
+
+    f = ogr.Feature(lyr.GetLayerDefn())
+    f['fid'] = 1234567890124
+    f.SetFID(1234567890124)
+    assert lyr.CreateFeature(f) == ogr.OGRERR_NONE
+    assert f.GetFID() == 1234567890124
+    f = lyr.GetFeature(f.GetFID())
+    assert f is not None
+    assert lyr.SetFeature(f) == ogr.OGRERR_NONE
+    f = None
+
+    f = ogr.Feature(lyr.GetLayerDefn())
+    f['fid'] = 1234567890123.5
+    with gdaltest.error_handler():
+        assert lyr.CreateFeature(f) == ogr.OGRERR_FAILURE
+
+    f = ogr.Feature(lyr.GetLayerDefn())
+    f['fid'] = 1234567890125
+    f.SetFID(1)
+    with gdaltest.error_handler():
+        assert lyr.CreateFeature(f) == ogr.OGRERR_FAILURE
+
+    ds = None
+    gdal.Unlink(filename)
 
 ###############################################################################
 # Test opening a corrupted gpkg with duplicated layer names
@@ -4969,3 +5062,123 @@ def test_ogr_gpkg_read_deprecated_gdal_aspatial():
 
     gdal.Unlink(filename)
 
+
+###############################################################################
+# Test fixing up wrong gpkg_metadata_reference_column_name_update trigger (GDAL < 2.4.0)
+
+def test_ogr_gpkg_fixup_wrong_mr_column_name_update_trigger():
+
+    filename = '/vsimem/test_ogr_gpkg_fixup_wrong_mr_column_name_update_trigger.gpkg'
+    ds = ogr.GetDriverByName('GPKG').CreateDataSource(filename)
+    ds.SetMetadata('FOO','BAR')
+    ds = None
+
+    ds = ogr.Open(filename, update = 1)
+    # inject wrong trigger on purpose
+    wrong_trigger = "CREATE TRIGGER 'gpkg_metadata_reference_column_name_update' " + \
+                    "BEFORE UPDATE OF column_name ON 'gpkg_metadata_reference' " + \
+                    "FOR EACH ROW BEGIN " + \
+                    "SELECT RAISE(ABORT, 'update on table gpkg_metadata_reference " + \
+                    "violates constraint: column name must be NULL when reference_scope " + \
+                    "is \"geopackage\", \"table\" or \"row\"') " + \
+                    "WHERE (NEW.reference_scope IN ('geopackage','table','row') " + \
+                    "AND NEW.column_nameIS NOT NULL); END;"
+    ds.ExecuteSQL(wrong_trigger)
+    ds = None
+
+    # Open in update mode
+    ds = ogr.Open(filename, update = 1)
+    sql_lyr = ds.ExecuteSQL(
+        "SELECT sql FROM sqlite_master WHERE type = 'trigger' " + \
+        "AND name = 'gpkg_metadata_reference_column_name_update'")
+    f = sql_lyr.GetNextFeature()
+    sql = f['sql']
+    ds.ReleaseResultSet(sql_lyr)
+    ds = None
+
+    gdal.Unlink(filename)
+    assert 'column_nameIS' not in sql
+
+###############################################################################
+# Test support for CRS coordinate_epoch
+
+
+def test_ogr_gpkg_crs_coordinate_epoch():
+
+    filename = '/vsimem/test_ogr_gpkg_crs_coordinate_epoch.gpkg'
+    ds = gdaltest.gpkg_dr.CreateDataSource(filename)
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(7665) # WGS 84 (G1762) (3D)
+    srs.SetCoordinateEpoch(2021.3)
+    ds.CreateLayer('lyr_with_coordinate_epoch', srs=srs)
+
+    srs.SetCoordinateEpoch(2021.3)
+    ds.CreateLayer('lyr_with_same_coordinate_epoch', srs=srs)
+
+    srs.SetCoordinateEpoch(2021.2)
+    ds.CreateLayer('lyr_with_different_coordinate_epoch', srs=srs)
+
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4258) # ETRS89
+    ds.CreateLayer('lyr_without_coordinate_epoch', srs=srs)
+
+    ds = None
+
+    assert validate(filename), 'validation failed'
+
+    ds = ogr.Open(filename)
+
+    sql_lyr = ds.ExecuteSQL('SELECT * FROM gpkg_spatial_ref_sys ORDER BY srs_id')
+    assert sql_lyr.GetFeatureCount() == 6
+
+    sql_lyr.GetNextFeature()
+    sql_lyr.GetNextFeature()
+
+    f = sql_lyr.GetNextFeature()
+    assert f
+    assert f['srs_id'] == 4258
+    assert f['organization'] == 'EPSG'
+    assert f['organization_coordsys_id'] == 4258
+    assert f['epoch'] is None
+
+    f = sql_lyr.GetNextFeature()
+    assert f
+    assert f['srs_id'] == 4326
+    assert f['organization'] == 'EPSG'
+    assert f['organization_coordsys_id'] == 4326
+    assert f['epoch'] is None
+
+    f = sql_lyr.GetNextFeature()
+    assert f
+    assert f['srs_id'] == 100000
+    assert f['organization'] == 'EPSG'
+    assert f['organization_coordsys_id'] == 7665
+    assert f['epoch'] == 2021.3
+
+    f = sql_lyr.GetNextFeature()
+    assert f
+    assert f['srs_id'] == 100001
+    assert f['organization'] == 'EPSG'
+    assert f['organization_coordsys_id'] == 7665
+    assert f['epoch'] == 2021.2
+    ds.ReleaseResultSet(sql_lyr)
+
+    lyr = ds.GetLayerByName('lyr_with_coordinate_epoch')
+    srs = lyr.GetSpatialRef()
+    assert srs.GetCoordinateEpoch() == 2021.3
+
+    lyr = ds.GetLayerByName('lyr_with_same_coordinate_epoch')
+    srs = lyr.GetSpatialRef()
+    assert srs.GetCoordinateEpoch() == 2021.3
+
+    lyr = ds.GetLayerByName('lyr_with_different_coordinate_epoch')
+    srs = lyr.GetSpatialRef()
+    assert srs.GetCoordinateEpoch() == 2021.2
+
+    lyr = ds.GetLayerByName('lyr_without_coordinate_epoch')
+    srs = lyr.GetSpatialRef()
+    assert srs.GetCoordinateEpoch() == 0
+
+    ds = None
+
+    gdal.Unlink(filename)

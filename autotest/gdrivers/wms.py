@@ -364,12 +364,19 @@ def test_wms_8():
 
     # Test with GDAL_DEFAULT_WMS_CACHE_PATH
     # Now, we should read from the cache
-    gdal.SetConfigOption("GDAL_DEFAULT_WMS_CACHE_PATH", "./tmp/gdalwmscache")
-    ds = gdal.Open(tms_nocache)
-    cs = ds.GetRasterBand(1).GetOverview(ovr_upper_level).Checksum()
-    ds = None
-    gdal.SetConfigOption("GDAL_DEFAULT_WMS_CACHE_PATH", None)
-    assert cs == 0, 'cs != 0'
+    with gdaltest.config_option("GDAL_DEFAULT_WMS_CACHE_PATH", "./tmp/gdalwmscache"):
+        ds = gdal.Open(tms_nocache)
+        cs = ds.GetRasterBand(1).GetOverview(ovr_upper_level).Checksum()
+        ds = None
+        assert cs == 0, 'cs != 0'
+
+        # Test with GDAL_ENABLE_WMS_CACHE=NO
+        # Now, we should not read from the cache anymore
+        with gdaltest.config_option("GDAL_ENABLE_WMS_CACHE", "NO"):
+            ds = gdal.Open(tms_nocache)
+            cs = ds.GetRasterBand(1).GetOverview(ovr_upper_level).Checksum()
+            ds = None
+            assert cs != 0, 'cs == 0'
 
     # Check maxsize and expired tags
     tms_expires = """<GDAL_WMS>
@@ -634,6 +641,11 @@ def test_wms_16():
     ds = gdal.Open(name)
     assert ds is not None, ('open of %s failed.' % name)
 
+    # check that the default bbox works for srs != EPSG:4326
+    name = 'http://demo.opengeo.org/geoserver/wms?SERVICE=WMS&request=GetMap&version=1.1.1&layers=og:bugsites&styles=&srs=EPSG:26713'
+    ds = gdal.Open(name)
+    assert ds is not None, ('open of %s failed.' % name)
+
     # Matches feature of "WFS:http://demo.opengeo.org/geoserver/wfs?SRSNAME=EPSG:900913" og:bugsites
     # OGRFeature(og:bugsites):68846
     #   gml_id (String) = bugsites.68846
@@ -850,6 +862,8 @@ def test_twms_wmsmetadriver():
 
 # This test requires the GIBS server to be available
 def test_twms_GIBS():
+
+    pytest.skip('Failing because of SSL issue. See https://github.com/OSGeo/gdal/issues/3511#issuecomment-840718083')
 
     # if not gdaltest.run_slow_tests():
     #     pytest.skip()

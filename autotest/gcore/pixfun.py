@@ -28,6 +28,8 @@
 # DEALINGS IN THE SOFTWARE.
 ###############################################################################
 
+import math
+
 import gdaltest
 import pytest
 
@@ -42,7 +44,7 @@ numpy = pytest.importorskip('numpy')
 
 def test_pixfun_real_c():
 
-    filename = 'data/pixfun_real_c.vrt'
+    filename = 'data/vrt/pixfun_real_c.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -60,7 +62,7 @@ def test_pixfun_real_c():
 
 def test_pixfun_real_r():
 
-    filename = 'data/pixfun_real_r.vrt'
+    filename = 'data/vrt/pixfun_real_r.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -78,7 +80,7 @@ def test_pixfun_real_r():
 
 def test_pixfun_imag_c():
 
-    filename = 'data/pixfun_imag_c.vrt'
+    filename = 'data/vrt/pixfun_imag_c.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -103,7 +105,7 @@ def test_pixfun_imag_c():
 
 def test_pixfun_imag_r():
 
-    filename = 'data/pixfun_imag_r.vrt'
+    filename = 'data/vrt/pixfun_imag_r.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -116,7 +118,7 @@ def test_pixfun_imag_r():
 
 def test_pixfun_complex():
 
-    filename = 'data/pixfun_complex.vrt'
+    filename = 'data/vrt/pixfun_complex.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -134,7 +136,7 @@ def test_pixfun_complex():
 
 def test_pixfun_mod_c():
 
-    filename = 'data/pixfun_mod_c.vrt'
+    filename = 'data/vrt/pixfun_mod_c.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -158,7 +160,7 @@ def test_pixfun_mod_c():
 
 def test_pixfun_mod_r():
 
-    filename = 'data/pixfun_mod_r.vrt'
+    filename = 'data/vrt/pixfun_mod_r.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -182,7 +184,7 @@ def test_pixfun_mod_r():
 
 def test_pixfun_phase_c():
 
-    filename = 'data/pixfun_phase_c.vrt'
+    filename = 'data/vrt/pixfun_phase_c.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -201,12 +203,12 @@ def test_pixfun_phase_c():
 
 def test_pixfun_phase_r():
 
-    filename = 'data/pixfun_phase_r.vrt'
+    filename = 'data/vrt/pixfun_phase_r.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
 
-    reffilename = 'data/pixfun_imag_c.vrt'
+    reffilename = 'data/vrt/pixfun_imag_c.vrt'
     refds = gdal.Open(reffilename)
     assert refds is not None, ('Unable to open "%s" dataset.' % reffilename)
     refdata = refds.GetRasterBand(1).ReadAsArray()
@@ -215,11 +217,24 @@ def test_pixfun_phase_r():
 
 
 ###############################################################################
+# Verify phase extraction from a unsigned dataset (completely boring !)
+
+def test_pixfun_phase_unsigned():
+
+    filename = 'data/vrt/pixfun_phase_unsigned.vrt'
+    ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
+    assert ds is not None, ('Unable to open "%s" dataset.' % filename)
+    data = ds.GetRasterBand(1).ReadAsArray()
+
+    assert numpy.alltrue(data == numpy.zeros(data.shape))
+
+
+###############################################################################
 # Verify cmplex conjugare computation on a complex dataset.
 
 def test_pixfun_conj_c():
 
-    filename = 'data/pixfun_conj_c.vrt'
+    filename = 'data/vrt/pixfun_conj_c.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -237,7 +252,7 @@ def test_pixfun_conj_c():
 
 def test_pixfun_conj_r():
 
-    filename = 'data/pixfun_conj_r.vrt'
+    filename = 'data/vrt/pixfun_conj_r.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -255,7 +270,7 @@ def test_pixfun_conj_r():
 
 def test_pixfun_sum_r():
 
-    filename = 'data/pixfun_sum_r.vrt'
+    filename = 'data/vrt/pixfun_sum_r.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -275,7 +290,7 @@ def test_pixfun_sum_r():
 
 def test_pixfun_sum_c():
 
-    filename = 'data/pixfun_sum_c.vrt'
+    filename = 'data/vrt/pixfun_sum_c.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -295,7 +310,7 @@ def test_pixfun_sum_c():
 
 def test_pixfun_diff_r():
 
-    filename = 'data/pixfun_diff_r.vrt'
+    filename = 'data/vrt/pixfun_diff_r.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -318,7 +333,7 @@ def test_pixfun_diff_r():
 
 def test_pixfun_diff_c():
 
-    filename = 'data/pixfun_diff_c.vrt'
+    filename = 'data/vrt/pixfun_diff_c.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -341,7 +356,7 @@ def test_pixfun_diff_c():
 
 def test_pixfun_mul_r():
 
-    filename = 'data/pixfun_mul_r.vrt'
+    filename = 'data/vrt/pixfun_mul_r.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -361,7 +376,7 @@ def test_pixfun_mul_r():
 
 def test_pixfun_mul_c():
 
-    filename = 'data/pixfun_mul_c.vrt'
+    filename = 'data/vrt/pixfun_mul_c.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -379,7 +394,7 @@ def test_pixfun_mul_c():
 
 def test_pixfun_cmul_c():
 
-    filename = 'data/pixfun_cmul_c.vrt'
+    filename = 'data/vrt/pixfun_cmul_c.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -397,7 +412,7 @@ def test_pixfun_cmul_c():
 
 def test_pixfun_cmul_r():
 
-    filename = 'data/pixfun_cmul_r.vrt'
+    filename = 'data/vrt/pixfun_cmul_r.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -422,7 +437,7 @@ def test_pixfun_cmul_r():
 
 def test_pixfun_inv_r():
 
-    filename = 'data/pixfun_inv_r.vrt'
+    filename = 'data/vrt/pixfun_inv_r.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -436,12 +451,31 @@ def test_pixfun_inv_r():
     assert numpy.alltrue(data == 1. / refdata)
 
 
+def test_pixfun_inv_r_zero():
+
+    ds = gdal.Open("""<VRTDataset rasterXSize="1" rasterYSize="1">
+  <VRTRasterBand dataType="Float64" band="1" subClass="VRTDerivedRasterBand">
+    <Description>Inverse</Description>
+    <PixelFunctionType>inv</PixelFunctionType>
+    <SourceTransferType>Float64</SourceTransferType>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="0">data/float32.tif</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <ScaleOffset>0</ScaleOffset>
+      <ScaleRatio>0</ScaleRatio>
+    </ComplexSource>
+  </VRTRasterBand>
+</VRTDataset>""")
+    data = ds.GetRasterBand(1).ReadAsArray()
+    assert math.isinf(data[0][0])
+
+
 ###############################################################################
 # Verify computation of the inverse of a complex datasets.
 
 def test_pixfun_inv_c():
 
-    filename = 'data/pixfun_inv_c.vrt'
+    filename = 'data/vrt/pixfun_inv_c.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -457,12 +491,32 @@ def test_pixfun_inv_c():
     assert numpy.alltrue(abs(delta.imag) < 1e-13)
 
 
+def test_pixfun_inv_c_zero():
+
+    ds = gdal.Open("""<VRTDataset rasterXSize="1" rasterYSize="1">
+  <VRTRasterBand dataType="CFloat64" band="1" subClass="VRTDerivedRasterBand">
+    <Description>Inverse</Description>
+    <PixelFunctionType>inv</PixelFunctionType>
+    <SourceTransferType>CFloat64</SourceTransferType>
+    <ComplexSource>
+      <SourceFilename relativeToVRT="0">data/float32.tif</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <ScaleOffset>0</ScaleOffset>
+      <ScaleRatio>0</ScaleRatio>
+    </ComplexSource>
+  </VRTRasterBand>
+</VRTDataset>""")
+    data = ds.GetRasterBand(1).ReadAsArray()
+    assert math.isinf(data[0][0].real)
+    assert math.isinf(data[0][0].imag)
+
+
 ###############################################################################
 # Verify intensity computation of a complex dataset.
 
 def test_pixfun_intensity_c():
 
-    filename = 'data/pixfun_intensity_c.vrt'
+    filename = 'data/vrt/pixfun_intensity_c.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -480,7 +534,7 @@ def test_pixfun_intensity_c():
 
 def test_pixfun_intensity_r():
 
-    filename = 'data/pixfun_intensity_r.vrt'
+    filename = 'data/vrt/pixfun_intensity_r.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -498,7 +552,7 @@ def test_pixfun_intensity_r():
 
 def test_pixfun_sqrt():
 
-    filename = 'data/pixfun_sqrt.vrt'
+    filename = 'data/vrt/pixfun_sqrt.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -516,7 +570,7 @@ def test_pixfun_sqrt():
 
 def test_pixfun_log10_r():
 
-    filename = 'data/pixfun_log10_r.vrt'
+    filename = 'data/vrt/pixfun_log10_r.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -534,7 +588,7 @@ def test_pixfun_log10_r():
 
 def test_pixfun_log10_c():
 
-    filename = 'data/pixfun_log10_c.vrt'
+    filename = 'data/vrt/pixfun_log10_c.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -551,7 +605,7 @@ def test_pixfun_log10_c():
 
 def test_pixfun_dB_r():
 
-    filename = 'data/pixfun_dB_r.vrt'
+    filename = 'data/vrt/pixfun_dB_r.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -569,7 +623,7 @@ def test_pixfun_dB_r():
 
 def test_pixfun_dB_c():
 
-    filename = 'data/pixfun_dB_c.vrt'
+    filename = 'data/vrt/pixfun_dB_c.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -586,7 +640,7 @@ def test_pixfun_dB_c():
 
 def test_pixfun_dB2amp():
 
-    filename = 'data/pixfun_dB2amp.vrt'
+    filename = 'data/vrt/pixfun_dB2amp.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -605,7 +659,7 @@ def test_pixfun_dB2amp():
 
 def test_pixfun_dB2pow():
 
-    filename = 'data/pixfun_dB2pow.vrt'
+    filename = 'data/vrt/pixfun_dB2pow.vrt'
     ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
     assert ds is not None, ('Unable to open "%s" dataset.' % filename)
     data = ds.GetRasterBand(1).ReadAsArray()
@@ -618,5 +672,106 @@ def test_pixfun_dB2pow():
 
     assert numpy.allclose(data, 10.**(refdata / 10.))
 
+
+###############################################################################
+# Verify raising values to a power
+
+def test_pixfun_pow():
+
+    filename = 'data/vrt/pixfun_pow.vrt'
+    ds = gdal.OpenShared(filename, gdal.GA_ReadOnly)
+    assert ds is not None, ('Unable to open "%s" dataset.' % filename)
+    data = ds.GetRasterBand(1).ReadAsArray()
+
+    reffilename = 'data/float32.tif'
+    refds = gdal.Open(reffilename)
+    assert refds is not None, ('Unable to open "%s" dataset.' % reffilename)
+    refdata = refds.GetRasterBand(1).ReadAsArray()
+    refdata = refdata.astype('float64')
+
+    assert numpy.allclose(data, refdata**3.14)
+
+
+###############################################################################
+# Verify linear pixel interpolation
+
+def interpolate_vrt(*, fname, bands, method, nx, ny, t0, dt, t):
+    vrtXml =  """
+    <VRTDataset rasterXSize="{nx}" rasterYSize="{ny}">
+      <VRTRasterBand dataType="Float32" band="1" subClass="VRTDerivedRasterBand">
+        <Description>Interpolated</Description>
+        <PixelFunctionType>interpolate_{method}</PixelFunctionType>
+        <PixelFunctionArguments t0="{t0}" dt="{dt}" t="{t}" />
+        <SourceTransferType>Float32</SourceTransferType>""".format(nx=nx, ny=ny, t0=t0, dt=dt, t=t, method=method)
+
+    for b in range(1, bands+1):
+        vrtXml += """
+         <SimpleSource>
+          <SourceFilename relativeToVRT="0">{fname}</SourceFilename>
+          <SourceBand>{band}</SourceBand>
+          <SrcRect xOff="0" yOff="0" xSize="{nx}" ySize="{ny}"/>
+          <DstRect xOff="0" yOff="0" xSize="{nx}" ySize="{ny}"/>
+        </SimpleSource>
+        """.format(fname=fname, band=b, nx=nx, ny=ny)
+
+    vrtXml += """
+    </VRTRasterBand>
+    </VRTDataset>
+    """
+
+    return vrtXml
+
+
+def test_pixfun_interpolate_linear():
+
+    np = pytest.importorskip('numpy')
+
+    x = np.array([[1, 2], [3, 4]])
+
+    layers = [x, x + 17, x + 23]
+
+    nx = x.shape[0]
+    ny = x.shape[1]
+    bands = len(layers)
+
+    drv = gdal.GetDriverByName('GTiff')
+    fname = "/vsimem/test.tif"
+    ds = drv.Create(fname, xsize=nx, ysize=ny, bands=bands, eType=gdal.GDT_Float32)
+
+    for i, lyr in enumerate(layers):
+        ds.GetRasterBand(i + 1).WriteArray(lyr)
+
+    ds = None
+
+    # interpolate between bands 2 and 3
+    ds = gdal.Open(interpolate_vrt(method='linear', fname=fname, nx=nx, ny=ny, bands=bands, t0=10, dt=5, t=17))
+    interpolated = ds.GetRasterBand(1).ReadAsArray()
+    assert np.allclose(interpolated, layers[1] + (17-15)*(layers[2]-layers[1])/5)
+
+    ds = gdal.Open(interpolate_vrt(method='exp', fname=fname, nx=nx, ny=ny, bands=bands, t0=10, dt=5, t=17))
+    interpolated = ds.GetRasterBand(1).ReadAsArray()
+    assert np.allclose(interpolated, layers[1]*np.exp(np.log(layers[2]/layers[1])/5 * (17-15)))
+
+    # extrapolate beyond band 3
+    ds = gdal.Open(interpolate_vrt(method='linear', fname=fname, nx=nx, ny=ny, bands=bands, t0=0, dt=10, t=38))
+    interpolated = ds.GetRasterBand(1).ReadAsArray()
+    assert np.allclose(interpolated, layers[2] + (38-20)*(layers[2]-layers[1])/10)
+
+    ds = gdal.Open(interpolate_vrt(method='linear', fname=fname, nx=nx, ny=ny, bands=bands, t0=0, dt=10, t=28))
+    interpolated = ds.GetRasterBand(1).ReadAsArray()
+    assert np.allclose(interpolated, layers[2] + (28-20)*(layers[2]-layers[1])/10)
+
+    ds = gdal.Open(interpolate_vrt(method='exp', fname=fname, nx=nx, ny=ny, bands=bands, t0=0, dt=10, t=38))
+    interpolated = ds.GetRasterBand(1).ReadAsArray()
+    assert np.allclose(interpolated, layers[2]*np.exp(np.log(layers[2]/layers[1])/10 * (38-20)))
+
+    # extrapolate before band 1
+    ds = gdal.Open(interpolate_vrt(method='linear', fname=fname, nx=nx, ny=ny, bands=bands, t0=-10, dt=1, t=-22.7))
+    interpolated = ds.GetRasterBand(1).ReadAsArray()
+    assert np.allclose(interpolated, layers[0] + (-22.7 - -10)*(layers[1]-layers[0])/1)
+
+    ds = gdal.Open(interpolate_vrt(method='exp', fname=fname, nx=nx, ny=ny, bands=bands, t0=-10, dt=1, t=-22.7))
+    interpolated = ds.GetRasterBand(1).ReadAsArray()
+    assert np.allclose(interpolated, layers[0]*np.exp(np.log(layers[1]/layers[0])/1 * (-22.7 - -10)))
 
 ###############################################################################

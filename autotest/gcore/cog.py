@@ -106,7 +106,7 @@ def test_cog_basic():
     ds = gdal.Open(filename)
     assert ds.GetRasterBand(1).Checksum() == 4672
     assert ds.GetMetadataItem('LAYOUT', 'IMAGE_STRUCTURE') == 'COG'
-    assert ds.GetMetadataItem('COMPRESSION', 'IMAGE_STRUCTURE') is None
+    assert ds.GetMetadataItem('COMPRESSION', 'IMAGE_STRUCTURE') == 'LZW'
     assert ds.GetRasterBand(1).GetOverviewCount() == 0
     assert ds.GetRasterBand(1).GetBlockSize() == [512, 512]
     assert ds.GetMetadataItem('GDAL_STRUCTURAL_METADATA', 'TIFF') == """GDAL_STRUCTURAL_METADATA_SIZE=000140 bytes
@@ -172,6 +172,14 @@ def test_cog_creation_options():
         assert ds.GetMetadataItem('COMPRESSION', 'IMAGE_STRUCTURE') == 'ZSTD'
         ds = None
 
+    if '<Value>LZMA' in colist:
+
+        gdal.GetDriverByName('COG').CreateCopy(filename, src_ds,
+                                                    options = ['COMPRESS=LZMA'])
+        ds = gdal.Open(filename)
+        assert ds.GetMetadataItem('COMPRESSION', 'IMAGE_STRUCTURE') == 'LZMA'
+        ds = None
+
     if '<Value>WEBP' in colist:
 
         with gdaltest.error_handler():
@@ -212,7 +220,8 @@ def test_cog_creation_options():
             assert filesize_lerc_zstd_level_1 > filesize_lerc_zstd
 
     src_ds = None
-    gdal.GetDriverByName('GTiff').Delete(filename)
+    with gdaltest.error_handler():
+        gdal.GetDriverByName('GTiff').Delete(filename)
 
 
 ###############################################################################
@@ -386,10 +395,7 @@ def test_cog_small_world_to_web_mercator():
         if gt[i] != pytest.approx(expected_gt[i], abs=1e-10 * abs(expected_gt[i])):
             assert False, gt
     got_cs = [ds.GetRasterBand(i+1).Checksum() for i in range(3)]
-    if sys.platform == 'darwin' and gdal.GetConfigOption('TRAVIS', None) is not None:
-        assert got_cs != [0, 0, 0]
-    else:
-        assert got_cs == [26293, 23439, 14955]
+    assert got_cs == [26293, 23439, 14955] or got_cs == [26228, 22085, 12992]
     assert ds.GetRasterBand(1).GetMaskBand().Checksum() == 17849
     assert ds.GetRasterBand(1).GetOverviewCount() == 0
     ds = None
@@ -808,6 +814,7 @@ def test_cog_sparse_mask():
         src_ds.GetRasterBand(i+1).WriteRaster(256, 256, 128, 128, '\x00' * 128 * 128)
     src_ds.BuildOverviews('NEAREST', [2])
     gdal.GetDriverByName('COG').CreateCopy(filename, src_ds, options = ['BLOCKSIZE=128', 'SPARSE_OK=YES', 'COMPRESS=JPEG', 'RESAMPLING=NEAREST'])
+    assert gdal.GetLastErrorMsg() == ''
     _check_cog(filename)
     with gdaltest.config_option('GTIFF_HAS_OPTIMIZED_READ_MULTI_RANGE', 'YES'):
         ds = gdal.Open(filename)

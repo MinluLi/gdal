@@ -372,7 +372,9 @@ def test_tiff_write_13():
     assert cs == 17347 or cs == 14445, 'fail: bad checksum'
 
     if md['LIBTIFF'] == 'INTERNAL':
-        assert size <= 22816, 'fail: bad size'
+        # 22816 with libjpeg-6b or libjpeg-turbo
+        # 22828 with libjpeg-9d
+        assert size <= 22828, 'fail: bad size'
 
 
 ###############################################################################
@@ -441,6 +443,9 @@ def test_tiff_write_16():
     ds.SetMetadata({'test': 'testvalue'})
     ds.GetRasterBand(1).SetMetadata({'testBand': 'testvalueBand'})
 
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    ds.SetSpatialRef(srs)
     ds.SetGeoTransform((10, 5, 0, 30, 0, -5))
 
     data = ds_in.ReadRaster(0, 0, 20, 20)
@@ -449,9 +454,12 @@ def test_tiff_write_16():
     ds_in = None
     ds = None
 
+    # Check first from PAM
+    assert gdal.VSIStatL('tmp/tw_16.tif.aux.xml') is not None
     ds = gdal.Open('tmp/tw_16.tif')
-    assert ds.GetGeoTransform() == (0.0, 1.0, 0.0, 0.0, 0.0, 1.0), \
-        'Got wrong geotransform, profile ignored?'
+    assert ds.GetGeoTransform() == (10, 5, 0, 30, 0, -5)
+    assert ds.GetSpatialRef() is not None
+    assert ds.GetSpatialRef().GetAuthorityCode(None) == '4326'
 
     md = ds.GetMetadata()
     assert 'test' in md, 'Metadata absent from .aux.xml file.'
@@ -460,16 +468,12 @@ def test_tiff_write_16():
     assert 'testBand' in md, 'Metadata absent from .aux.xml file.'
 
     ds = None
-
-    try:
-        os.remove('tmp/tw_16.tif.aux.xml')
-    except OSError:
-        try:
-            os.stat('tmp/tw_16.tif.aux.xml')
-        except OSError:
-            pytest.fail('No .aux.xml file.')
+    gdal.Unlink('tmp/tw_16.tif.aux.xml')
 
     ds = gdal.Open('tmp/tw_16.tif')
+    assert ds.GetGeoTransform() == (0.0, 1.0, 0.0, 0.0, 0.0, 1.0), \
+        'Got wrong geotransform, profile ignored?'
+    assert ds.GetSpatialRef() is None
 
     md = ds.GetMetadata()
     assert 'test' not in md, 'Metadata written to BASELINE file.'
@@ -610,6 +614,30 @@ def test_tiff_write_18():
     assert not os.path.exists('tmp/tw_18.RPB'), 'RPB did not get removed'
 
     gdaltest.tiff_drv.Delete('tmp/tw_18.tif')
+
+###############################################################################
+# Test writing a IMD files with space in values
+
+
+def test_tiff_write_imd_with_space_in_values():
+
+    ds = gdal.GetDriverByName('GTiff').Create('/vsimem/out.tif', 1, 1)
+    ds.SetMetadataItem('foo.key', 'value with space', 'IMD')
+    ds.SetMetadataItem('foo.key2', 'value with " double quote', 'IMD')
+    ds.SetMetadataItem('foo.key3', "value with ' single quote", 'IMD')
+    ds.SetMetadataItem('foo.key4', """value with " double and ' single quote""", 'IMD')
+    ds.SetMetadataItem('foo.key5', 'value_with_;', 'IMD')
+    ds.SetMetadataItem('foo.key6', 'regular_value', 'IMD')
+    ds = None
+
+    f = gdal.VSIFOpenL('/vsimem/out.IMD', 'rb')
+    assert f
+    data = gdal.VSIFReadL(1, 1000, f)
+    gdal.VSIFCloseL(f)
+
+    gdal.GetDriverByName('GTiff').Delete('/vsimem/out.tif')
+
+    assert data == b'BEGIN_GROUP = foo\n\tkey = "value with space";\n\tkey2 = \'value with " double quote\';\n\tkey3 = "value with \' single quote";\n\tkey4 = "value with \'\' double and \' single quote";\n\tkey5 = "value_with_;";\n\tkey6 = regular_value;\nEND_GROUP = foo\nEND;\n'
 
 ###############################################################################
 # Test that above test still work with the optimization in the GDAL_DISABLE_READDIR_ON_OPEN
@@ -3202,6 +3230,7 @@ def test_tiff_write_91():
         checksums[quality] = [ ds.GetRasterBand(1).Checksum(),
                                ds.GetRasterBand(1).GetOverview(0).Checksum(),
                                ds.GetRasterBand(1).GetOverview(1).Checksum() ]
+        ds = None
 
 
     gdaltest.tiff_drv.Delete('tmp/tiff_write_91.tif')
@@ -3478,6 +3507,7 @@ def test_tiff_write_96(other_options = [], nbands = 1, nbits = 8):
             [cs, cs_mask, cs_ovr_1, cs_ovr_mask_1, cs_ovr_2, cs_ovr_mask_2], \
             'did not get expected checksums'
         assert ds.GetMetadataItem('HAS_USED_READ_ENCODED_API', '_DEBUG_') == '0'
+        ds = None
 
     _check_cog('tmp/tiff_write_96_dst.tif', check_tiled=False, full_check=True)
 
@@ -3818,6 +3848,9 @@ Band 1}""".encode('ascii'))
 
 def test_tiff_write_102():
 
+    if int(gdal.GetDriverByName('GTiff').GetMetadataItem('LIBGEOTIFF')) < 1600:
+        pytest.skip('requires libgeotiff >= 1.6')
+
     ds = gdaltest.tiff_drv.Create('/vsimem/tiff_write_102.tif', 1, 1)
     sr = osr.SpatialReference()
     sr.ImportFromEPSG(7401)
@@ -4150,6 +4183,45 @@ def test_tiff_write_117():
 
     assert data is not None, \
         'if GDAL is configured with external libtiff 4.x, it can fail if it is older than 4.0.3. With internal libtiff, should not fail'
+
+###############################################################################
+# Test bugfix for ticket gh #4538 (rewriting of a deflate compressed tile, libtiff bug)
+
+
+def test_tiff_write_rewrite_in_place_issue_gh_4538():
+    # This fail with libtiff <= 4.3.0
+    md = gdaltest.tiff_drv.GetMetadata()
+    if md['LIBTIFF'] != 'INTERNAL':
+        pytest.skip()
+
+    # Defeats the logic that fixed test_tiff_write_117
+
+    import array
+    filename = '/vsimem/tmp.tif'
+    ds = gdal.GetDriverByName('GTiff').Create(filename, 144*2, 128, 1,
+                                              options = ['TILED=YES',
+                                                         'COMPRESS=PACKBITS',
+                                                         'BLOCKXSIZE=144',
+                                                         'BLOCKYSIZE=128'])
+    x = ((144*128)//2) - 645
+    ds.GetRasterBand(1).WriteRaster(0, 0, 144, 128,
+                                    b'\x00' * x  + array.array('B', [i % 255 for i in range(144*128-x)]))
+    block1_data = b'\x00' * (x + 8) + array.array('B', [i % 255 for i in range(144*128-(x+8))])
+    ds.GetRasterBand(1).WriteRaster(144, 0, 144, 128, block1_data)
+    ds = None
+
+    ds = gdal.Open(filename, gdal.GA_Update)
+    ds.GetRasterBand(1).ReadRaster(144, 0, 144, 128)
+    block0_data = array.array('B', [i % 255 for i in range(144*128)])
+    ds.GetRasterBand(1).WriteRaster(0, 0, 144, 128, block0_data)
+    ds = None
+
+    ds = gdal.Open(filename)
+    assert ds.GetRasterBand(1).ReadRaster(0, 0, 144, 128) == block0_data
+    assert ds.GetRasterBand(1).ReadRaster(144, 0, 144, 128) == block1_data
+    ds = None
+
+    gdal.Unlink(filename)
 
 ###############################################################################
 # Test bugfix for ticket #4816
@@ -7270,6 +7342,11 @@ def test_tiff_write_compression_create_and_createcopy():
     if 'WEBP' in md['DMD_CREATIONOPTIONLIST']:
         tests.append((['COMPRESS=WEBP', 'WEBP_LEVEL=95'],['COMPRESS=WEBP', 'WEBP_LEVEL=15']))
 
+    if 'JXL' in md['DMD_CREATIONOPTIONLIST']:
+        tests.append((['COMPRESS=JXL', 'JXL_LOSSLESS=YES'],['COMPRESS=JXL', 'JXL_LOSSLESS=NO']))
+        tests.append((['COMPRESS=JXL', 'JXL_LOSSLESS=YES', 'JXL_EFFORT=3'],['COMPRESS=JXL', 'JXL_LOSSLESS=YES', 'JXL_EFFORT=9']))
+        tests.append((['COMPRESS=JXL', 'JXL_LOSSLESS=NO', 'JXL_DISTANCE=0.1'],['COMPRESS=JXL', 'JXL_LOSSLESS=NO', 'JXL_DISTANCE=3']))
+
     new_tests = []
     for (before, after) in tests:
         new_tests.append((before, after))
@@ -7448,6 +7525,45 @@ def test_tiff_write_lerc_float_with_nan(gdalDataType, structType):
     gdal.Unlink(filename)
 
 ###############################################################################
+# Test JXL compression
+
+
+def test_tiff_write_jpegxl_byte_single_band():
+
+    md = gdaltest.tiff_drv.GetMetadata()
+    if md['DMD_CREATIONOPTIONLIST'].find('JXL') == -1:
+        pytest.skip()
+
+    ut = gdaltest.GDALTest('GTiff', 'byte.tif', 1, 4672, options=['COMPRESS=JXL'])
+    return ut.testCreateCopy()
+
+###############################################################################
+# Test JXL compression
+
+
+def test_tiff_write_jpegxl_byte_three_band():
+
+    md = gdaltest.tiff_drv.GetMetadata()
+    if md['DMD_CREATIONOPTIONLIST'].find('JXL') == -1:
+        pytest.skip()
+
+    ut = gdaltest.GDALTest('GTiff', 'rgbsmall.tif', 1, 21212, options=['COMPRESS=JXL'])
+    return ut.testCreateCopy()
+
+###############################################################################
+# Test JXL compression
+
+
+def test_tiff_write_jpegxl_uint16_single_band():
+
+    md = gdaltest.tiff_drv.GetMetadata()
+    if md['DMD_CREATIONOPTIONLIST'].find('JXL') == -1:
+        pytest.skip()
+
+    ut = gdaltest.GDALTest('GTiff', 'uint16.tif', 1, 4672, options=['COMPRESS=JXL'])
+    return ut.testCreateCopy()
+
+###############################################################################
 # Test creating overviews with NaN nodata
 
 
@@ -7462,6 +7578,60 @@ def test_tiff_write_overviews_nan_nodata():
     assert ds.GetRasterBand(1).GetOverviewCount() == 2
     ds = None
     gdal.Unlink(filename)
+
+
+###############################################################################
+# Test support for coordinate epoch
+
+
+def test_tiff_write_coordinate_epoch():
+
+    ds = gdal.GetDriverByName('GTiff').Create('/vsimem/test_tiff_write_coordinate_epoch.tif', 1, 1)
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    srs.SetCoordinateEpoch(2021.3)
+    ds.SetGeoTransform([0, 1, 0, 0, 0, -1])
+    ds.SetSpatialRef(srs)
+    ds = None
+
+    ds = gdal.Open('/vsimem/test_tiff_write_coordinate_epoch.tif')
+    srs = ds.GetSpatialRef()
+    assert srs.GetCoordinateEpoch() == 2021.3
+    ds = None
+
+    gdal.Unlink('/vsimem/test_tiff_write_coordinate_epoch.tif')
+
+
+###############################################################################
+# Test scenario with multiple IFDs and directory rewriting
+# https://github.com/OSGeo/gdal/issues/3746
+
+
+@pytest.mark.parametrize("reopen", [True, False])
+def test_tiff_write_muliple_ifds_directory_rewriting(reopen):
+
+    filename = '/vsimem/out.tif'
+    ds = gdal.GetDriverByName('GTiff').Create(filename, 32, 32, options=['TILED=YES', 'SPARSE_OK=YES'])
+    ds.BuildOverviews('NONE', [2])
+    if reopen:
+        ds = None
+        ds = gdal.Open(filename, gdal.GA_Update)
+
+    ds.GetRasterBand(1).GetOverview(0).Fill(2)
+
+    # Rewrite second IFD
+    ds.GetRasterBand(1).GetOverview(0).SetNoDataValue(0)
+    # Rewrite first IFD
+    ds.GetRasterBand(1).SetNoDataValue(3)
+
+    ds = None
+
+    ds = gdal.Open(filename)
+    mm = ds.GetRasterBand(1).GetOverview(0).ComputeRasterMinMax()
+    ds = None
+
+    gdal.Unlink(filename)
+    assert mm == (2, 2)
 
 
 def test_tiff_write_cleanup():

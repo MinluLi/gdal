@@ -1,0 +1,3 @@
+add_gdal_driver(TARGET gdal_TileDB SOURCES tiledbdataset.cpp PLUGIN_CAPABLE)
+gdal_standard_includes(gdal_TileDB)
+gdal_target_link_libraries(TARGET gdal_TileDB LIBRARIES TileDB::tiledb_shared)

@@ -649,6 +649,9 @@ def test_tiff_srs_read_epsg32631_4979_geotiff1_1():
 
 def test_tiff_srs_write_vertical_perspective():
 
+    if osr.GetPROJVersionMajor() * 100 + osr.GetPROJVersionMinor() < 700:
+        pytest.skip('requires PROJ 7 or later')
+
     ds = gdal.GetDriverByName('GTiff').Create('/vsimem/src.tif', 1, 1)
     sr = osr.SpatialReference()
     sr.SetGeogCS("GEOG_NAME", "D_DATUM_NAME", "", 3000000, 0)
@@ -657,7 +660,6 @@ def test_tiff_srs_write_vertical_perspective():
     ds.SetSpatialRef(sr)
     assert gdal.GetLastErrorMsg() == ''
     ds = None
-    assert gdal.VSIStatL('/vsimem/src.tif.aux.xml')
 
     src_ds = gdal.Open('/vsimem/src.tif')
     # First is PROJ 7
@@ -665,7 +667,6 @@ def test_tiff_srs_write_vertical_perspective():
     gdal.ErrorReset()
     gdal.GetDriverByName('GTiff').CreateCopy('/vsimem/dst.tif', src_ds)
     assert gdal.GetLastErrorMsg() == ''
-    assert gdal.VSIStatL('/vsimem/dst.tif.aux.xml')
 
     ds = gdal.Open('/vsimem/dst.tif')
     assert ds.GetSpatialRef().ExportToProj4() == src_ds.GetSpatialRef().ExportToProj4()
@@ -839,3 +840,45 @@ def test_tiff_srs_read_getspatialref_getgcpspatialref():
     assert ds.GetGCPSpatialRef() is not None
     assert ds.GetSpatialRef() is None
     assert ds.GetSpatialRef() is None
+
+
+def test_tiff_srs_read_VerticalUnitsGeoKey_private_range():
+    ds = gdal.Open('data/gtiff/VerticalUnitsGeoKey_private_range.tif')
+    with gdaltest.error_handler():
+        sr = ds.GetSpatialRef()
+    assert sr.GetName() == "NAD83 / UTM zone 16N"
+    assert gdal.GetLastErrorMsg() != ''
+
+
+def test_tiff_srs_read_invalid_semimajoraxis_compound():
+    ds = gdal.Open('data/gtiff/invalid_semimajoraxis_compound.tif')
+    # Check that it doesn't crash. PROJ >= 8.2.0 will return a NULL CRS
+    # whereas previous versions will return a non-NULL one
+    with gdaltest.error_handler():
+        ds.GetSpatialRef()
+
+
+def test_tiff_srs_try_write_derived_geographic():
+
+    if osr.GetPROJVersionMajor() < 7:
+        pytest.skip()
+
+    tmpfile = '/vsimem/tmp.tif'
+    ds = gdal.GetDriverByName('GTiff').Create(tmpfile, 1, 1)
+    wkt = 'GEOGCRS["Coordinate System imported from GRIB file",BASEGEOGCRS["Coordinate System imported from GRIB file",DATUM["unnamed",ELLIPSOID["Sphere",6367470,0,LENGTHUNIT["metre",1,ID["EPSG",9001]]]],PRIMEM["Greenwich",0,ANGLEUNIT["degree",0.0174532925199433,ID["EPSG",9122]]]],DERIVINGCONVERSION["Pole rotation (GRIB convention)",METHOD["Pole rotation (GRIB convention)"],PARAMETER["Latitude of the southern pole (GRIB convention)",-30,ANGLEUNIT["degree",0.0174532925199433,ID["EPSG",9122]]],PARAMETER["Longitude of the southern pole (GRIB convention)",-15,ANGLEUNIT["degree",0.0174532925199433,ID["EPSG",9122]]],PARAMETER["Axis rotation (GRIB convention)",0,ANGLEUNIT["degree",0.0174532925199433,ID["EPSG",9122]]]],CS[ellipsoidal,2],AXIS["latitude",north,ORDER[1],ANGLEUNIT["degree",0.0174532925199433,ID["EPSG",9122]]],AXIS["longitude",east,ORDER[2],ANGLEUNIT["degree",0.0174532925199433,ID["EPSG",9122]]]]'
+    ds.SetProjection(wkt)
+    ds = None
+
+    assert gdal.VSIStatL(tmpfile + '.aux.xml')
+    ds = gdal.Open(tmpfile)
+    srs = ds.GetSpatialRef()
+    assert srs is not None
+    assert srs.IsDerivedGeographic()
+    ds = None
+
+    gdal.Unlink(tmpfile + '.aux.xml')
+    ds = gdal.Open(tmpfile)
+    assert ds.GetSpatialRef() is None
+    ds = None
+
+    gdal.Unlink(tmpfile)
