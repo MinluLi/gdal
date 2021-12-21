@@ -594,7 +594,7 @@ int CPL_DLL VSIInstallPluginHandler( const char* pszPrefix, const VSIFilesystemP
 
 /*! @cond Doxygen_Suppress */
 unsigned long CPL_DLL VSITime( unsigned long * );
-const char CPL_DLL *VSICTime( unsigned long nTime, long nUsec );
+const char CPL_DLL *VSICTime( unsigned long );
 struct tm CPL_DLL *VSIGMTime( const time_t *pnTime,
                               struct tm *poBrokenTime );
 struct tm CPL_DLL *VSILocalTime( const time_t *pnTime,

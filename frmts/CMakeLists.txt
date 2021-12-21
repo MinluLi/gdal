@@ -60,7 +60,7 @@ gdal_optional_format(r "R Object Data Store")
 gdal_optional_format(northwood "NWT_GRD/NWT_GRC -- Northwood/Vertical Mapper File Format")
 gdal_optional_format(saga "SAGA GIS Binary Driver")
 gdal_optional_format(xyz "ASCII Gridded XYZ")
-gdal_dependent_format(heif "HEIF" "HEIF_FOUND")
+gdal_dependent_format(heif "HEIF" "GDAL_USE_HEIF")
 gdal_optional_format(esric "ESRI compact cache")
 gdal_optional_format(hf2 "HF2/HFZ heightfield raster")
 gdal_optional_format(kmlsuperoverlay "")
@@ -115,7 +115,7 @@ gdal_dependent_format(rasdaman "Rasdaman GDAL driver" "HAVE_RASDAMAN")
 gdal_dependent_format(hdf5 "Hierarchical Data Format Release 5 (HDF5)" "GDAL_USE_HDF5")
 gdal_dependent_format(plmosaic "PLMosaic (Planet Labs Mosaics API)" "GDAL_USE_CURL")
 gdal_dependent_format(wms "Web Map Services" "GDAL_USE_CURL")
-gdal_dependent_format(gta "Generic Tagged Arrays" "GTA_FOUND")
+gdal_dependent_format(gta "Generic Tagged Arrays" "GDAL_USE_GTA")
 gdal_dependent_format(webp "WebP" "GDAL_USE_WEBP")
 gdal_dependent_format(hdf4 "Hierarchical Data Format Release 4 (HDF4)" "GDAL_USE_HDF4")
 gdal_dependent_format(rasterlite "Rasterlite - Rasters in SQLite DB" "GDAL_USE_SQLITE3;OGR_ENABLE_SQLITE")
@@ -132,6 +132,7 @@ gdal_dependent_format(jpeg2000 "JPEG2000 --- Implementation of the JPEG-2000 par
 gdal_dependent_format(tiledb "TileDB tiledb.io" "GDAL_USE_TILEDB")
 gdal_dependent_format(exr "EXR support via OpenEXR library" "GDAL_USE_OPENEXR")
 gdal_dependent_format(pcraster "PCRaster CSF 2.0 raster file driver" "GDAL_USE_LIBCSF OR GDAL_USE_LIBCSF_INTERNAL")
+gdal_dependent_format(rdb "RIEGL RDB Map Pixel (.mpx) driver" "rdb_FOUND")
 
 # for circulate dependency, grass is NOT always compiled in.
 gdal_dependent_format(grass "GRASS" "HAVE_GRASS")
@@ -146,16 +147,16 @@ endif ()
 
 # ######################################################################################################################
 # driver with proprietary libraries Kakadu software SDK
-gdal_dependent_format(jp2kak "JPEG-2000 (based on Kakadu)" "HAVE_KDU")
-gdal_dependent_format(jpipkak "JPIP Streaming" "HAVE_KDU")
+gdal_dependent_format(jp2kak "JPEG-2000 (based on Kakadu)" "GDAL_USE_KDU")
+gdal_dependent_format(jpipkak "JPIP Streaming" "GDAL_USE_KDU")
 # Luratech SDK
-gdal_dependent_format(jp2lura JP2LURA "HAVE_LURA")
+gdal_dependent_format(jp2lura "JPEG-2000 (based on Luratech)" "GDAL_USE_LURATECH")
 # ESRI ArcSDE C API SDK
 gdal_dependent_format(sde "ESRI ArcSDE Raster" "HAVE_SDE")
 # LizardTech's decoding software development kit (DSDK)
 gdal_dependent_format(mrsid "Multi-resolution Seamless Image Database" "HAVE_MRSID")
 # gdal_dependent_format(mrsid_lidar "Multi-resolution Seamless Image Database - LiDAR support" "HAVE_MRSID")
-gdal_dependent_format(georaster "Oracle Spatial GeoRaster" "HAVE_ORACLE")
+gdal_dependent_format(georaster "Oracle Spatial GeoRaster" "HAVE_ORACLE" DRIVER_NAME_OPTION GEOR)
 gdal_dependent_format(ecw "ERDAS JPEG2000 (.jp2)" "HAVE_ECW")
 
 # Register all frmt drivers according to FRMT_<driver> flags

@@ -27,6 +27,23 @@ This module will set the following variables if found:
   Copyright (c) 2019 Chuck Atkins
 #]=======================================================================]
 
+# Accept upper case variant for SQLite3_INCLUDE_DIR
+if(SQLITE3_INCLUDE_DIR)
+  if(SQLite3_INCLUDE_DIR AND NOT "${SQLite3_INCLUDE_DIR}" STREQUAL "${SQLITE3_INCLUDE_DIR}")
+    message(FATAL_ERROR "Both SQLite3_INCLUDE_DIR and SQLITE3_INCLUDE_DIR are defined, but not at same value")
+  endif()
+  set(SQLite3_INCLUDE_DIR "${SQLITE3_INCLUDE_DIR}" CACHE STRING "Path to a file" FORCE)
+  unset(SQLITE3_INCLUDE_DIR CACHE)
+endif()
+
+# Accept upper case variant for SQLite3_LIBRARY
+if(SQLITE3_LIBRARY)
+  if(SQLite3_LIBRARY AND NOT "${SQLite3_LIBRARY}" STREQUAL "${SQLITE3_LIBRARY}")
+    message(FATAL_ERROR "Both SQLite3_LIBRARY and SQLITE3_LIBRARY are defined, but not at same value")
+  endif()
+  set(SQLite3_LIBRARY "${SQLITE3_LIBRARY}" CACHE FILEPATH "Path to a library" FORCE)
+  unset(SQLITE3_LIBRARY CACHE)
+endif()
 
 if(SQLite3_INCLUDE_DIR AND SQLite3_LIBRARY)
   set(SQLite3_FIND_QUIETLY TRUE)
@@ -55,8 +72,13 @@ if(SQLite3_INCLUDE_DIR)
 endif()
 
 if(SQLite3_INCLUDE_DIR AND SQLite3_LIBRARY)
+    cmake_push_check_state(RESET)
     # check column metadata
-    set(CMAKE_REQUIRED_LIBRARIES ${SQLite3_LIBRARY})
+    if( ${SQLite3_LIBRARY} MATCHES "libsqlite3.a" AND PC_SQLITE3_STATIC_LDFLAGS)
+        set(CMAKE_REQUIRED_LIBRARIES ${PC_SQLITE3_STATIC_LDFLAGS})
+    else()
+        set(CMAKE_REQUIRED_LIBRARIES ${SQLite3_LIBRARY})
+    endif()
     set(CMAKE_REQUIRED_INCLUDES ${SQLite3_INCLUDE_DIR})
     check_symbol_exists(sqlite3_column_table_name sqlite3.h SQLite3_HAS_COLUMN_METADATA)
     check_symbol_exists(sqlite3_rtree_query_callback sqlite3.h SQLite3_HAS_RTREE)
@@ -72,10 +94,7 @@ if(SQLite3_INCLUDE_DIR AND SQLite3_LIBRARY)
           return sqlite3_auto_extension ((void (*)(void)) 0);
          }")
     check_cxx_source_compiles("${SQLITE3_AUTO_EXTENSION_CHECK}" SQLite3_HAS_NON_DEPRECATED_AUTO_EXTENSION)
-    unset(CMAKE_REQUIRED_FLAGS)
-
-    unset(CMAKE_REQUIRED_LIBRARIES)
-    unset(CMAKE_REQUIRED_INCLUDES)
+    cmake_pop_check_state()
 endif()
 mark_as_advanced(SQLite3_LIBRARY SQLite3_INCLUDE_DIR SQLite3_HAS_COLUMN_METADATA SQLite3_HAS_RTREE)
 

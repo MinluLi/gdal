@@ -280,9 +280,6 @@ OGRErr OGRMSSQLSpatialDataSource::DeleteLayer( int iLayer )
              sizeof(void *) * (nLayers - iLayer - 1) );
     nLayers--;
 
-    if ( strlen(pszTableName) == 0 )
-        return OGRERR_NONE;
-
 /* -------------------------------------------------------------------- */
 /*      Remove from the database.                                       */
 /* -------------------------------------------------------------------- */
@@ -919,7 +916,7 @@ int OGRMSSQLSpatialDataSource::Open( const char * pszNewName, bool bUpdate,
     if (papszTableNames != nullptr && bUseGeometryColumns)
     {
         for( int iTable = 0;
-            papszTableNames != nullptr && papszTableNames[iTable] != nullptr;
+            papszTableNames[iTable] != nullptr;
             iTable++ )
         {
             CPLODBCStatement oStmt( &oSession );

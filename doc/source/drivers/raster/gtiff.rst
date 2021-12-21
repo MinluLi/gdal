@@ -358,6 +358,10 @@ Creation Options
    These are slightly less efficient than BAND interleaving for some
    purposes, but some applications only support pixel interleaved TIFF
    files.
+   Starting with GDAL 3.5, when copying from a source dataset with multiple bands
+   which advertises a INTERLEAVE metadata item, if the INTERLEAVE creation option
+   is not specified, the source dataset INTERLEAVE will be automatically taken
+   into account, unless the COMPRESS creation option is specified.
 
 -  **TILED=YES**: By default striped TIFF files are created. This
    option can be used to force creation of tiled TIFF files.
@@ -403,7 +407,7 @@ Creation Options
    * ``LERC_ZSTD`` is available when ``LERC`` and ``ZSTD`` are available.
 
    * ``JXL`` is for JPEG-XL, and is only available when using internal libtiff and building GDAL against
-     https://github.com/libjxl/libxl . JXL compression may only be used alongside ``INTERLEAVE=PIXEL`` 
+     https://github.com/libjxl/libjxl . JXL compression may only be used alongside ``INTERLEAVE=PIXEL``
      (the default) on datasets with 4 bands or less.
 
    * ``NONE`` is the default.
@@ -731,10 +735,22 @@ the default behavior of the GTiff driver.
    Set the photometric color space for overview creation
 -  :decl_configoption:`PREDICTOR_OVERVIEW` : Integer 1,2 or 3.
    Set the predictor to use for overviews with LZW, DEFLATE and ZSTD compression
--  :decl_configoption:`JPEG_QUALITY_OVERVIEW` : Integer between 0 and 100. Default value : 75.
+-  :decl_configoption:`JPEG_QUALITY_OVERVIEW` : Integer between 0 and 100. Default value: 75.
    Quality of JPEG compressed overviews, either internal or external.
--  :decl_configoption:`WEBP_LEVEL_OVERVIEW` : Integer between 1 and 100. Default value : 75.
+-  :decl_configoption:`WEBP_LEVEL_OVERVIEW` : Integer between 1 and 100. Default value: 75.
    WEBP quality level of overviews, either internal or external.
+-  :decl_configoption:`ZLEVEL_OVERVIEW` : Integer between 1 and 9 (or 12 when libdeflate is used). Default value: 6.
+   Deflate compression level of overviews, for COMPRESS_OVERVIEW=DEFLATE or LERC_DEFLATE, either internal or external.
+   Added in GDAL 3.4.1
+-  :decl_configoption:`ZSTD_LEVEL_OVERVIEW` : Integer between 1 and 22. Default value: 9.
+   ZSTD compression level of overviews, for COMPRESS_OVERVIEW=DEFLATE or LERC_ZSTD, either internal or external.
+   Added in GDAL 3.4.1
+-  :decl_configoption:`MAX_Z_ERROR_OVERVIEW` : Floating-point value. Default value: 0 (lossless)
+   Maximum error threshold on values for LERC/LERC_DEFLATE/LERC_ZSTD compression of overviews, either internal or external.
+   Added in GDAL 3.4.1
+-  :decl_configoption:`SPARSE_OK_OVERVIEW` :Boolean value. Default value: OFF
+   When set to ON, blocks whose pixels are all at nodata (or 0 if no nodata is defined)
+   will not be written. Added in GDAL 3.4.1
 -  :decl_configoption:`GDAL_TIFF_INTERNAL_MASK` : See `Internal nodata
    masks <#internal_mask>`__ section. Default value : FALSE.
 -  :decl_configoption:`GDAL_TIFF_INTERNAL_MASK_TO_8BIT` : See `Internal nodata

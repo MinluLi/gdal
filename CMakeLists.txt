@@ -124,6 +124,9 @@ define_property(
 # check compiler and set preferences.
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
 #
 if (MSVC)
   add_definitions(-D_CRT_SECURE_NO_DEPRECATE -D_CRT_NONSTDC_NO_DEPRECATE)
@@ -135,52 +138,52 @@ include(CheckCompilerSIMDFeature)
 #
 if ("${CMAKE_SYSTEM_PROCESSOR}" MATCHES "(x86|AMD64)")
   check_compiler_machine_option(flag SSE)
-  if (NOT ${flag} EQUAL "")
+  if (NOT ${flag} STREQUAL "")
     set(HAVE_SSE_AT_COMPILE_TIME 1)
     add_definitions(-DHAVE_SSE_AT_COMPILE_TIME)
-    if (NOT ${flag} EQUAL " ")
+    if (NOT ${flag} STREQUAL " ")
       set(GDAL_SSE_FLAG ${flag})
     endif ()
   endif ()
 
   check_compiler_machine_option(flag SSE2)
-  if (NOT ${flag} EQUAL "")
+  if (NOT ${flag} STREQUAL "")
     set(HAVE_SSE2_AT_COMPILE_TIME 1)
-    if (NOT ${flag} EQUAL " ")
+    if (NOT ${flag} STREQUAL " ")
       set(GDAL_SSE2_FLAG ${flag})
     endif ()
   endif ()
 
   check_compiler_machine_option(flag SSSE3)
-  if (NOT ${flag} EQUAL "")
+  if (NOT ${flag} STREQUAL "")
     set(HAVE_SSSE3_AT_COMPILE_TIME 1)
     add_definitions(-DHAVE_SSSE3_AT_COMPILE_TIME)
-    if (NOT ${flag} EQUAL " ")
+    if (NOT ${flag} STREQUAL " ")
       set(GDAL_SSSE3_FLAG ${flag})
     endif ()
   endif ()
 
   check_compiler_machine_option(flag SSE4_1)
-  if (NOT ${flag} EQUAL "")
+  if (NOT ${flag} STREQUAL "")
     set(HAVE_SSE41_AT_COMPILE_TIME 1)
-    if (NOT ${flag} EQUAL " ")
+    if (NOT ${flag} STREQUAL " ")
       set(GDAL_SSE41_FLAG ${flag})
     endif ()
   endif ()
 
   check_compiler_machine_option(flag AVX)
-  if (NOT ${flag} EQUAL "")
+  if (NOT ${flag} STREQUAL "")
     set(HAVE_AVX_AT_COMPILE_TIME 1)
     add_definitions(-DHAVE_AVX_AT_COMPILE_TIME)
-    if (NOT ${flag} EQUAL " ")
+    if (NOT ${flag} STREQUAL " ")
       set(GDAL_AVX_FLAG ${flag})
     endif ()
   endif ()
 
   check_compiler_machine_option(flag AVX2)
-  if (NOT ${flag} EQUAL "")
+  if (NOT ${flag} STREQUAL "")
     set(HAVE_AVX2_AT_COMPILE_TIME 1)
-    if (NOT ${flag} EQUAL " ")
+    if (NOT ${flag} STREQUAL " ")
       set(GDAL_AVX2_FLAG ${flag})
     endif ()
   endif ()
@@ -208,6 +211,22 @@ if (RUN_CLANG_TIDY)
         "-warnings-as-errors='${CLANG_TIDY_WARNINGS_AS_ERRORS}'")
   endif ()
 endif ()
+
+if (APPLE)
+  # To avoid the issue mentioned at
+  # https://stackoverflow.com/questions/36523911/osx-homebrew-cmake-libpng-version-mismatch-issue on github action
+  # MacOSX workers that have the Mono framework installed, whose libpng headers will be used instead of the homebrew
+  # ones
+  get_property(
+    result
+    CACHE CMAKE_FIND_FRAMEWORK
+    PROPERTY TYPE)
+  if (NOT result)
+    set(CMAKE_FIND_FRAMEWORK LAST)
+    message("Setting CMAKE_FIND_FRAMEWORK=${CMAKE_FIND_FRAMEWORK}")
+  endif ()
+endif ()
+
 #
 # Developer may want to specify some variable to find proper version.
 # ~~~
@@ -218,7 +237,7 @@ endif ()
 #   4. If nothing specified, use default behavior.
 #
 # for example
-#   $ cmake -DPython_LOOKUP_VERSION=3.6 ..
+#   $ cmake -DPython_LOOKUP_VERSION=3.6.0 ..
 #   $ cmake -DPython_FIND_VIRTUALENV=ONLY ..
 #   $ cmake -DPython_ROOT=C:\Python36 ..
 # ~~~
@@ -229,7 +248,7 @@ if (Python_LOOKUP_VERSION)
   find_package(Python ${Python_LOOKUP_VERSION} EXACT COMPONENTS Interpreter Development NumPy)
 else ()
   set(Python_FIND_STRATEGY LOCATION)
-  find_package(Python COMPONENTS Interpreter Development NumPy)
+  find_package(Python 3.6 COMPONENTS Interpreter Development NumPy)
 endif ()
 set_package_properties(Python PROPERTIES PURPOSE "SWIG_PYTHON: Python binding")
 

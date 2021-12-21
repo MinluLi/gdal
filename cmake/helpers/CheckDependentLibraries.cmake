@@ -5,7 +5,7 @@
 CheckDependentLibraries.cmake
 -----------------------------
 
-Detect GDAL depenencies and set variable HAVE_*
+Detect GDAL dependencies and set variable HAVE_*
 
 #]=======================================================================]
 
@@ -13,6 +13,7 @@ include(CheckFunctionExists)
 include(CMakeDependentOption)
 include(FeatureSummary)
 include(DefineFindPackage2)
+include(CheckSymbolExists)
 
 # Macro to declare a package
 # Accept a CAN_DISABLE option to specify that the package can be disabled
@@ -21,14 +22,16 @@ include(DefineFindPackage2)
 # GDAL_USE_ is OFF.
 # Accept a RECOMMENDED option
 macro(gdal_check_package name purpose)
-    set(_options CAN_DISABLE RECOMMENDED DISABLED_BY_DEFAULT)
+    set(_options CONFIG CAN_DISABLE RECOMMENDED DISABLED_BY_DEFAULT)
     set(_oneValueArgs )
     set(_multiValueArgs COMPONENTS)
     cmake_parse_arguments(_GCP "${_options}" "${_oneValueArgs}" "${_multiValueArgs}" ${ARGN})
     string(TOUPPER ${name} key)
     find_package2(${name} QUIET)
     if(NOT DEFINED ${key}_FOUND)
-        if(_GCP_COMPONENTS)
+        if(_GCP_CONFIG)
+            find_package(${name} CONFIG)
+        elseif(_GCP_COMPONENTS)
             find_package(${name} COMPONENTS ${_GCP_COMPONENTS})
         else()
             find_package(${name})
@@ -76,20 +79,21 @@ endfunction()
 
 # Custom find_package definitions
 define_find_package2(LIBCSF csf.h csf)
-define_find_package2(Crnlib crnlib.h crunch)
-define_find_package2(IDB it.h idb)
+define_find_package2(Crnlib crunch/crnlib.h crunch)
 define_find_package2(RASDAMAN rasdaman.hh raslib)
-define_find_package2(Epsilon epsilon.h epsilon)
 define_find_package2(FME fmeobjects/cpp/issesion.h fme)
 
-find_package(ODBC COMPONENTS ODBCINST)
-set_package_properties(ODBC PROPERTIES PURPOSE "Enable DB support thru ODBC")
-option(GDAL_USE_XMLREFORMAT "Set ON to use xmlreformat" OFF)
+if(WIN32)
+gdal_check_package(ODBC "Enable DB support through ODBC" CAN_DISABLE)
+else()
+gdal_check_package(ODBC "Enable DB support through ODBC" COMPONENTS ODBCINST CAN_DISABLE)
+endif()
+gdal_check_package(MSSQL_NCLI "MSSQL Native Client to enable bulk copy" CAN_DISABLE)
+gdal_check_package(MSSQL_ODBC "MSSQL ODBC driver to enable bulk copy" CAN_DISABLE)
 
 gdal_check_package(MySQL "MySQL" CAN_DISABLE)
 
-# basic libaries
-find_package(Boost)
+# basic libraries
 gdal_check_package(CURL "Enable drivers to use web API" CAN_DISABLE)
 
 gdal_check_package(Iconv "Character set recoding (used in GDAL portability library)" CAN_DISABLE)
@@ -154,7 +158,7 @@ find_package(OpenSSL COMPONENTS Crypto SSL)
 if(OPENSSL_FOUND)
     set(HAVE_OPENSSL ON CACHE INTERNAL "")
 endif()
-gdal_check_package(CryptoPP "Use crypto++ library for CPL.")
+gdal_check_package(CryptoPP "Use crypto++ library for CPL." CAN_DISABLE)
 option(CRYPTOPPL_USE_ONLY_CRYPTODLL_ALG "Use Only cryptoDLL alg. only work on dynamic DLL" OFF)
 
 find_package(PROJ 6.0 REQUIRED)
@@ -262,7 +266,11 @@ else()
 endif()
 
 # 3rd party libraries
-gdal_check_package(PCRE "Enable PCRE support for sqlite3" CAN_DISABLE)
+
+gdal_check_package(PCRE2 "Enable PCRE2 support for sqlite3" CAN_DISABLE)
+if(NOT GDAL_USE_PCRE2)
+    gdal_check_package(PCRE "Enable PCRE support for sqlite3" CAN_DISABLE)
+endif()
 
 gdal_check_package(SQLite3 "Enable SQLite3 support (used by SQLite/Spatialite, GPKG, Rasterlite, MBTiles, etc.)" CAN_DISABLE RECOMMENDED)
 if (SQLite3_FOUND)
@@ -282,20 +290,15 @@ if (SQLite3_FOUND)
 endif ()
 
 gdal_check_package(SPATIALITE "Enable spatialite support for sqlite3" CAN_DISABLE)
+gdal_check_package(RASTERLITE2 "Enable RasterLite2 support for sqlite3" CAN_DISABLE)
 
-find_package(Rasterlite2)
-set_package_properties(Rasterlite2 PROPERTIES PURPOSE "Enable rasterlite2 support for sqlite3")
-if(RASTERLITE2_FOUND)
-    if(RASTERLITE2_VERSION_STRING VERSION_GREATER_EQUAL 1.1.0)
-        # GDAL requires rasterlite2 1.1.0 and later
-        set(HAVE_RASTERLITE2 ON CACHE INTERNAL "HAVE_RASTERLITE2")
-    else()
+set(HAVE_RASTERLITE2 ${RASTERLITE2_FOUND})
+if(RASTERLITE2_FOUND AND NOT RASTERLITE2_VERSION_STRING STREQUAL "unknown" )
+    if(NOT RASTERLITE2_VERSION_STRING VERSION_GREATER_EQUAL 1.1.0)
         message(STATUS "Rasterlite2 requires version 1.1.0 and later, detected: ${RASTERLITE2_VERSION_STRING}")
         message(STATUS "Turn off rasterlite2 support")
         set(HAVE_RASTERLITE2 OFF CACHE INTERNAL "HAVE_RASTERLITE2")
     endif()
-else()
-    set(HAVE_RASTERLITE2 OFF CACHE INTERNAL "HAVE_RASTERLITE2")
 endif()
 if(GDAL_USE_RASTERLITE2)
     if(NOT HAVE_RASTERLITE2)
@@ -335,14 +338,23 @@ gdal_check_package(HDF5 "Enable HDF5" COMPONENTS "C" "CXX" CAN_DISABLE)
 
 gdal_check_package(WebP "WebP compression" CAN_DISABLE)
 gdal_check_package(FreeXL "Enable XLS driver" CAN_DISABLE)
-gdal_check_package(GTA "")
+
+define_find_package2(GTA gta/gta.h gta PKGCONFIG_NAME gta)
+gdal_check_package(GTA "Enable GTA driver" CAN_DISABLE)
+
 gdal_check_package(MRSID "")
 gdal_check_package(DAP "Data Access Protocol library for server and client." CAN_DISABLE)
 gdal_check_package(Armadillo "C++ library for linear algebra (used for TPS transformation)" CAN_DISABLE)
+
+define_find_package2(CFITSIO fitsio.h cfitsio PKGCONFIG_NAME cfitsio)
 gdal_check_package(CFITSIO "C FITS I/O library" CAN_DISABLE)
+
 gdal_check_package(GEOS "Geometry Engine - Open Source (GDAL core dependency)" RECOMMENDED CAN_DISABLE)
 gdal_check_package(HDF4 "Enable HDF4 driver" CAN_DISABLE)
+
+define_find_package2(KEA libkea/KEACommon.h kea)
 gdal_check_package(KEA "Enable KEA driver" CAN_DISABLE)
+
 gdal_check_package(ECW "Enable ECW driver")
 gdal_check_package(NetCDF "Enable netCDF driver" CAN_DISABLE)
 gdal_check_package(OGDI "Enable ogr_OGDI driver")
@@ -350,20 +362,29 @@ gdal_check_package(OGDI "Enable ogr_OGDI driver")
 # so disable it by default even if found.
 gdal_check_package(OpenCL "Enable OpenCL (may be used for warping)" DISABLED_BY_DEFAULT)
 gdal_check_package(PostgreSQL "" CAN_DISABLE)
-gdal_check_package(SOSI  "enable ogr_SOSI driver")
+gdal_check_package(FYBA "enable ogr_SOSI driver" CAN_DISABLE)
 gdal_check_package(LibLZMA "LZMA compression" CAN_DISABLE)
 gdal_check_package(LZ4 "LZ4 compression" CAN_DISABLE)
 gdal_check_package(Blosc "Blosc compression" CAN_DISABLE)
+
+define_find_package2(JXL jxl/decode.h jxl PKGCONFIG_NAME libjxl)
 gdal_check_package(JXL "JPEG-XL compression (when used with internal libtiff)" CAN_DISABLE)
+
 gdal_check_package(CharLS "enable gdal_JPEGLS jpeg loss-less driver" CAN_DISABLE)
-gdal_check_package(OpenMP "")
+# unused for now
+#gdal_check_package(OpenMP "")
 gdal_check_package(Crnlib "enable gdal_DDS driver")
 gdal_check_package(IDB "enable ogr_IDB driver")
 # TODO: implement FindRASDAMAN
 # libs: -lrasodmg -lclientcomm -lcompression -lnetwork -lraslib
 gdal_check_package(RASDAMAN "enable rasdaman driver")
-gdal_check_package(TileDB "enable TileDB driver" CAN_DISABLE)
+gdal_check_package(rdb "enable RIEGL RDB library" CONFIG CAN_DISABLE)
+gdal_check_package(TileDB "enable TileDB driver" CONFIG CAN_DISABLE)
 gdal_check_package(OpenEXR "OpenEXR >=2.2" CAN_DISABLE)
+gdal_check_package(MONGOCXX "Enable MongoDBV3 driver" CAN_DISABLE)
+
+define_find_package2(HEIF libheif/heif.h heif PKGCONFIG_NAME libheif)
+gdal_check_package(HEIF "HEIF >= 1.1" CAN_DISABLE)
 
 # OpenJPEG's cmake-CONFIG is broken, so call module explicitly
 find_package(OpenJPEG MODULE)
@@ -397,26 +418,31 @@ endif()
 unset(TMP_GRASS)
 
 # PDF library: one of them enables PDF driver
-gdal_check_package(Poppler "Enable PDF driver" CAN_DISABLE)
-gdal_check_package(PDFium "Enable PDF driver" CAN_DISABLE)
-gdal_check_package(Podofo "Enable PDF driver" CAN_DISABLE)
+gdal_check_package(Poppler "Enable PDF driver (read side)" CAN_DISABLE)
+
+define_find_package2(PDFium public/fpdfview.h pdfium FIND_PATH_SUFFIX pdfium)
+gdal_check_package(PDFium "Enable PDF driver (read side)" CAN_DISABLE)
+
+gdal_check_package(Podofo "Enable PDF driver (read side)" CAN_DISABLE)
 if(GDAL_USE_POPPLER OR GDAL_USE_PDFIUM OR GDAL_USE_PODOFO)
     set(HAVE_PDFLIB ON)
 else()
     set(HAVE_PDFLIB OFF)
 endif()
 
+set(Oracle_CAN_USE_CLNTSH_AS_MAIN_LIBRARY ON)
 gdal_check_package(Oracle "Enable Oracle OCI driver")
-gdal_check_package(TEIGHA "")
+gdal_check_package(TEIGHA "Enable DWG and DGNv8 drivers" CAN_DISABLE)
+gdal_check_package(FileGDB "Enable FileGDB (based on closed-source SDK) driver" CAN_DISABLE)
 
 option(GDAL_USE_MSG "Set ON to build MSG driver and download external https://gitlab.eumetsat.int/open-source/PublicDecompWT" OFF)
 
 # proprietary libraries
 # KAKADU
-gdal_check_package(KDU "Enable KAKADU")
-# LURATECH JPEG2000 SDK
-set(LURATECH_JP2SDK_DIRECTORY "" CACHE STRING "LURATECH JP2SDK library base directory")
+gdal_check_package(KDU "Enable KAKADU" CAN_DISABLE)
+gdal_check_package(LURATECH "Enable JP2Lura driver" CAN_DISABLE)
 gdal_check_package(FME "FME")
+gdal_check_package(IDB "Informix DataBlade client")
 
 # bindings
 gdal_check_package(SWIG "Enable language bindings")
@@ -429,8 +455,12 @@ set_package_properties(SWIG PROPERTIES
 
 find_package(Perl)
 set_package_properties(Perl PROPERTIES PURPOSE "SWIG_PERL: Perl binding")
-find_Package(JNI)
+
+find_package(JNI)
+find_package(Java COMPONENTS Runtime Development)
+find_program(ANT NAMES ant DOC "ant executable for Java binding")
 set_package_properties(JNI PROPERTIES PURPOSE "SWIG_JAVA: Java binding")
+
 find_package(CSharp)
 set_package_properties(CSharp PROPERTIES PURPOSE "SWIG_CSharp: CSharp binding")
 

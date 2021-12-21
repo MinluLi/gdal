@@ -2518,23 +2518,6 @@ def test_tiff_write_79():
                 ('(1) did not get expected value. do_projection_ref = %d, check_just_after = %d' % (do_projection_ref, check_just_after))
             ds = None
 
-            # Still read-only.
-            ds = gdal.Open('tmp/tiff_write_79.tif')
-            if do_projection_ref:
-                ds.GetProjectionRef()
-            ds.SetMetadataItem('AREA_OR_POINT', 'Point')
-            ds = None
-            assert not os.path.exists('tmp/tiff_write_79.tif.aux.xml')
-
-            # So should get 'Area'
-            ds = gdal.Open('tmp/tiff_write_79.tif')
-            if do_projection_ref:
-                ds.GetProjectionRef()
-            mdi = ds.GetMetadataItem('AREA_OR_POINT')
-            assert mdi == 'Area', \
-                ('(2) did not get expected value. do_projection_ref = %d, check_just_after = %d' % (do_projection_ref, check_just_after))
-            ds = None
-
             # Now update to 'Point'
             ds = gdal.Open('tmp/tiff_write_79.tif', gdal.GA_Update)
             if do_projection_ref:
@@ -3147,10 +3130,11 @@ def test_tiff_write_90():
     assert checksums[1][2] != checksums[2][2]
 
 ###############################################################################
-# Test WEBP_LEVEL propagation and overriding while creating (internal) overviews
+# Test WEBP_LEVEL propagation and overriding while creating overviews
 # on a newly created dataset
 
-def test_tiff_write_90_webp():
+@pytest.mark.parametrize("external_ovr", [True, False])
+def test_tiff_write_90_webp(external_ovr):
     md = gdaltest.tiff_drv.GetMetadata()
     if md['DMD_CREATIONOPTIONLIST'].find('WEBP') == -1:
         pytest.skip()
@@ -3161,16 +3145,22 @@ def test_tiff_write_90_webp():
         src_ds = gdal.Open('../gdrivers/data/utm.tif')
         fname = 'tmp/tiff_write_90_webp_%d' % i
 
-        ds = gdal.GetDriverByName('GTiff').Create(fname, 1024, 1024, 3,
+        ds = gdal.GetDriverByName('GTiff').Create(fname, 512, 512, 3,
                                                   options=['COMPRESS=WEBP', 'WEBP_LEVEL=%d' % quality])
 
-        data = src_ds.GetRasterBand(1).ReadRaster(0, 0, 512, 512, 1024, 1024)
-        ds.GetRasterBand(1).WriteRaster(0, 0, 1024, 1024, data)
-        ds.GetRasterBand(2).WriteRaster(0, 0, 1024, 1024, data)
-        ds.GetRasterBand(3).WriteRaster(0, 0, 1024, 1024, data)
+        data = src_ds.GetRasterBand(1).ReadRaster()
+        ds.GetRasterBand(1).WriteRaster(0, 0, 512, 512, data)
+        ds.GetRasterBand(2).WriteRaster(0, 0, 512, 512, data)
+        ds.GetRasterBand(3).WriteRaster(0, 0, 512, 512, data)
         if i == 2:
             quality = 30
-        with gdaltest.config_option('WEBP_LEVEL_OVERVIEW', '%d'%quality):
+        options = {}
+        if external_ovr:
+            ds = None
+            ds = gdal.Open(fname)
+            options['COMPRESS_OVERVIEW'] = 'WEBP'
+        options['WEBP_LEVEL_OVERVIEW'] = '%d' % quality
+        with gdaltest.config_options(options):
             ds.BuildOverviews('AVERAGE', overviewlist=[2, 4])
 
         src_ds = None
@@ -3194,7 +3184,6 @@ def test_tiff_write_90_webp():
     assert checksums[1][0] == checksums[2][0]
     assert checksums[1][1] != checksums[2][1]
     assert checksums[1][2] != checksums[2][2]
-
 
 
 ###############################################################################
@@ -7000,6 +6989,136 @@ def test_tiff_write_180_lerc_separate():
     gdal.Unlink(filename)
     assert cs == [30111, 32302, 40026]
 
+
+###############################################################################
+# Test MAX_Z_ERROR_OVERVIEW effect while creating overviews
+# on a newly created dataset
+
+@pytest.mark.parametrize("external_ovr,compression", [(True, 'LERC_ZSTD'),
+                                                      (False, 'LERC_ZSTD'),
+                                                      (True, 'LERC_DEFLATE'),
+                                                      (False, 'LERC_DEFLATE')])
+def test_tiff_write_lerc_overview(external_ovr, compression):
+    md = gdaltest.tiff_drv.GetMetadata()
+    if compression not in md['DMD_CREATIONOPTIONLIST']:
+        pytest.skip()
+
+    checksums = {}
+    errors = [0,10,10]
+    src_ds = gdal.Open('../gdrivers/data/utm.tif')
+    for i, error in enumerate(errors):
+        fname = '/vsimem/test_tiff_write_lerc_overview_%d' % i
+
+        ds = gdal.GetDriverByName('GTiff').Create(fname, 256, 256, 1,
+                                                  options=['COMPRESS=' + compression,
+                                                           'MAX_Z_ERROR=%f' % error])
+        data = src_ds.GetRasterBand(1).ReadRaster(0, 0, 512, 512, 256, 256)
+        ds.GetRasterBand(1).WriteRaster(0, 0, 256, 256, data)
+        if i == 2:
+            error = 30
+        options = {}
+        if external_ovr:
+            ds = None
+            ds = gdal.Open(fname)
+            options['COMPRESS_OVERVIEW'] = compression
+        options['MAX_Z_ERROR_OVERVIEW'] = '%d' % error
+        with gdaltest.config_options(options):
+            ds.BuildOverviews('AVERAGE', overviewlist=[2, 4])
+
+        ds = None
+
+        ds = gdal.Open(fname)
+        assert ds.GetRasterBand(1).GetOverview(0).GetDataset().GetMetadataItem('COMPRESSION', 'IMAGE_STRUCTURE') == compression
+        checksums[i] = [ ds.GetRasterBand(1).Checksum(),
+                               ds.GetRasterBand(1).GetOverview(0).Checksum(),
+                               ds.GetRasterBand(1).GetOverview(1).Checksum() ]
+        ds = None
+        gdaltest.tiff_drv.Delete(fname)
+
+    assert checksums[0][0] != checksums[1][0]
+    assert checksums[0][1] != checksums[1][1]
+    assert checksums[0][2] != checksums[1][2]
+
+    assert checksums[0][0] != checksums[2][0]
+    assert checksums[0][1] != checksums[2][1]
+    assert checksums[0][2] != checksums[2][2]
+
+    assert checksums[1][0] == checksums[2][0]
+    assert checksums[1][1] != checksums[2][1]
+    assert checksums[1][2] != checksums[2][2]
+
+###############################################################################
+# Test ZLEVEL_OVERVIEW effect while creating overviews
+# on a newly created dataset
+
+@pytest.mark.parametrize("external_ovr", [True, False])
+def test_tiff_write_lerc_zlevel(external_ovr):
+    md = gdaltest.tiff_drv.GetMetadata()
+    if 'LERC_DEFLATE' not in md['DMD_CREATIONOPTIONLIST']:
+        pytest.skip()
+
+    filesize = {}
+    src_ds = gdal.Open('../gdrivers/data/utm.tif')
+    for level in (1,9):
+        fname = '/vsimem/test_tiff_write_lerc_zlevel_%d' % level
+        ds = gdal.GetDriverByName('GTiff').Create(fname, 256, 256, 1,
+                                                  options=['COMPRESS=LERC_DEFLATE'])
+        data = src_ds.GetRasterBand(1).ReadRaster(0, 0, 512, 512, 256, 256)
+        ds.GetRasterBand(1).WriteRaster(0, 0, 256, 256, data)
+        options = { 'MAX_Z_ERROR_OVERVIEW' : '10' }
+        if external_ovr:
+            ds = None
+            ds = gdal.Open(fname)
+            options['COMPRESS_OVERVIEW'] = 'LERC_DEFLATE'
+        options['ZLEVEL_OVERVIEW'] = '%d' % level
+        with gdaltest.config_options(options):
+            ds.BuildOverviews('AVERAGE', overviewlist=[2, 4])
+        ds = None
+
+        if external_ovr:
+            filesize[level] = gdal.VSIStatL(fname + '.ovr').size
+        else:
+            filesize[level] = gdal.VSIStatL(fname).size
+        gdaltest.tiff_drv.Delete(fname)
+
+    assert filesize[1] > filesize[9]
+
+###############################################################################
+# Test ZSTD_LEVEL_OVERVIEW effect while creating overviews
+# on a newly created dataset
+
+@pytest.mark.parametrize("external_ovr", [True, False])
+def test_tiff_write_lerc_zstd_level(external_ovr):
+    md = gdaltest.tiff_drv.GetMetadata()
+    if 'LERC_ZSTD' not in md['DMD_CREATIONOPTIONLIST']:
+        pytest.skip()
+
+    filesize = {}
+    src_ds = gdal.Open('../gdrivers/data/utm.tif')
+    for level in (1,22):
+        fname = '/vsimem/test_tiff_write_lerc_zstd_level_%d' % level
+        ds = gdal.GetDriverByName('GTiff').Create(fname, 256, 256, 1,
+                                                  options=['COMPRESS=LERC_ZSTD'])
+        data = src_ds.GetRasterBand(1).ReadRaster(0, 0, 512, 512, 256, 256)
+        ds.GetRasterBand(1).WriteRaster(0, 0, 256, 256, data)
+        options = { 'MAX_Z_ERROR_OVERVIEW' : '10' }
+        if external_ovr:
+            ds = None
+            ds = gdal.Open(fname)
+            options['COMPRESS_OVERVIEW'] = 'LERC_ZSTD'
+        options['ZSTD_LEVEL_OVERVIEW'] = '%d' % level
+        with gdaltest.config_options(options):
+            ds.BuildOverviews('AVERAGE', overviewlist=[2, 4])
+        ds = None
+
+        if external_ovr:
+            filesize[level] = gdal.VSIStatL(fname + '.ovr').size
+        else:
+            filesize[level] = gdal.VSIStatL(fname).size
+        gdaltest.tiff_drv.Delete(fname)
+
+    assert filesize[1] > filesize[22]
+
 ###############################################################################
 # Test set XMP metadata
 
@@ -7608,7 +7727,7 @@ def test_tiff_write_coordinate_epoch():
 
 
 @pytest.mark.parametrize("reopen", [True, False])
-def test_tiff_write_muliple_ifds_directory_rewriting(reopen):
+def test_tiff_write_multiple_ifds_directory_rewriting(reopen):
 
     filename = '/vsimem/out.tif'
     ds = gdal.GetDriverByName('GTiff').Create(filename, 32, 32, options=['TILED=YES', 'SPARSE_OK=YES'])
@@ -7633,6 +7752,433 @@ def test_tiff_write_muliple_ifds_directory_rewriting(reopen):
     gdal.Unlink(filename)
     assert mm == (2, 2)
 
+###############################################################################
+# Test SetSpatialRef() on a read-only dataset
+
+
+def test_tiff_write_setspatialref_read_only():
+
+    filename = '/vsimem/out.tif'
+    gdal.GetDriverByName('GTiff').Create(filename, 1, 1)
+
+    ds = gdal.Open(filename)
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    assert ds.SetSpatialRef(srs) == gdal.CE_None
+    ds = None
+
+    assert gdal.VSIStatL(filename + '.aux.xml') is not None
+
+    ds = gdal.Open(filename)
+    got_srs = ds.GetSpatialRef()
+    assert got_srs
+    assert got_srs.GetAuthorityCode(None) == '4326'
+    ds = None
+
+    gdal.GetDriverByName('GTiff').Delete(filename)
+
+###############################################################################
+# Test SetSpatialRef() on a read-only dataset, overriding TIFF tags
+
+
+def test_tiff_write_setspatialref_read_only_override_tifftags():
+
+    filename = '/vsimem/out.tif'
+    ds = gdal.GetDriverByName('GTiff').Create(filename, 1, 1)
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(32631)
+    assert ds.SetSpatialRef(srs) == gdal.CE_None
+    ds = None
+
+    ds = gdal.Open(filename)
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    assert ds.SetSpatialRef(srs) == gdal.CE_None
+    ds = None
+
+    assert gdal.VSIStatL(filename + '.aux.xml') is not None
+
+    ds = gdal.Open(filename)
+    got_srs = ds.GetSpatialRef()
+    assert got_srs
+    assert got_srs.GetAuthorityCode(None) == '4326'
+    ds = None
+
+    ds = gdal.Open(filename, gdal.GA_Update)
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(32632)
+    assert ds.SetSpatialRef(srs) == gdal.CE_None
+    ds = None
+
+    assert gdal.VSIStatL(filename + '.aux.xml') is None
+
+    ds = gdal.Open(filename)
+    got_srs = ds.GetSpatialRef()
+    assert got_srs
+    assert got_srs.GetAuthorityCode(None) == '32632'
+    ds = None
+
+    gdal.GetDriverByName('GTiff').Delete(filename)
+
+###############################################################################
+# Test SetGeoTransform() on a read-only dataset
+
+
+def test_tiff_write_setgeotransform_read_only():
+
+    filename = '/vsimem/out.tif'
+    gdal.GetDriverByName('GTiff').Create(filename, 1, 1)
+
+    ds = gdal.Open(filename)
+    gt = [2,1,0,49,0,-1]
+    assert ds.SetGeoTransform(gt) == gdal.CE_None
+    ds = None
+
+    assert gdal.VSIStatL(filename + '.aux.xml') is not None
+
+    ds = gdal.Open(filename)
+    got_gt = [x for x in ds.GetGeoTransform()]
+    assert got_gt == gt
+    ds = None
+
+    gdal.GetDriverByName('GTiff').Delete(filename)
+
+###############################################################################
+# Test SetGeoTransform() on a read-only dataset, overriding TIFF tags
+
+
+def test_tiff_write_setgeotransform_read_only_override_tifftags():
+
+    filename = '/vsimem/out.tif'
+    ds = gdal.GetDriverByName('GTiff').Create(filename, 1, 1)
+    assert ds.SetGeoTransform([3,1,0,50,0,-1]) == gdal.CE_None
+    ds = None
+
+    ds = gdal.Open(filename)
+    gt = [2,1,0,49,0,-1]
+    assert ds.SetGeoTransform(gt) == gdal.CE_None
+    ds = None
+
+    assert gdal.VSIStatL(filename + '.aux.xml') is not None
+
+    ds = gdal.Open(filename)
+    got_gt = [x for x in ds.GetGeoTransform()]
+    assert got_gt == gt
+    ds = None
+
+    ds = gdal.Open(filename, gdal.GA_Update)
+    gt = [4,1,0,51,0,-1]
+    assert ds.SetGeoTransform(gt) == gdal.CE_None
+    ds = None
+
+    assert gdal.VSIStatL(filename + '.aux.xml') is None
+
+    ds = gdal.Open(filename)
+    got_gt = [x for x in ds.GetGeoTransform()]
+    assert got_gt == gt
+    ds = None
+
+    gdal.GetDriverByName('GTiff').Delete(filename)
+
+###############################################################################
+# Test SetGCPs() on a read-only dataset
+
+
+def test_tiff_write_setgcps_read_only():
+
+    filename = '/vsimem/out.tif'
+    gdal.GetDriverByName('GTiff').Create(filename, 1, 1)
+
+    ds = gdal.Open(filename)
+    gcps = [gdal.GCP(0, 1, 2, 3, 4)]
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    assert ds.SetGCPs(gcps, srs) == gdal.CE_None
+    ds = None
+
+    assert gdal.VSIStatL(filename + '.aux.xml') is not None
+
+    ds = gdal.Open(filename)
+    got_gcps = ds.GetGCPs()
+    assert len(got_gcps) == len(gcps)
+    assert got_gcps[0].GCPPixel == gcps[0].GCPPixel
+    assert got_gcps[0].GCPLine == gcps[0].GCPLine
+    assert got_gcps[0].GCPX == gcps[0].GCPX
+    assert got_gcps[0].GCPY == gcps[0].GCPY
+    got_srs = ds.GetGCPSpatialRef()
+    assert got_srs
+    assert got_srs.GetAuthorityCode(None) == '4326'
+    ds = None
+
+    gdal.GetDriverByName('GTiff').Delete(filename)
+
+###############################################################################
+# Test SetGCPs() on a read-only dataset, overriding TIFF tags
+
+
+def test_tiff_write_setgcps_read_only_override_tifftags():
+
+    filename = '/vsimem/out.tif'
+    ds = gdal.GetDriverByName('GTiff').Create(filename, 1, 1)
+    gcps = [gdal.GCP(5, 6, 7, 8, 9)]
+    assert ds.SetGCPs(gcps, None) == gdal.CE_None
+    ds = None
+
+    ds = gdal.Open(filename)
+    gcps = [gdal.GCP(0, 1, 2, 3, 4)]
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+    assert ds.SetGCPs(gcps, srs) == gdal.CE_None
+    ds = None
+
+    assert gdal.VSIStatL(filename + '.aux.xml') is not None
+
+    ds = gdal.Open(filename)
+    got_gcps = ds.GetGCPs()
+    assert len(got_gcps) == len(gcps)
+    assert got_gcps[0].GCPPixel == gcps[0].GCPPixel
+    assert got_gcps[0].GCPLine == gcps[0].GCPLine
+    assert got_gcps[0].GCPX == gcps[0].GCPX
+    assert got_gcps[0].GCPY == gcps[0].GCPY
+    got_srs = ds.GetGCPSpatialRef()
+    assert got_srs
+    assert got_srs.GetAuthorityCode(None) == '4326'
+    ds = None
+
+    ds = gdal.Open(filename, gdal.GA_Update)
+    gcps = [gdal.GCP(10, 11, 12, 13, 14)]
+    assert ds.SetGCPs(gcps, None) == gdal.CE_None
+    ds = None
+
+    assert gdal.VSIStatL(filename + '.aux.xml') is None
+
+    ds = gdal.Open(filename)
+    got_gcps = ds.GetGCPs()
+    assert len(got_gcps) == len(gcps)
+    assert got_gcps[0].GCPPixel == gcps[0].GCPPixel
+    assert got_gcps[0].GCPLine == gcps[0].GCPLine
+    assert got_gcps[0].GCPX == gcps[0].GCPX
+    assert got_gcps[0].GCPY == gcps[0].GCPY
+    assert ds.GetGCPSpatialRef() is None
+    ds = None
+
+    gdal.GetDriverByName('GTiff').Delete(filename)
+
+###############################################################################
+# Test SetNoDataValue() and DeleteNoDataValue() on a read-only dataset
+
+
+def test_tiff_write_nodata_read_only():
+
+    filename = '/vsimem/out.tif'
+    gdal.GetDriverByName('GTiff').Create(filename, 1, 1)
+
+    ds = gdal.Open(filename)
+    assert ds.GetRasterBand(1).SetNoDataValue(123) == gdal.CE_None
+    ds = None
+
+    assert gdal.VSIStatL(filename + '.aux.xml') is not None
+
+    ds = gdal.Open(filename)
+    assert ds.GetRasterBand(1).GetNoDataValue() == 123
+    assert ds.GetRasterBand(1).DeleteNoDataValue() == gdal.CE_None
+    ds = None
+
+    ds = gdal.Open(filename)
+    assert ds.GetRasterBand(1).GetNoDataValue() is None
+    ds = None
+
+    gdal.GetDriverByName('GTiff').Delete(filename)
+
+###############################################################################
+# Test SetNoDataValue() on a read-only dataset, overriding TIFF tags
+
+
+def test_tiff_write_nodata_read_only_overriding_tifftags():
+
+    filename = '/vsimem/out.tif'
+    ds = gdal.GetDriverByName('GTiff').Create(filename, 1, 1)
+    assert ds.GetRasterBand(1).SetNoDataValue(0) == gdal.CE_None
+    ds = None
+
+
+    ds = gdal.Open(filename)
+    assert ds.GetRasterBand(1).SetNoDataValue(123) == gdal.CE_None
+    ds = None
+
+    assert gdal.VSIStatL(filename + '.aux.xml') is not None
+
+    ds = gdal.Open(filename)
+    assert ds.GetRasterBand(1).GetNoDataValue() == 123
+    ds = None
+
+    ds = gdal.Open(filename, gdal.GA_Update)
+    assert ds.GetRasterBand(1).SetNoDataValue(1) == gdal.CE_None
+    ds = None
+
+    ds = gdal.Open(filename)
+    assert ds.GetRasterBand(1).GetNoDataValue() == 1
+    ds = None
+
+    gdal.GetDriverByName('GTiff').Delete(filename)
+
+###############################################################################
+# Test Dataset SetMetadataItem() on a read-only dataset
+
+
+def test_tiff_write_dataset_setmetadataitem_read_only():
+
+    filename = '/vsimem/out.tif'
+    gdal.GetDriverByName('GTiff').Create(filename, 1, 1)
+
+    ds = gdal.Open(filename)
+    assert ds.SetMetadataItem('FOO', 'BAR', 'BAZ') == gdal.CE_None
+    ds = None
+
+    assert gdal.VSIStatL(filename + '.aux.xml') is not None
+
+    ds = gdal.Open(filename)
+    assert ds.GetMetadataItem('FOO', 'BAZ') == 'BAR'
+    ds = None
+
+    gdal.GetDriverByName('GTiff').Delete(filename)
+
+###############################################################################
+# Test Dataset SetMetadata() on a read-only dataset
+
+
+def test_tiff_write_dataset_setmetadata_read_only():
+
+    filename = '/vsimem/out.tif'
+    gdal.GetDriverByName('GTiff').Create(filename, 1, 1)
+
+    ds = gdal.Open(filename)
+    assert ds.SetMetadata({'FOO': 'BAR'}, 'BAZ') == gdal.CE_None
+    ds = None
+
+    assert gdal.VSIStatL(filename + '.aux.xml') is not None
+
+    ds = gdal.Open(filename)
+    assert ds.GetMetadataItem('FOO', 'BAZ') == 'BAR'
+    ds = None
+
+    gdal.GetDriverByName('GTiff').Delete(filename)
+
+###############################################################################
+# Test Band SetMetadataItem() on a read-only dataset
+
+
+def test_tiff_write_band_setmetadataitem_read_only():
+
+    filename = '/vsimem/out.tif'
+    gdal.GetDriverByName('GTiff').Create(filename, 1, 1)
+
+    ds = gdal.Open(filename)
+    assert ds.GetRasterBand(1).SetMetadataItem('FOO', 'BAR', 'BAZ') == gdal.CE_None
+    ds = None
+
+    assert gdal.VSIStatL(filename + '.aux.xml') is not None
+
+    ds = gdal.Open(filename)
+    assert ds.GetRasterBand(1).GetMetadataItem('FOO', 'BAZ') == 'BAR'
+    ds = None
+
+    gdal.GetDriverByName('GTiff').Delete(filename)
+
+###############################################################################
+# Test Band SetMetadata() on a read-only dataset
+
+
+def test_tiff_write_band_setmetadata_read_only():
+
+    filename = '/vsimem/out.tif'
+    gdal.GetDriverByName('GTiff').Create(filename, 1, 1)
+
+    ds = gdal.Open(filename)
+    assert ds.GetRasterBand(1).SetMetadata({'FOO': 'BAR'}, 'BAZ') == gdal.CE_None
+    ds = None
+
+    assert gdal.VSIStatL(filename + '.aux.xml') is not None
+
+    ds = gdal.Open(filename)
+    assert ds.GetRasterBand(1).GetMetadataItem('FOO', 'BAZ') == 'BAR'
+    ds = None
+
+    gdal.GetDriverByName('GTiff').Delete(filename)
+
+###############################################################################
+# Test SetColorTable() on a read-only dataset
+
+
+def test_tiff_write_setcolortable_read_only():
+
+    filename = '/vsimem/out.tif'
+    gdal.GetDriverByName('GTiff').Create(filename, 1, 1)
+
+    ds = gdal.Open(filename)
+    ct = gdal.ColorTable()
+    ct.SetColorEntry(0, (1, 2, 3, 255))
+    assert ds.GetRasterBand(1).SetRasterColorTable(ct) == gdal.CE_None
+    assert ds.GetRasterBand(1).GetColorInterpretation() == gdal.GCI_PaletteIndex
+    ds = None
+
+    assert gdal.VSIStatL(filename + '.aux.xml') is not None
+
+    ds = gdal.Open(filename)
+    ct = ds.GetRasterBand(1).GetRasterColorTable()
+    assert ct is not None
+    assert ct.GetColorEntry(0) == (1, 2, 3, 255)
+    assert ds.GetRasterBand(1).GetColorInterpretation() == gdal.GCI_PaletteIndex
+    ds = None
+
+    gdal.GetDriverByName('GTiff').Delete(filename)
+
+
+###############################################################################
+# Test SetColorTable() on a read-only dataset, overriding TIFF tags
+
+
+def test_tiff_write_setcolortable_read_only_overriding_tifftags():
+
+    filename = '/vsimem/out.tif'
+    ds = gdal.GetDriverByName('GTiff').Create(filename, 1, 1)
+    ct = gdal.ColorTable()
+    ct.SetColorEntry(0, (1, 2, 3, 255))
+    assert ds.GetRasterBand(1).SetRasterColorTable(ct) == gdal.CE_None
+    assert ds.GetRasterBand(1).GetColorInterpretation() == gdal.GCI_PaletteIndex
+    ds = None
+
+    ds = gdal.Open(filename)
+    ct = gdal.ColorTable()
+    ct.SetColorEntry(0, (4, 5, 6, 255))
+    assert ds.GetRasterBand(1).SetRasterColorTable(ct) == gdal.CE_None
+    assert ds.GetRasterBand(1).GetColorInterpretation() == gdal.GCI_PaletteIndex
+    ds = None
+
+    assert gdal.VSIStatL(filename + '.aux.xml') is not None
+
+    ds = gdal.Open(filename)
+    assert ct is not None
+    assert ct.GetColorEntry(0) == (4, 5, 6, 255)
+    assert ds.GetRasterBand(1).GetColorInterpretation() == gdal.GCI_PaletteIndex
+    ds = None
+
+    ds = gdal.Open(filename, gdal.GA_Update)
+    ct = gdal.ColorTable()
+    ct.SetColorEntry(0, (7, 8, 9, 255))
+    assert ds.GetRasterBand(1).SetRasterColorTable(ct) == gdal.CE_None
+    assert ds.GetRasterBand(1).GetColorInterpretation() == gdal.GCI_PaletteIndex
+    ds = None
+
+    assert gdal.VSIStatL(filename + '.aux.xml') is None
+
+    ds = gdal.Open(filename)
+    assert ct is not None
+    assert ct.GetColorEntry(0) == (7, 8, 9, 255)
+    assert ds.GetRasterBand(1).GetColorInterpretation() == gdal.GCI_PaletteIndex
+    ds = None
+
+    gdal.GetDriverByName('GTiff').Delete(filename)
 
 def test_tiff_write_cleanup():
     gdaltest.tiff_drv = None

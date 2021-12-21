@@ -356,6 +356,23 @@ void OGRSQLiteBaseDataSource::CloseDB()
             CPL_IGNORE_RET_VAL( sqlite3_open( m_pszFilename, &hDB ) );
             if( hDB != nullptr )
             {
+#ifdef SQLITE_FCNTL_PERSIST_WAL
+                int nPersistentWAL = -1;
+                sqlite3_file_control(hDB, "main", SQLITE_FCNTL_PERSIST_WAL, &nPersistentWAL);
+                if( nPersistentWAL == 1 )
+                {
+                    nPersistentWAL = 0;
+                    if( sqlite3_file_control(hDB, "main", SQLITE_FCNTL_PERSIST_WAL, &nPersistentWAL) == SQLITE_OK )
+                    {
+                        CPLDebug("SQLITE", "Disabling persistent WAL succeeded");
+                    }
+                    else
+                    {
+                        CPLDebug("SQLITE", "Could not disable persistent WAL");
+                    }
+                }
+#endif
+
                 // Dummy request
                 int nRowCount = 0, nColCount = 0;
                 char** papszResult = nullptr;
@@ -779,6 +796,77 @@ int OGRSQLiteBaseDataSource::OpenOrCreateDB(int flagsIn, bool bRegisterOGR2SQLit
         return FALSE;
     }
 
+#ifdef SQLITE_DBCONFIG_DEFENSIVE
+    // SQLite builds on recent MacOS enable defensive mode by default, which
+    // causes issues in the VDV driver (when updating a deleted database),
+    // or in the GPKG driver (when modifying a CREATE TABLE DDL with writable_schema=ON)
+    // So disable it.
+    int bDefensiveOldValue = 0;
+    if( sqlite3_db_config(hDB, SQLITE_DBCONFIG_DEFENSIVE, -1, &bDefensiveOldValue) == SQLITE_OK &&
+        bDefensiveOldValue == 1 )
+    {
+        if( sqlite3_db_config(hDB, SQLITE_DBCONFIG_DEFENSIVE, 0, nullptr) == SQLITE_OK )
+        {
+            CPLDebug("SQLITE", "Disabling defensive mode succeeded");
+        }
+        else
+        {
+            CPLDebug("SQLITE", "Could not disable defensive mode");
+        }
+    }
+#endif
+
+#ifdef SQLITE_FCNTL_PERSIST_WAL
+    int nPersistentWAL = -1;
+    sqlite3_file_control(hDB, "main", SQLITE_FCNTL_PERSIST_WAL, &nPersistentWAL);
+    if( nPersistentWAL == 1 )
+    {
+        nPersistentWAL = 0;
+        if( sqlite3_file_control(hDB, "main", SQLITE_FCNTL_PERSIST_WAL, &nPersistentWAL) == SQLITE_OK )
+        {
+            CPLDebug("SQLITE", "Disabling persistent WAL succeeded");
+        }
+        else
+        {
+            CPLDebug("SQLITE", "Could not disable persistent WAL");
+        }
+    }
+#endif
+
+    const char* pszSqlitePragma =
+                            CPLGetConfigOption("OGR_SQLITE_PRAGMA", nullptr);
+    CPLString osJournalMode =
+                        CPLGetConfigOption("OGR_SQLITE_JOURNAL", "");
+
+    bool bPageSizeFound = false;
+    if (pszSqlitePragma != nullptr)
+    {
+        char** papszTokens = CSLTokenizeString2( pszSqlitePragma, ",",
+                                                 CSLT_HONOURSTRINGS );
+        for(int i=0; papszTokens[i] != nullptr; i++ )
+        {
+            if( STARTS_WITH_CI(papszTokens[i], "PAGE_SIZE") )
+                bPageSizeFound = true;
+            if( STARTS_WITH_CI(papszTokens[i], "JOURNAL_MODE") )
+            {
+                const char* pszEqual = strchr(papszTokens[i], '=');
+                if( pszEqual )
+                {
+                    osJournalMode = pszEqual + 1;
+                    osJournalMode.Trim();
+                    // Only apply journal_mode after changing page_size
+                    continue;
+                }
+            }
+
+            const char* pszSQL = CPLSPrintf("PRAGMA %s", papszTokens[i]);
+
+            CPL_IGNORE_RET_VAL(
+                sqlite3_exec( hDB, pszSQL, nullptr, nullptr, nullptr ) );
+        }
+        CSLDestroy(papszTokens);
+    }
+
     const char* pszVal = CPLGetConfigOption("SQLITE_BUSY_TIMEOUT", "5000");
     if ( pszVal != nullptr ) {
         sqlite3_busy_timeout(hDB, atoi(pszVal));
@@ -854,40 +942,6 @@ int OGRSQLiteBaseDataSource::OpenOrCreateDB(int flagsIn, bool bRegisterOGR2SQLit
                 return FALSE;
             }
         }
-    }
-
-    const char* pszSqlitePragma =
-                            CPLGetConfigOption("OGR_SQLITE_PRAGMA", nullptr);
-    CPLString osJournalMode =
-                        CPLGetConfigOption("OGR_SQLITE_JOURNAL", "");
-
-    bool bPageSizeFound = false;
-    if (pszSqlitePragma != nullptr)
-    {
-        char** papszTokens = CSLTokenizeString2( pszSqlitePragma, ",",
-                                                 CSLT_HONOURSTRINGS );
-        for(int i=0; papszTokens[i] != nullptr; i++ )
-        {
-            if( STARTS_WITH_CI(papszTokens[i], "PAGE_SIZE") )
-                bPageSizeFound = true;
-            if( STARTS_WITH_CI(papszTokens[i], "JOURNAL_MODE") )
-            {
-                const char* pszEqual = strchr(papszTokens[i], '=');
-                if( pszEqual )
-                {
-                    osJournalMode = pszEqual + 1;
-                    osJournalMode.Trim();
-                    // Only apply journal_mode after changing page_size
-                    continue;
-                }
-            }
-
-            const char* pszSQL = CPLSPrintf("PRAGMA %s", papszTokens[i]);
-
-            CPL_IGNORE_RET_VAL(
-                sqlite3_exec( hDB, pszSQL, nullptr, nullptr, nullptr ) );
-        }
-        CSLDestroy(papszTokens);
     }
 
     if( !bPageSizeFound && (flagsIn & SQLITE_OPEN_CREATE) != 0 )
@@ -2799,6 +2853,7 @@ OGRSQLiteDataSource::ICreateLayer( const char * pszLayerNameIn,
     else if( bDeferredSpatialIndexCreation )
         poLayer->SetDeferredSpatialIndexCreation( true );
     poLayer->SetCompressedColumns( CSLFetchNameValue(papszOptions,"COMPRESS_COLUMNS") );
+    poLayer->SetStrictFlag( CPLFetchBool(papszOptions, "STRICT", false) );
 
     CPLFree( pszLayerName );
 

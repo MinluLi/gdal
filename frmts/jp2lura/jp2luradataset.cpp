@@ -2691,3 +2691,4 @@ void GDALRegister_JP2Lura()
         GetGDALDriverManager()->RegisterDriver( poDriver );
     }
 }
+

@@ -877,19 +877,12 @@ dnl ---------------------------------------------------------------------------
 
 AC_ARG_WITH(rename_internal_libtiff_symbols,[  --with-rename-internal-libtiff-symbols[=ARG] Prefix internal libtiff symbols with gdal_ (ARG=yes/no)],,)
 
-if test "$HAVE_HIDE_INTERNAL_SYMBOLS" = "yes" ; then
-    with_rename_internal_libtiff_symbols=yes
-    if test "x$with_rename_internal_libtiff_symbols" = "x$no"; then
-        with_rename_internal_libtiff_symbols=no
-    fi
-else
-    with_rename_internal_libtiff_symbols=no
-    if test "x$with_rename_internal_libtiff_symbols" = "x$yes" -o "x$with_rename_internal_libtiff_symbols" = "x"; then
-        with_rename_internal_libtiff_symbols=yes
-    fi
+RENAME_INTERNAL_LIBTIFF_SYMBOLS=no
+if test "x$with_rename_internal_libtiff_symbols" = "xyes" -o "x$with_rename_internal_libtiff_symbols" = "x"; then
+  RENAME_INTERNAL_LIBTIFF_SYMBOLS=yes
 fi
 
-AC_SUBST(RENAME_INTERNAL_LIBTIFF_SYMBOLS,$with_rename_internal_libtiff_symbols)
+AC_SUBST(RENAME_INTERNAL_LIBTIFF_SYMBOLS,$RENAME_INTERNAL_LIBTIFF_SYMBOLS)
 
 dnl ---------------------------------------------------------------------------
 dnl Check if user requests renaming internal libgeotiff symbols
@@ -897,19 +890,12 @@ dnl ---------------------------------------------------------------------------
 
 AC_ARG_WITH(rename_internal_libgeotiff_symbols,[  --with-rename-internal-libgeotiff-symbols[=ARG] Prefix internal libgeotiff symbols with gdal_ (ARG=yes/no)],,)
 
-if test "$HAVE_HIDE_INTERNAL_SYMBOLS" = "yes" ; then
-    with_rename_internal_libgeotiff_symbols=yes
-    if test "x$with_rename_internal_libgeotiff_symbols" = "x$no"; then
-        with_rename_internal_libgeotiff_symbols=no
-    fi
-else
-    with_rename_internal_libgeotiff_symbols=no
-    if test "x$with_rename_internal_libgeotiff_symbols" = "x$yes" -o "x$with_rename_internal_libgeotiff_symbols" = "x"; then
-        with_rename_internal_libgeotiff_symbols=yes
-    fi
+RENAME_INTERNAL_LIBGEOTIFF_SYMBOLS=no
+if test "x$with_rename_internal_libgeotiff_symbols" = "xyes" -o "x$with_rename_internal_libgeotiff_symbols" = "x"; then
+   RENAME_INTERNAL_LIBGEOTIFF_SYMBOLS=yes
 fi
 
-AC_SUBST(RENAME_INTERNAL_LIBGEOTIFF_SYMBOLS,$with_rename_internal_libgeotiff_symbols)
+AC_SUBST(RENAME_INTERNAL_LIBGEOTIFF_SYMBOLS,$RENAME_INTERNAL_LIBGEOTIFF_SYMBOLS)
 
 dnl ---------------------------------------------------------------------------
 dnl Check if user requests renaming internal shapelib symbols
@@ -917,18 +903,11 @@ dnl ---------------------------------------------------------------------------
 
 AC_ARG_WITH(rename_internal_shapelib_symbols,[  --with-rename-internal-shapelib-symbols[=ARG] Prefix internal shapelib symbols with gdal_ (ARG=yes/no)],,)
 
-if test "$HAVE_HIDE_INTERNAL_SYMBOLS" = "yes" ; then
-    with_rename_internal_shapelib_symbols=yes
-    if test "x$with_rename_internal_shapelib_symbols" = "x$no"; then
-        with_rename_internal_shapelib_symbols=no
-    fi
-else
-    with_rename_internal_shapelib_symbols=no
-    if test "x$with_rename_internal_shapelib_symbols" = "x$yes" -o "x$with_rename_internal_shapelib_symbols" = "x"; then
-        with_rename_internal_shapelib_symbols=yes
-    fi
+RENAME_INTERNAL_SHAPELIB_SYMBOLS=no
+if test "x$with_rename_internal_shapelib_symbols" = "xyes" -o "x$with_rename_internal_shapelib_symbols" = "x"; then
+    RENAME_INTERNAL_SHAPELIB_SYMBOLS=yes
 fi
-AC_SUBST(RENAME_INTERNAL_SHAPELIB_SYMBOLS,$with_rename_internal_shapelib_symbols)
+AC_SUBST(RENAME_INTERNAL_SHAPELIB_SYMBOLS,$RENAME_INTERNAL_SHAPELIB_SYMBOLS)
 
 
 dnl ---------------------------------------------------------------------------
@@ -1322,8 +1301,18 @@ if test "$JPEG_SETTING" != "no" ; then
   OPT_GDAL_FORMATS="jpeg $OPT_GDAL_FORMATS"
 fi
 
+dnl ---------------------------------------------------------------------------
+dnl Check if user requests renaming internal libjpeg symbols
+dnl ---------------------------------------------------------------------------
 
+AC_ARG_WITH(rename_internal_libjpeg_symbols,[  --with-rename-internal-libjpeg-symbols[=ARG] Prefix internal libjpeg symbols with gdal_ (ARG=yes/no)],,)
 
+RENAME_INTERNAL_LIBJPEG_SYMBOLS=no
+if test "x$with_rename_internal_libjpeg_symbols" = "xyes" -o "x$with_rename_internal_libjpeg_symbols" = "x"; then
+    RENAME_INTERNAL_LIBJPEG_SYMBOLS=yes
+fi
+
+AC_SUBST(RENAME_INTERNAL_LIBJPEG_SYMBOLS,$RENAME_INTERNAL_LIBJPEG_SYMBOLS)
 
 dnl ---------------------------------------------------------------------------
 dnl Select a libtiff library to use.
@@ -4431,6 +4420,43 @@ AC_SUBST([HAVE_RASTERLITE2], $HAVE_RASTERLITE2)
 AC_SUBST([RASTERLITE2_CFLAGS], $RASTERLITE2_CFLAGS)
 
 dnl ---------------------------------------------------------------------------
+dnl Check for PCRE2.
+dnl ---------------------------------------------------------------------------
+
+HAVE_PCRE2=no
+
+AC_ARG_WITH(pcre2,
+    [  --with-pcre2             Include libpcre2 support (REGEXP support for SQLite)],
+    ,,)
+
+if test "$with_pcre2" = "no"; then
+    AC_MSG_RESULT(disabled)
+    HAVE_PCRE2=no
+else
+    save_CPPFLAGS="$CPPFLAGS"
+    CPPFLAGS="$CPPFLAGS -DPCRE2_CODE_UNIT_WIDTH=8"
+    AC_CHECK_HEADERS([pcre2.h])
+    CPPFLAGS="$save_CPPFLAGS"
+    if test "$ac_cv_header_pcre2_h" = "no" ; then
+        if test "$with_pcre2" = "yes"; then
+            AC_MSG_ERROR([cannot find pcre2.h])
+        fi
+    else
+        AC_CHECK_LIB(pcre2-8,pcre2_compile_8,HAVE_PCRE2=yes,HAVE_PCRE2=no,)
+        if test "$HAVE_PCRE2" = "yes" ; then
+            HAVE_PCRE2=yes
+            LIBS="$LIBS -lpcre2-8"
+        else
+            if test "$with_pcre2" = "yes"; then
+                AC_MSG_ERROR([cannot find libpcre2])
+            fi
+        fi
+    fi
+fi
+
+AC_SUBST(HAVE_PCRE2)
+
+dnl ---------------------------------------------------------------------------
 dnl Check for PCRE.
 dnl ---------------------------------------------------------------------------
 
@@ -4443,7 +4469,7 @@ AC_ARG_WITH(pcre,
 if test "$with_pcre" = "no"; then
     AC_MSG_RESULT(disabled)
     HAVE_PCRE=no
-else
+elif test "$HAVE_PCRE2" = "no"; then
     AC_CHECK_HEADERS([pcre.h])
     if test "$ac_cv_header_pcre_h" = "no" ; then
         if test "$with_pcre" = "yes"; then
@@ -6251,6 +6277,7 @@ LOC_MSG([  OpenJPEG support:          ${HAVE_OPENJPEG}])
 LOC_MSG([  PCIDSK support:            ${PCIDSK_SETTING}])
 LOC_MSG([  PCRaster support:          ${PCRASTER_SETTING}])
 LOC_MSG([  PCRE support:              ${HAVE_PCRE}])
+LOC_MSG([  PCRE2 support:             ${HAVE_PCRE2}])
 LOC_MSG([  PDFium support:            ${HAVE_PDFIUM}])
 LOC_MSG([  Podofo support:            ${HAVE_PODOFO}])
 LOC_MSG([  Poppler support:           ${HAVE_POPPLER}])

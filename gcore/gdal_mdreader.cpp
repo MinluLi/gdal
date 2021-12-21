@@ -44,6 +44,7 @@
 #include "cpl_error.h"
 #include "cpl_minixml.h"
 #include "cpl_string.h"
+#include "cpl_time.h"
 #include "cpl_vsi.h"
 #include "cplkeywordparser.h"
 #include "gdal_priv.h"
@@ -269,7 +270,7 @@ void GDALMDReaderBase::LoadMetadata()
 /**
  * GetAcqisitionTimeFromString()
  */
-time_t GDALMDReaderBase::GetAcquisitionTimeFromString(
+GIntBig GDALMDReaderBase::GetAcquisitionTimeFromString(
     const char* pszDateTime)
 {
     if(nullptr == pszDateTime)
@@ -297,7 +298,7 @@ time_t GDALMDReaderBase::GetAcquisitionTimeFromString(
     tmDateTime.tm_year = iYear - 1900;
     tmDateTime.tm_isdst = -1;
 
-    return mktime(&tmDateTime);
+    return CPLYMDHMSToUnixTime(&tmDateTime);
 }
 
 /**

@@ -575,6 +575,7 @@ static int CPLGettimeofday(struct CPLTimeVal* tp, void* /* timezonep*/ )
 #  define  CPLGettimeofday(t,u) gettimeofday(t,u)
 #endif
 
+
 /************************************************************************/
 /*                              CPLDebug()                              */
 /************************************************************************/
@@ -656,7 +657,7 @@ void CPLDebug( const char * pszCategory,
         struct CPLTimeVal tv;
         CPLGettimeofday(&tv, nullptr);
         strcpy( pszMessage, "[" );
-        strcat( pszMessage, VSICTime( static_cast<unsigned long>(tv.tv_sec), tv.tv_usec ) );
+        strcat( pszMessage, VSICTime( static_cast<unsigned long>(tv.tv_sec) ) );
 
         // On windows anyway, ctime puts a \n at the end, but I'm not
         // convinced this is standard behavior, so we'll get rid of it
@@ -668,7 +669,10 @@ void CPLDebug( const char * pszCategory,
         }
         CPLsnprintf(pszMessage+strlen(pszMessage),
                     ERROR_MAX - strlen(pszMessage),
-                    "]: ");
+                    "].%04d, %03.04f: ",
+                    static_cast<int>(tv.tv_usec / 100),
+                    tv.tv_sec + tv.tv_usec * 1e-6 -
+                        (tvStart.tv_sec + tvStart.tv_usec * 1e-6));
     }
 #endif
 

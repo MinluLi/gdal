@@ -322,6 +322,7 @@ if (GDAL_USE_LIBGEOTIFF_INTERNAL)
   add_subdirectory(frmts/gtiff/libgeotiff)
 endif ()
 if (GDAL_USE_LIBJPEG_INTERNAL)
+  option(RENAME_INTERNAL_LIBJPEG_SYMBOLS "Rename internal libjpeg symbols" ON)
   add_subdirectory(frmts/jpeg/libjpeg)
 endif ()
 option(GDAL_JPEG12_SUPPORTED "Set ON to use libjpeg12 support" ON)
@@ -597,10 +598,13 @@ system_summary(DESCRIPTION "GDAL is now configured on;")
 
 # Do not warn about Shapelib being an optional package not found, as we
 # don't recommend using it
+# Mono/DotNetFrameworkSdk is also an internal detail of CSharp that we don't want to report
 get_property(_packages_not_found GLOBAL PROPERTY PACKAGES_NOT_FOUND)
 set(_new_packages_not_found)
 foreach(_package IN LISTS _packages_not_found)
-    if(NOT ${_package} STREQUAL "Shapelib")
+    if(NOT ${_package} STREQUAL "Shapelib" AND
+       NOT ${_package} STREQUAL "Mono" AND
+       NOT ${_package} STREQUAL "DotNetFrameworkSdk")
         set(_new_packages_not_found ${_new_packages_not_found} "${_package}")
     endif()
 endforeach()

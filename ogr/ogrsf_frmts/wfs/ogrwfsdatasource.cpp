@@ -664,7 +664,14 @@ bool OGRWFSDataSource::DetectSupportPagingWFS2( CPLXMLNode* psRoot )
             {
                 int nVal = atoi(CPLGetXMLValue(psChild, "DefaultValue", "0"));
                 if( nVal > 0 )
+                {
                     nPageSize = nVal;
+                    const int nPageSizeURL = atoi(CPLURLGetValue(osBaseURL, "COUNT"));
+                    if( nPageSizeURL > 0 && nPageSizeURL < nPageSize )
+                    {
+                        nPageSize = nPageSizeURL;
+                    }
+                }
 
                 break;
             }
@@ -2032,9 +2039,7 @@ CPLString WFS_DecodeURL(const CPLString &osSrc)
             ret+=osSrc[i];
         }
     }
-
-	CPLString oRecode = CPLRecode(ret.c_str(), CPL_ENC_LOCALE, CPL_ENC_UTF8);
-    return (oRecode);
+    return ret;
 }
 
 /************************************************************************/

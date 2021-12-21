@@ -1297,19 +1297,12 @@ unsigned long VSITime( unsigned long * pnTimeToSet )
 /*                              VSICTime()                              */
 /************************************************************************/
 
-const char *VSICTime( unsigned long nTime , long nUsec )
+const char *VSICTime( unsigned long nTime )
 
 {
     time_t tTime = static_cast<time_t>(nTime);
 
-    struct tm* tmp = localtime(&tTime);
-    static char result[28];
-    sprintf(result, "%d-%.2d-%.2d %.2d:%.2d:%.2d.%06d",
-        1900 + tmp->tm_year, tmp->tm_mon + 1, tmp->tm_mday,
-        tmp->tm_hour, tmp->tm_min, tmp->tm_sec,
-        static_cast<int>(nUsec));
-
-    return reinterpret_cast<const char *>(result);
+    return reinterpret_cast<const char *>(ctime( &tTime ));
 }
 
 /************************************************************************/

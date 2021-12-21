@@ -292,7 +292,7 @@ JXLPreDecode(TIFF* tif, uint16_t s)
             return 0;
         }
 
-        JxlPixelFormat format = {};
+        JxlPixelFormat format = {0};
         format.num_channels = td->td_planarconfig == PLANARCONFIG_CONTIG ?
                                                     td->td_samplesperpixel : 1;
         format.data_type = jxlDataType;
@@ -484,12 +484,12 @@ JXLPostEncode(TIFF* tif)
             return 0;
         }
 
-        JxlPixelFormat format = {};
+        JxlPixelFormat format = {0};
         format.data_type = GetJXLDataType(tif);
         format.endianness = JXL_NATIVE_ENDIAN;
         format.align = 0;
 
-        JxlBasicInfo basic_info = {};
+        JxlBasicInfo basic_info = {0};
         JxlEncoderInitBasicInfo(&basic_info);
         basic_info.xsize = sp->segment_width;
         basic_info.ysize = sp->segment_height;
@@ -557,10 +557,10 @@ JXLPostEncode(TIFF* tif)
                 return 0;
             }
         }
-        if( JxlEncoderOptionsSetInteger(opts, JXL_ENC_OPTION_EFFORT, sp->effort) != JXL_ENC_SUCCESS )
+        if( JxlEncoderFrameSettingsSetOption(opts, JXL_ENC_FRAME_SETTING_EFFORT, sp->effort) != JXL_ENC_SUCCESS )
         {
             TIFFErrorExt(tif->tif_clientdata, module,
-                         "JxlEncoderOptionsSetEffort() failed");
+                         "JxlEncoderFrameSettingsSetOption() failed");
             JxlEncoderDestroy(enc);
             return 0;
         }
@@ -574,7 +574,7 @@ JXLPostEncode(TIFF* tif)
             return 0;
         }
 
-        JxlColorEncoding color_encoding = {};
+        JxlColorEncoding color_encoding = {0};
         JxlColorEncodingSetToSRGB(&color_encoding, /*is_gray*/
             (td->td_planarconfig==PLANARCONFIG_SEPARATE ||
             td->td_samplesperpixel <= 2));
@@ -738,6 +738,7 @@ int TIFFInitJXL(TIFF* tif, int scheme)
         static const char module[] = "TIFFInitJXL";
         JXLState* sp;
 
+        (void)scheme;
         assert( scheme == COMPRESSION_JXL );
 
         /*
